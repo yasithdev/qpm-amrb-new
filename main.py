@@ -1,4 +1,3 @@
-import os
 import sys
 
 import torch.backends.cuda
@@ -6,8 +5,9 @@ import torch.backends.cuda
 import torch.nn.functional
 import torch.optim as optim
 import torch.utils.data
-from tqdm import tqdm
+from einops import rearrange
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 import normalizing_flows as nf
 from datasets import load_mnist
@@ -20,15 +20,17 @@ tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file':
 def proj(
   z: torch.Tensor
 ) -> torch.Tensor:
-  (zu, zv) = torch.split(z, (K, D - K), dim=-1)
+  z = rearrange(z, 'b c h w -> b (c h w)')
+  zu, zv = z[:, :manifold_dims], z[:, manifold_dims:]
   return zu
 
 
 def pad(
   zu: torch.Tensor
 ) -> torch.Tensor:
-  z_pad = torch.constant_pad_nd(zu, (0, D - K))
-  return z_pad
+  z_pad = torch.constant_pad_nd(zu, (0, total_dims - manifold_dims))
+  z = rearrange(z_pad, 'b (c h w) -> b c h w', c=model_C, h=model_H, w=model_W)
+  return z
 
 
 def train(nn: FlowTransform,
@@ -50,25 +52,25 @@ def train(nn: FlowTransform,
   x: torch.Tensor
   y: torch.Tensor
   for batch_idx, (x, y) in enumerate(iterable):
-    # flatten
-    x = torch.reshape(x, (x.size(0), -1)).to(device)
+    # reshape
+    x = patched_img(x.to(device))
 
     # forward pass
-    z, fwd_log_det = nn.to(device).forward(x)
+    z, fwd_log_det = nn.forward(x)
     zu = proj(z)
     z_pad = pad(zu)
-    x_r, inv_log_det = nn.to(device).inverse(z_pad)
+    x_r, inv_log_det = nn.inverse(z_pad)
 
     # calculate loss
     minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
-
-    # accumulate sum loss
-    sum_loss += torch.nn.functional.mse_loss(x_r, x, reduction='sum').item()
 
     # backward pass
     optimizer.zero_grad()
     minibatch_loss.backward()
     optimizer.step()
+
+    # accumulate sum loss
+    sum_loss += minibatch_loss.item() * batch_size
 
     # logging
     stats = {'Loss(mb)': f'{minibatch_loss.item():.4f}'}
@@ -105,8 +107,8 @@ def test(nn: FlowTransform,
     x: torch.Tensor
     y: torch.Tensor
     for x, y in iterable:
-      # flatten
-      x = torch.reshape(x, (x.size(0), -1)).to(device)
+      # reshape
+      x = patched_img(x.to(device))
 
       # forward pass
       z, fwd_log_det = nn.forward(x)
@@ -114,11 +116,16 @@ def test(nn: FlowTransform,
       z_pad = pad(zu)
       x_r, inv_log_det = nn.inverse(z_pad)
 
+      # calculate loss
+      minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
+
       # accumulate sum loss
-      sum_loss += torch.nn.functional.mse_loss(x_r, x, reduction='sum').item()
+      sum_loss += minibatch_loss.item() * batch_size
+
+      # plot first item of img_count batches
       if current_plot < img_count:
-        ax[current_plot, 0].imshow(x[0].reshape(W, H, -1))
-        ax[current_plot, 1].imshow(x_r[0].reshape(W, H, -1))
+        ax[current_plot, 0].imshow(unpatch_img(x)[0, 0])
+        ax[current_plot, 1].imshow(unpatch_img(x_r)[0, 0])
         current_plot += 1
       # pred = output.data.max(1, keepdim=True)[1]
       # correct += pred.eq(target.data.view_as(pred)).sum()
@@ -133,16 +140,29 @@ def test(nn: FlowTransform,
   plt.close()
 
 
+def patched_img(x: torch.Tensor) -> torch.Tensor:
+  patched = rearrange(x, 'b c (h pH) (w pW) -> b (pH pW c) h w', pH=patch_H, pW=patch_W)
+  return patched
+
+
+def unpatch_img(x: torch.Tensor) -> torch.Tensor:
+  unpatched = rearrange(x, 'b (pH pW c) h w -> b c (h pH) (w pW)', pH=patch_H, pW=patch_W)
+  return unpatched
+
+
 if __name__ == '__main__':
 
+  # data config
+  img_C, img_H, img_W = (1, 28, 28)
+  total_dims = img_C * img_H * img_W
+
   # model config
-  W = 28
-  H = 28
-  D = W * H
-  K = 10
-  B = 32
+  patch_H, patch_W = (4, 4)
+  model_C, model_H, model_W = (img_C * patch_H * patch_W), (img_H // patch_H), (img_W // patch_W)
+  manifold_dims = 1 * model_H * model_W
 
   # training config
+  batch_size = 32
   learning_rate = 1e-2
   momentum = 0.2
   n_epochs = 100
@@ -156,24 +176,27 @@ if __name__ == '__main__':
   print(f"Using device: {device}")
 
   # data loaders
-  train_loader, test_loader = load_mnist(B, B)
+  train_loader, test_loader = load_mnist(batch_size_train=batch_size, batch_size_test=batch_size)
 
   # create flow (pending)
-  base_dist = torch.distributions.MultivariateNormal(torch.zeros(D), torch.eye(D))
+  base_dist = torch.distributions.MultivariateNormal(torch.zeros(manifold_dims), torch.eye(manifold_dims))
+
+  mdl_C_half = model_C // 2
   model = nf.SquareNormalizingFlow([
     nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2),
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2)
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
     ),
     nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2),
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2)
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
     ),
     nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2),
-      nf.CouplingNetwork(in_dim=D // 2, hidden_dim=D, num_hidden=2, out_dim=D // 2)
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
+      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
     )
   ])
+
   optimizer = optim.SGD(
     params=model.parameters(),
     lr=learning_rate,
