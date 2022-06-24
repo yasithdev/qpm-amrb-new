@@ -1,119 +1,105 @@
-import sys
+import os
 
-import torch.backends.cuda
-# import torch.backends.mps
 import torch.nn.functional
-import torch.optim as optim
+import torch.optim
 import torch.utils.data
-from einops import rearrange
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import normalizing_flows as nf
+from config import *
 from datasets import load_mnist
 from normalizing_flows.transforms.flow_transform import FlowTransform
-from normalizing_flows.util import set_requires_grad
-
-tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
-
-
-def proj(
-  z: torch.Tensor
-) -> torch.Tensor:
-  z = rearrange(z, 'b c h w -> b (c h w)')
-  zu, zv = z[:, :manifold_dims], z[:, manifold_dims:]
-  return zu
+from normalizing_flows.util import proj, pad
+from util import gen_patches_from_img, gen_img_from_patches, set_requires_grad, get_best_device
 
 
-def pad(
-  zu: torch.Tensor
-) -> torch.Tensor:
-  z_pad = torch.constant_pad_nd(zu, (0, total_dims - manifold_dims))
-  z = rearrange(z_pad, 'b (c h w) -> b c h w', c=model_C, h=model_H, w=model_W)
-  return z
-
-
-def train(nn: FlowTransform,
-          epoch: int,
-          loader: torch.utils.data.DataLoader,
-          out_path: str
-          ) -> None:
+def train_encoder(nn: FlowTransform,
+                  epoch: int,
+                  loader: torch.utils.data.DataLoader,
+                  save_path: str,
+                  dry_run: bool = False,
+                  ) -> None:
+  # initialize loop
   nn = nn.to(device)
   nn.train()
-  set_requires_grad(model, True)
-
-  # noinspection PyTypeChecker
   size = len(loader.dataset)
-
   sum_loss = 0
 
   # training
-  iterable = tqdm(loader, desc=f'[TRN] Epoch {epoch}', **tqdm_args)
-  x: torch.Tensor
-  y: torch.Tensor
-  for batch_idx, (x, y) in enumerate(iterable):
-    # reshape
-    x = patched_img(x.to(device))
+  set_requires_grad(nn, True)
+  with torch.enable_grad():
+    iterable = tqdm(loader, desc=f'[TRN] Epoch {epoch}', **tqdm_args)
+    x: torch.Tensor
+    y: torch.Tensor
+    for batch_idx, (x, y) in enumerate(iterable):
+      # reshape
+      x = gen_patches_from_img(x.to(device), patch_h=patch_H, patch_w=patch_W)
 
-    # forward pass
-    z, fwd_log_det = nn.forward(x)
-    zu = proj(z)
-    z_pad = pad(zu)
-    x_r, inv_log_det = nn.inverse(z_pad)
+      # forward pass
+      z, fwd_log_det = nn.forward(x)
+      zu = proj(z, manifold_dims=manifold_dims)
+      z_pad = pad(zu, off_manifold_dims=(total_dims - manifold_dims), chw=(model_C, model_H, model_W))
+      x_r, inv_log_det = nn.inverse(z_pad)
 
-    # calculate loss
-    minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
+      # calculate loss
+      minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
 
-    # backward pass
-    optimizer.zero_grad()
-    minibatch_loss.backward()
-    optimizer.step()
+      # backward pass
+      optim.zero_grad()
+      minibatch_loss.backward()
+      optim.step()
 
-    # accumulate sum loss
-    sum_loss += minibatch_loss.item() * batch_size
+      # accumulate sum loss
+      sum_loss += minibatch_loss.item() * batch_size
 
-    # logging
-    stats = {'Loss(mb)': f'{minibatch_loss.item():.4f}'}
-    iterable.set_postfix(stats)
-    train_losses.append(minibatch_loss.item())
+      # logging
+      stats = {'Loss(mb)': f'{minibatch_loss.item():.4f}'}
+      iterable.set_postfix(stats)
 
   # post-training
-  torch.save(nn.state_dict(), f'{out_path}/model.pth')
-  torch.save(optimizer.state_dict(), f'{out_path}/optimizer.pth')
   avg_loss = sum_loss / size
   tqdm.write(f'[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}')
+  train_losses.append(avg_loss)
+
+  # save model/optimizer states
+  if not dry_run:
+    torch.save(nn.state_dict(), f'{save_path}/model.pth')
+    torch.save(optim.state_dict(), f'{save_path}/optim.pth')
+  print()
 
 
-def test(nn: FlowTransform,
-         epoch: int,
-         loader: torch.utils.data.DataLoader
-         ) -> None:
+def test_encoder(nn: FlowTransform,
+                 epoch: int,
+                 loader: torch.utils.data.DataLoader,
+                 vis_path: str,
+                 dry_run: bool = False,
+                 ) -> None:
+  # initialize loop
   nn = nn.to(device)
   nn.eval()
-  set_requires_grad(model, False)
-
-  # noinspection PyTypeChecker
   size = len(loader.dataset)
-
   sum_loss = 0
-  correct = 0
 
+  # initialize plot(s)
   img_count = 5
   fig, ax = plt.subplots(img_count, 2)
   current_plot = 0
 
+  # testing
+  set_requires_grad(nn, False)
   with torch.no_grad():
     iterable = tqdm(loader, desc=f'[TST] Epoch {epoch}', **tqdm_args)
     x: torch.Tensor
     y: torch.Tensor
     for x, y in iterable:
       # reshape
-      x = patched_img(x.to(device))
+      x = gen_patches_from_img(x.to(device), patch_h=patch_H, patch_w=patch_W)
 
       # forward pass
       z, fwd_log_det = nn.forward(x)
-      zu = proj(z)
-      z_pad = pad(zu)
+      zu = proj(z, manifold_dims=manifold_dims)
+      z_pad = pad(zu, off_manifold_dims=(total_dims - manifold_dims), chw=(model_C, model_H, model_W))
       x_r, inv_log_det = nn.inverse(z_pad)
 
       # calculate loss
@@ -122,57 +108,32 @@ def test(nn: FlowTransform,
       # accumulate sum loss
       sum_loss += minibatch_loss.item() * batch_size
 
-      # plot first item of img_count batches
+      # logging
+      stats = {'Loss(mb)': f'{minibatch_loss.item():.4f}'}
+      iterable.set_postfix(stats)
+
+      # accumulate plots
       if current_plot < img_count:
-        ax[current_plot, 0].imshow(unpatch_img(x)[0, 0])
-        ax[current_plot, 1].imshow(unpatch_img(x_r)[0, 0])
+        ax[current_plot, 0].imshow(gen_img_from_patches(x, patch_h=patch_H, patch_w=patch_W)[0, 0])
+        ax[current_plot, 1].imshow(gen_img_from_patches(x_r, patch_h=patch_H, patch_w=patch_W)[0, 0])
         current_plot += 1
-      # pred = output.data.max(1, keepdim=True)[1]
-      # correct += pred.eq(target.data.view_as(pred)).sum()
 
   # post-testing
   avg_loss = sum_loss / size
-  avg_acc = 100. * correct / size
   test_losses.append(avg_loss)
-  tqdm.write(f'[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Accuracy: {correct}/{size} ({avg_acc:.0f}%)')
+  tqdm.write(f'[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}')
 
-  plt.savefig(f"results/epoch_{epoch}.png")
+  # save generated plot
+  if not dry_run:
+    plt.savefig(f"{vis_path}/epoch_{epoch}.png")
   plt.close()
-
-
-def patched_img(x: torch.Tensor) -> torch.Tensor:
-  patched = rearrange(x, 'b c (h pH) (w pW) -> b (pH pW c) h w', pH=patch_H, pW=patch_W)
-  return patched
-
-
-def unpatch_img(x: torch.Tensor) -> torch.Tensor:
-  unpatched = rearrange(x, 'b (pH pW c) h w -> b c (h pH) (w pW)', pH=patch_H, pW=patch_W)
-  return unpatched
+  print()
 
 
 if __name__ == '__main__':
 
-  # data config
-  img_C, img_H, img_W = (1, 28, 28)
-  total_dims = img_C * img_H * img_W
-
-  # model config
-  patch_H, patch_W = (4, 4)
-  model_C, model_H, model_W = (img_C * patch_H * patch_W), (img_H // patch_H), (img_W // patch_W)
-  manifold_dims = 1 * model_H * model_W
-
-  # training config
-  batch_size = 32
-  learning_rate = 1e-2
-  momentum = 0.2
-  n_epochs = 100
-
-  if torch.cuda.is_available():
-    device = "cuda"
-  # elif torch.backends.mps.is_available():
-  #   device = "mps"
-  else:
-    device = "cpu"
+  # set up device
+  device = get_best_device()
   print(f"Using device: {device}")
 
   # data loaders
@@ -181,35 +142,41 @@ if __name__ == '__main__':
   # create flow (pending)
   base_dist = torch.distributions.MultivariateNormal(torch.zeros(manifold_dims), torch.eye(manifold_dims))
 
-  mdl_C_half = model_C // 2
-  model = nf.SquareNormalizingFlow([
-    nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
-    ),
-    nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
-    ),
-    nf.AffineCouplingTransform(
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half),
-      nf.CouplingNetwork(in_channels=mdl_C_half, hidden_channels=mdl_C_half, num_hidden=1, out_channels=mdl_C_half)
-    )
+  # set up model and optimizer
+  model = nf.SquareNormalizingFlow(transforms=[
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C),
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C),
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C),
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C),
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C),
+    nf.AffineCoupling(nf.CouplingNetwork(in_channels=model_C // 2, hidden_channels=model_C // 2, num_hidden=1, out_channels=model_C // 2)),
+    nf.Conv1x1(num_channels=model_C)
   ])
-
-  optimizer = optim.SGD(
+  optim = torch.optim.Adam(
     params=model.parameters(),
-    lr=learning_rate,
-    momentum=momentum
+    lr=learning_rate
   )
 
+  # list to store train / test losses
   train_losses = []
   test_losses = []
 
-  test(model, 0, test_loader)
+  # load saved model and optimizer, if present
+  model_state_path = f"{saved_models_path}/model.pth"
+  if os.path.exists(model_state_path):
+    model.load_state_dict(torch.load(model_state_path))
+  optim_state_path = f"{saved_models_path}/optim.pth"
+  if os.path.exists(optim_state_path):
+    optim.load_state_dict(torch.load(optim_state_path))
 
+  # run train / test loops
+  is_emulation = True
+  test_encoder(model, 0, test_loader, vis_path, dry_run=is_emulation)
   for current_epoch in range(1, n_epochs + 1):
-    print()
-    train(model, current_epoch, train_loader, 'results')
-    print()
-    test(model, current_epoch, test_loader)
+    train_encoder(model, current_epoch, train_loader, saved_models_path, dry_run=is_emulation)
+    test_encoder(model, current_epoch, test_loader, vis_path, dry_run=is_emulation)
