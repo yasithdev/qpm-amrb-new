@@ -21,6 +21,7 @@ n_epochs = 100
 # paths
 saved_models_path = "saved_models"
 vis_path = "vis"
+data_root = "~/Documents/datasets"
 
 # runtime
 dry_run = True

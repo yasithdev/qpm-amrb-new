@@ -8,9 +8,10 @@ import torchvision
 
 def load(
   batch_size_train: int,
-  batch_size_test: int
+  batch_size_test: int,
+  data_root: str,
+
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
-  mnist_root = "~/Documents/data_loaders"
   mnist_transform = torchvision.transforms.Compose(
     [
       torchvision.transforms.ToTensor(),
@@ -21,7 +22,7 @@ def load(
   # load MNIST data
   train_loader = torch.utils.data.DataLoader(
     dataset=torchvision.datasets.MNIST(
-      root=mnist_root, train=True, download=True, transform=mnist_transform
+      root=data_root, train=True, download=True, transform=mnist_transform
     ),
     batch_size=batch_size_train,
     shuffle=True,
@@ -29,7 +30,7 @@ def load(
 
   test_loader = torch.utils.data.DataLoader(
     dataset=torchvision.datasets.MNIST(
-      root=mnist_root, train=False, download=True, transform=mnist_transform
+      root=data_root, train=False, download=True, transform=mnist_transform
     ),
     batch_size=batch_size_test,
     shuffle=True,

@@ -137,7 +137,7 @@ if __name__ == '__main__':
   print(f"Using device: {device}")
 
   # data loaders
-  train_loader, test_loader = load_mnist(batch_size_train=config.batch_size, batch_size_test=config.batch_size)
+  train_loader, test_loader = load_mnist(batch_size_train=config.batch_size, batch_size_test=config.batch_size, data_root=config.data_root)
 
   # create flow (pending)
   base_dist = torch.distributions.MultivariateNormal(torch.zeros(config.manifold_dims), torch.eye(config.manifold_dims))
@@ -169,7 +169,7 @@ if __name__ == '__main__':
 
   # set up optimizer
   optim_config = {
-    'param': model.parameters(),
+    'params': model.parameters(),
     'lr': config.learning_rate
   }
   optim = torch.optim.Adam(**optim_config)
@@ -182,11 +182,14 @@ if __name__ == '__main__':
   model_state_path = f"{config.saved_models_path}/model.pth"
   if os.path.exists(model_state_path):
     model.load_state_dict(torch.load(model_state_path))
+    print('Loaded saved model state from:', model_state_path)
   optim_state_path = f"{config.saved_models_path}/optim.pth"
   if os.path.exists(optim_state_path):
     optim.load_state_dict(torch.load(optim_state_path))
+    print('Loaded saved optim state from:', optim_state_path)
 
   # run train / test loops
+  print('\nStarted Train/Test')
   test_encoder(model, 0, test_loader, config.vis_path, dry_run=config.dry_run)
   for current_epoch in range(1, config.n_epochs + 1):
     train_encoder(model, current_epoch, train_loader, config.saved_models_path, dry_run=config.dry_run)
