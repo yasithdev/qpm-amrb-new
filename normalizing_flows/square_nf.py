@@ -23,7 +23,7 @@ class SquareNormalizingFlow(FlowTransform):
     # initialize h=x
     h = x
     # initialize det=1 => log_det=0
-    fwd_log_det = torch.zeros(h.size(0)).to(h.device)
+    fwd_log_det = torch.zeros(h.size(0), device=x.device)
     # iterate in order
     transform: FlowTransform
     for transform in self.transforms:
@@ -39,7 +39,7 @@ class SquareNormalizingFlow(FlowTransform):
     # initialize h=z
     h = z
     # initialize det=1 => log_det=0
-    inv_log_det = torch.zeros(h.size(0)).to(h.device)
+    inv_log_det = torch.zeros(h.size(0), device=z.device)
     # iterate in reverse
     for transform in reversed(self.transforms):
       h, h_log_det = transform.inverse(h)

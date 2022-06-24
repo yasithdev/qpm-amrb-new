@@ -33,3 +33,11 @@ class FlowTransform(torch.nn.Module):
     :return: Tuple [Transformed Tensor, Determinant of Jacobian]
     """
     raise NotImplementedError()
+
+  # --------------------------------------------------------------------------------------------------------------------------------------------------
+
+  def jacobian(
+    self,
+    z: torch.Tensor
+  ) -> torch.Tensor:
+    raise NotImplementedError()

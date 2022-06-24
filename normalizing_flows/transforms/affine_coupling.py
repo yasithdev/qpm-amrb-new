@@ -34,7 +34,7 @@ class AffineCouplingTransform(FlowTransform):
     self,
     x: torch.Tensor,
   ) -> Tuple[torch.Tensor, torch.Tensor]:
-    log_det = torch.zeros(x.size(0))
+    log_det = torch.zeros(x.size(0), device=x.device)
     # split
     x1, x2 = torch.chunk(x, 2, dim=-1)
     # coupling
@@ -61,7 +61,7 @@ class AffineCouplingTransform(FlowTransform):
     self,
     z: torch.Tensor,
   ) -> Tuple[torch.Tensor, torch.Tensor]:
-    inv_log_det = torch.zeros(z.size(0))
+    inv_log_det = torch.zeros(z.size(0), device=z.device)
     # split
     z1, z2 = torch.chunk(z, 2, dim=-1)
     # inverse coupling
@@ -79,3 +79,10 @@ class AffineCouplingTransform(FlowTransform):
     return x, -inv_log_det
 
   # --------------------------------------------------------------------------------------------------------------------------------------------------
+
+  def jacobian(
+    self,
+    z: torch.Tensor,
+  ) -> torch.Tensor:
+    pass
+
