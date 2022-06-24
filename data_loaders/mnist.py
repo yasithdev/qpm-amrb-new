@@ -4,11 +4,13 @@ import torch.utils.data
 import torchvision
 
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
 def load(
   batch_size_train: int,
   batch_size_test: int
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
-  mnist_root = "~/Documents/datasets"
+  mnist_root = "~/Documents/data_loaders"
   mnist_transform = torchvision.transforms.Compose(
     [
       torchvision.transforms.ToTensor(),
@@ -34,3 +36,5 @@ def load(
   )
 
   return train_loader, test_loader
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------

@@ -21,3 +21,6 @@ n_epochs = 100
 # paths
 saved_models_path = "saved_models"
 vis_path = "vis"
+
+# runtime
+dry_run = True

@@ -39,3 +39,5 @@ class CouplingNetwork(torch.nn.Module):
     st = self.output(st)
     (s, t) = torch.chunk(st, self.num_params, dim=1)
     return s, torch.squeeze(t)
+
+  # --------------------------------------------------------------------------------------------------------------------------------------------------

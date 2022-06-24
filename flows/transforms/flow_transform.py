@@ -4,6 +4,10 @@ import torch.nn
 
 
 class FlowTransform(torch.nn.Module):
+  """
+  Base Class for Flow Transforms.
+  It provides forward() and inverse() directives to implement bijections
+  """
 
   # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -35,9 +39,3 @@ class FlowTransform(torch.nn.Module):
     raise NotImplementedError()
 
   # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-  def jacobian(
-    self,
-    z: torch.Tensor
-  ) -> torch.Tensor:
-    raise NotImplementedError()

@@ -3,7 +3,7 @@ from typing import List, Tuple
 import torch
 import torch.distributions
 
-from .transforms.flow_transform import FlowTransform
+from .transforms import FlowTransform
 
 
 class SquareNormalizingFlow(FlowTransform):
