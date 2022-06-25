@@ -6,9 +6,9 @@ import torch.utils.data
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-import config
 import dflows as nf
 import dflows.transforms as nft
+from config import Config
 from dflows.data_loaders import load_mnist
 from dflows.flow_util import proj, pad
 from dflows.img_util import gen_patches_from_img, gen_img_from_patches
@@ -132,6 +132,9 @@ def test_encoder(nn: nft.FlowTransform,
 
 
 if __name__ == '__main__':
+
+  # set up config
+  config = Config()
 
   # set up device
   device = get_best_device()
