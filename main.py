@@ -7,11 +7,12 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 import config
-import flows as nf
-import flows.transforms as nft
-from data_loaders import load_mnist
-from flows.util import proj, pad
-from util import gen_patches_from_img, gen_img_from_patches, set_requires_grad, get_best_device
+import dflows as nf
+import dflows.transforms as nft
+from dflows.data_loaders import load_mnist
+from dflows.flow_util import proj, pad
+from dflows.img_util import gen_patches_from_img, gen_img_from_patches
+from dflows.nn_util import set_requires_grad, get_best_device
 
 
 def train_encoder(nn: nft.FlowTransform,
