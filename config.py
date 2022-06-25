@@ -1,5 +1,7 @@
 import sys
 
+from dflows.nn_util import get_best_device
+
 
 class Config:
   # tqdm config
@@ -27,3 +29,5 @@ class Config:
 
   # runtime
   dry_run = False
+
+  device = get_best_device()

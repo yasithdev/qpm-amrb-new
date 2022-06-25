@@ -12,7 +12,7 @@ from config import Config
 from dflows.data_loaders import load_mnist
 from dflows.flow_util import proj, pad
 from dflows.img_util import gen_patches_from_img, gen_img_from_patches
-from dflows.nn_util import set_requires_grad, get_best_device
+from dflows.nn_util import set_requires_grad
 
 
 def train_encoder(nn: nft.FlowTransform,
@@ -22,7 +22,7 @@ def train_encoder(nn: nft.FlowTransform,
                   dry_run: bool = False,
                   ) -> None:
   # initialize loop
-  nn = nn.to(device)
+  nn = nn.to(config.device)
   nn.train()
   size = len(loader.dataset)
   sum_loss = 0
@@ -35,7 +35,7 @@ def train_encoder(nn: nft.FlowTransform,
     y: torch.Tensor
     for batch_idx, (x, y) in enumerate(iterable):
       # reshape
-      x = gen_patches_from_img(x.to(device), patch_h=config.patch_H, patch_w=config.patch_W)
+      x = gen_patches_from_img(x.to(config.device), patch_h=config.patch_H, patch_w=config.patch_W)
 
       # forward pass
       z, fwd_log_det = nn.forward(x)
@@ -77,7 +77,7 @@ def test_encoder(nn: nft.FlowTransform,
                  dry_run: bool = False,
                  ) -> None:
   # initialize loop
-  nn = nn.to(device)
+  nn = nn.to(config.device)
   nn.eval()
   size = len(loader.dataset)
   sum_loss = 0
@@ -95,7 +95,7 @@ def test_encoder(nn: nft.FlowTransform,
     y: torch.Tensor
     for x, y in iterable:
       # reshape
-      x = gen_patches_from_img(x.to(device), patch_h=config.patch_H, patch_w=config.patch_W)
+      x = gen_patches_from_img(x.to(config.device), patch_h=config.patch_H, patch_w=config.patch_W)
 
       # forward pass
       z, fwd_log_det = nn.forward(x)
@@ -135,10 +135,7 @@ if __name__ == '__main__':
 
   # set up config
   config = Config()
-
-  # set up device
-  device = get_best_device()
-  print(f"Using device: {device}")
+  print(f"Using device: {config.device}")
 
   # data loaders
   train_loader, test_loader = load_mnist(batch_size_train=config.batch_size, batch_size_test=config.batch_size, data_root=config.data_root)

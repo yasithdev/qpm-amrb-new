@@ -3,6 +3,7 @@ import torch
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
+
 def set_requires_grad(
   module: torch.nn.Module,
   flag: bool
@@ -20,24 +21,20 @@ def set_requires_grad(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 def get_best_device():
+  import torch
+
+  # check for cuda
+  if torch.cuda.is_available():
+    return "cuda"
+
   # check for mps
   try:
     import torch.backends.mps
-    mps_available = torch.backends.mps.is_available()
+    if torch.backends.mps.is_available():
+      return "mps"
   except ModuleNotFoundError:
-    mps_available = False
+    pass
 
-  # check for cuda
-  try:
-    import torch.backends.mps
-    cuda_available = torch.cuda.is_available()
-  except ModuleNotFoundError:
-    cuda_available = False
-
-  if cuda_available:
-    return "cuda"
-  elif mps_available:
-    return "mps"
   return "cpu"
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
