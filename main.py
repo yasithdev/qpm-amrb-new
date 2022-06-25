@@ -115,8 +115,8 @@ def test_encoder(nn: nft.FlowTransform,
 
       # accumulate plots
       if current_plot < img_count:
-        ax[current_plot, 0].imshow(gen_img_from_patches(x, patch_h=config.patch_H, patch_w=config.patch_W)[0, 0])
-        ax[current_plot, 1].imshow(gen_img_from_patches(x_r, patch_h=config.patch_H, patch_w=config.patch_W)[0, 0])
+        ax[current_plot, 0].imshow(gen_img_from_patches(x, patch_h=config.patch_H, patch_w=config.patch_W).to("cpu")[0, 0])
+        ax[current_plot, 1].imshow(gen_img_from_patches(x_r, patch_h=config.patch_H, patch_w=config.patch_W).to("cpu")[0, 0])
         current_plot += 1
 
   # post-testing
