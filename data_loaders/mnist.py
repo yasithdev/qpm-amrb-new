@@ -3,8 +3,11 @@ from typing import Tuple
 import torch.utils.data
 import torchvision
 
+from .util import AddGaussianNoise
+
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 def load(
   batch_size_train: int,
@@ -15,7 +18,8 @@ def load(
   mnist_transform = torchvision.transforms.Compose(
     [
       torchvision.transforms.ToTensor(),
-      torchvision.transforms.Normalize((0.1307,), (0.3081,)),
+      # torchvision.transforms.Normalize((0.1307,), (0.3081,)), # removed for comparison with SOTA
+      AddGaussianNoise(mean=0., std=.1)
     ]
   )
 

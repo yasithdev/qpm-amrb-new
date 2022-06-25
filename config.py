@@ -24,4 +24,4 @@ vis_path = "vis"
 data_root = "~/Documents/datasets"
 
 # runtime
-dry_run = True
+dry_run = False

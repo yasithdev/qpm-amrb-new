@@ -144,21 +144,14 @@ if __name__ == '__main__':
 
   # set up model
   coupling_network_config = {
-    'in_channels': config.model_C // 2,
-    'hidden_channels': config.model_C // 2,
-    'out_channels': config.model_C // 2,
-    'num_hidden': 1
+    'num_channels': config.model_C // 2,
+    'num_hidden_channels': config.model_C,
+    'num_hidden_layers': 1
   }
   conv1x1_config = {
     'num_channels': config.model_C
   }
   model = nf.SquareNormalizingFlow(transforms=[
-    nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
-    nft.Conv1x1(**conv1x1_config),
-    nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
-    nft.Conv1x1(**conv1x1_config),
-    nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
-    nft.Conv1x1(**conv1x1_config),
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
     nft.Conv1x1(**conv1x1_config),
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),

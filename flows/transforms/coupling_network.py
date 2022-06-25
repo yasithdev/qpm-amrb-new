@@ -9,21 +9,20 @@ class CouplingNetwork(torch.nn.Module):
 
   # --------------------------------------------------------------------------------------------------------------------------------------------------
 
-  def __init__(self, in_channels: int, hidden_channels: int, num_hidden: int, out_channels: int, num_params: int = 2):
+  def __init__(self, num_channels: int, num_hidden_channels: int, num_hidden_layers: int, num_params: int = 2):
     """
 
-    :param in_channels: Input shape
-    :param out_channels: Output shape
-    :param num_hidden: Number of hidden layers
-    :param hidden_channels: Features in each hidden layer
+    :param num_channels: Channel size of input / output layers
+    :param num_hidden_channels: Channel size of each hidden layer
+    :param num_hidden_layers: Number of hidden layers
     :param num_params: Parameters to return (default: 2)
     """
     super().__init__()
     self.num_params = num_params
-    self.out_dim = out_channels
-    self.input = torch.nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding='same')
-    self.hidden = torch.nn.ModuleList([torch.nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding='same') for _ in range(num_hidden)])
-    self.output = torch.nn.Conv2d(hidden_channels, out_channels * num_params, kernel_size=3, padding='same')
+    self.input = torch.nn.Conv2d(num_channels, num_hidden_channels, kernel_size=3, padding='same')
+    self.hidden = torch.nn.ModuleList(
+      [torch.nn.Conv2d(num_hidden_channels, num_hidden_channels, kernel_size=3, padding='same') for _ in range(num_hidden_layers)])
+    self.output = torch.nn.Conv2d(num_hidden_channels, num_channels * num_params, kernel_size=3, padding='same')
 
   # --------------------------------------------------------------------------------------------------------------------------------------------------
 
