@@ -48,7 +48,7 @@ class Conv1x1(FlowTransform):
   ) -> Tuple[torch.Tensor, torch.Tensor]:
     # inverse convolution
     ldj = torch.slogdet(self.weight)[1] * z.size(2) * z.size(3)
-    weight = torch.inverse(self.weight.double()).float()
+    weight = torch.inverse(self.weight)
     weight = weight.view(self.num_channels, self.num_channels, 1, 1)
     x = torch.nn.functional.conv2d(z, weight)
 

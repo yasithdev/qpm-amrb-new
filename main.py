@@ -15,12 +15,12 @@ from dflows.img_util import gen_patches_from_img, gen_img_from_patches
 from dflows.nn_util import set_requires_grad
 
 
-def train_encoder(nn: nft.FlowTransform,
-                  epoch: int,
-                  loader: torch.utils.data.DataLoader,
-                  save_path: str,
-                  dry_run: bool = False,
-                  ) -> None:
+def train_model(nn: nft.FlowTransform,
+                epoch: int,
+                loader: torch.utils.data.DataLoader,
+                save_path: str,
+                dry_run: bool = False,
+                ) -> None:
   # initialize loop
   nn = nn.to(config.device)
   nn.train()
@@ -70,12 +70,12 @@ def train_encoder(nn: nft.FlowTransform,
   print()
 
 
-def test_encoder(nn: nft.FlowTransform,
-                 epoch: int,
-                 loader: torch.utils.data.DataLoader,
-                 vis_path: str,
-                 dry_run: bool = False,
-                 ) -> None:
+def test_model(nn: nft.FlowTransform,
+               epoch: int,
+               loader: torch.utils.data.DataLoader,
+               vis_path: str,
+               dry_run: bool = False,
+               ) -> None:
   # initialize loop
   nn = nn.to(config.device)
   nn.eval()
@@ -152,7 +152,7 @@ if __name__ == '__main__':
   conv1x1_config = {
     'num_channels': config.model_C
   }
-  model = nf.SquareNormalizingFlow(transforms=[
+  ambient_model = nf.SquareNormalizingFlow(transforms=[
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
     nft.Conv1x1(**conv1x1_config),
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
@@ -163,7 +163,7 @@ if __name__ == '__main__':
 
   # set up optimizer
   optim_config = {
-    'params': model.parameters(),
+    'params': ambient_model.parameters(),
     'lr': config.learning_rate
   }
   optim = torch.optim.Adam(**optim_config)
@@ -175,7 +175,7 @@ if __name__ == '__main__':
   # load saved model and optimizer, if present
   model_state_path = f"{config.saved_models_path}/model.pth"
   if os.path.exists(model_state_path):
-    model.load_state_dict(torch.load(model_state_path, map_location=config.device))
+    ambient_model.load_state_dict(torch.load(model_state_path, map_location=config.device))
     print('Loaded saved model state from:', model_state_path)
   optim_state_path = f"{config.saved_models_path}/optim.pth"
   if os.path.exists(optim_state_path):
@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
   # run train / test loops
   print('\nStarted Train/Test')
-  test_encoder(model, 0, test_loader, config.vis_path, dry_run=config.dry_run)
+  test_model(ambient_model, 0, test_loader, config.vis_path, dry_run=config.dry_run)
   for current_epoch in range(1, config.n_epochs + 1):
-    train_encoder(model, current_epoch, train_loader, config.saved_models_path, dry_run=config.dry_run)
-    test_encoder(model, current_epoch, test_loader, config.vis_path, dry_run=config.dry_run)
+    train_model(ambient_model, current_epoch, train_loader, config.saved_models_path, dry_run=config.dry_run)
+    test_model(ambient_model, current_epoch, test_loader, config.vis_path, dry_run=config.dry_run)
