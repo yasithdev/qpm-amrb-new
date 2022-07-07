@@ -38,7 +38,7 @@ def augment_data(source_images: np.array, target_count: int):
   return target_images
 
 
-def run_prep(dataset_id: str):
+def prep_amrb(dataset_id: str, data_dir: str):
   print(f"Loading data for {dataset_id}")
   dataset = np.load(os.path.join(data_dir, f"{dataset_id}.accepted.npz"))
   split_fraction = 0.8
@@ -51,7 +51,7 @@ def run_prep(dataset_id: str):
   print("Performing filtering + train/test split")
   for target in tqdm(targets, **config.tqdm_args):
     images = dataset[target].astype(np.float32)
-    num_pre_cleanup_images = images.shape[0]
+    # num_pre_cleanup_images = images.shape[0]
 
     # remove outliers
     images = images[np.min(images, axis=(1, 2)) >= 0]
@@ -117,6 +117,6 @@ def run_prep(dataset_id: str):
 
 if __name__ == '__main__':
   config = Config()
-  data_dir = os.path.join(os.path.expanduser(config.data_root), "AMRB")
-  run_prep("D1")
-  run_prep("D2")
+  DATA_DIR = os.path.join(os.path.expanduser(config.data_root), "AMRB")
+  prep_amrb("D1", DATA_DIR)
+  prep_amrb("D2", DATA_DIR)

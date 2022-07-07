@@ -13,17 +13,17 @@ class AMRB(torchvision.datasets.VisionDataset):
   def __init__(self,
                root: str,
                train: bool,
-               prefix="D2",
+               version: int,
                transforms: Optional[Callable] = None,
                transform: Optional[Callable] = None,
                target_transform: Optional[Callable] = None,
                ) -> None:
     super().__init__(root, transforms, transform, target_transform)
     self.train = train
-    self.prefix = prefix
+    self.version = version
     mode = "trn" if self.train else "tst"
-    self.x_path = os.path.join(self.root, "AMRB", f"{self.prefix}.{mode}_x.npy")
-    self.y_path = os.path.join(self.root, "AMRB", f"{self.prefix}.{mode}_y.npy")
+    self.x_path = os.path.join(self.root, "AMRB", f"D{self.version}.{mode}_x.npy")
+    self.y_path = os.path.join(self.root, "AMRB", f"D{self.version}.{mode}_y.npy")
 
     self.data_x = np.load(self.x_path)
     self.data_y = np.load(self.y_path)
@@ -53,6 +53,7 @@ def load(
   batch_size_train: int,
   batch_size_test: int,
   data_root: str,
+  version: int = 1,
 
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
   transform = torchvision.transforms.Compose(
@@ -67,6 +68,7 @@ def load(
     dataset=AMRB(
       root=data_root,
       train=True,
+      version=version,
       transform=transform
     ),
     batch_size=batch_size_train,
@@ -76,6 +78,7 @@ def load(
     dataset=AMRB(
       root=data_root,
       train=False,
+      version=version,
       transform=transform
     ),
     batch_size=batch_size_test,
