@@ -88,4 +88,24 @@ def load(
 
   return train_loader, test_loader
 
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+def load_v1(
+  batch_size_train: int,
+  batch_size_test: int,
+  data_root: str,
+) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+  return load(batch_size_train, batch_size_test, data_root, version=1)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+def load_v2(
+  batch_size_train: int,
+  batch_size_test: int,
+  data_root: str,
+) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+  return load(batch_size_train, batch_size_test, data_root, version=2)
+
 # --------------------------------------------------------------------------------------------------------------------------------------------------
