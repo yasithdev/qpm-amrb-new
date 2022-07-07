@@ -48,6 +48,9 @@ class Config:
     self.data_root = os.path.expanduser("~/Documents/datasets")
     self.data_dir = os.path.join(self.data_root, self.dataset)
 
+    os.makedirs(self.model_path, exist_ok=True)
+    os.makedirs(self.vis_path, exist_ok=True)
+
     # runtime
     self.dry_run = False
     self.device = get_best_device()
