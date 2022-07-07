@@ -174,14 +174,15 @@ if __name__ == '__main__':
   test_losses = []
 
   # load saved model and optimizer, if present
-  model_state_path = f"{config.model_path}/model.pth"
-  if os.path.exists(model_state_path):
-    ambient_model.load_state_dict(torch.load(model_state_path, map_location=config.device))
-    print('Loaded saved model state from:', model_state_path)
-  optim_state_path = f"{config.model_path}/optim.pth"
-  if os.path.exists(optim_state_path):
-    optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
-    print('Loaded saved optim state from:', optim_state_path)
+  if config.load_saved_params:
+    model_state_path = f"{config.model_path}/model.pth"
+    if os.path.exists(model_state_path):
+      ambient_model.load_state_dict(torch.load(model_state_path, map_location=config.device))
+      print('Loaded saved model state from:', model_state_path)
+    optim_state_path = f"{config.model_path}/optim.pth"
+    if os.path.exists(optim_state_path):
+      optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
+      print('Loaded saved optim state from:', optim_state_path)
 
   # run train / test loops
   print('\nStarted Train/Test')
