@@ -22,8 +22,8 @@ class AMRB(torchvision.datasets.VisionDataset):
     self.train = train
     self.version = version
     mode = "trn" if self.train else "tst"
-    self.x_path = os.path.join(self.root, "AMRB", f"D{self.version}.{mode}_x.npy")
-    self.y_path = os.path.join(self.root, "AMRB", f"D{self.version}.{mode}_y.npy")
+    self.x_path = os.path.join(self.root, f"AMRB_V{self.version}", f"{mode}_x.npy")
+    self.y_path = os.path.join(self.root, f"AMRB_V{self.version}", f"{mode}_y.npy")
 
     self.data_x = np.load(self.x_path)
     self.data_y = np.load(self.y_path)

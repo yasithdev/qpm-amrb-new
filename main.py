@@ -174,11 +174,11 @@ if __name__ == '__main__':
   test_losses = []
 
   # load saved model and optimizer, if present
-  model_state_path = f"{config.saved_models_path}/model.pth"
+  model_state_path = f"{config.model_path}/model.pth"
   if os.path.exists(model_state_path):
     ambient_model.load_state_dict(torch.load(model_state_path, map_location=config.device))
     print('Loaded saved model state from:', model_state_path)
-  optim_state_path = f"{config.saved_models_path}/optim.pth"
+  optim_state_path = f"{config.model_path}/optim.pth"
   if os.path.exists(optim_state_path):
     optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
     print('Loaded saved optim state from:', optim_state_path)
@@ -187,5 +187,5 @@ if __name__ == '__main__':
   print('\nStarted Train/Test')
   test_model(ambient_model, 0, test_loader, config.vis_path, dry_run=config.dry_run)
   for current_epoch in range(1, config.n_epochs + 1):
-    train_model(ambient_model, current_epoch, train_loader, config.saved_models_path, dry_run=config.dry_run)
+    train_model(ambient_model, current_epoch, train_loader, config.model_path, dry_run=config.dry_run)
     test_model(ambient_model, current_epoch, test_loader, config.vis_path, dry_run=config.dry_run)

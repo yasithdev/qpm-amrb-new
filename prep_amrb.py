@@ -38,9 +38,9 @@ def augment_data(source_images: np.array, target_count: int):
   return target_images
 
 
-def prep_amrb(dataset_id: str, data_dir: str):
-  print(f"Loading data for {dataset_id}")
-  dataset = np.load(os.path.join(data_dir, f"{dataset_id}.accepted.npz"))
+def prep_amrb(config: Config):
+  print(f"Loading data for {config.dataset}")
+  dataset = np.load(os.path.join(config.data_dir, "raw.npz"))
   split_fraction = 0.8
 
   targets = sorted(dataset.keys())
@@ -104,19 +104,19 @@ def prep_amrb(dataset_id: str, data_dir: str):
   px = 'n l h w -> (n l) h w 1'
   py = 'n l 1 -> (n l)'
   jobs = [
-    (X_TRAIN, px, f"{dataset_id}.trn_x.npy"),
-    (Y_TRAIN, py, f"{dataset_id}.trn_y.npy"),
-    (X_TEST, px, f"{dataset_id}.tst_x.npy"),
-    (Y_TEST, py, f"{dataset_id}.tst_y.npy")
+    (X_TRAIN, px, "trn_x.npy"),
+    (Y_TRAIN, py, "trn_y.npy"),
+    (X_TEST, px, "tst_x.npy"),
+    (Y_TEST, py, "tst_y.npy")
   ]
   for (d, p, fp) in tqdm(jobs, **config.tqdm_args):
     d = np.stack(d, axis=1)
     d = einops.rearrange(d, p)
-    np.save(os.path.join(data_dir, fp), d)
+    np.save(os.path.join(config.data_dir, fp), d)
 
 
 if __name__ == '__main__':
-  config = Config()
-  DATA_DIR = os.path.join(os.path.expanduser(config.data_root), "AMRB")
-  prep_amrb("D1", DATA_DIR)
-  prep_amrb("D2", DATA_DIR)
+  amrb_v1_config = Config("AMRB_V1")
+  prep_amrb(amrb_v1_config)
+  amrb_v2_config = Config("AMRB_V2")
+  prep_amrb(amrb_v2_config)
