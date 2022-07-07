@@ -8,7 +8,7 @@ class Config:
   tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
 
   # data config
-  img_C, img_H, img_W = (1, 28, 28)
+  img_C, img_H, img_W = (1, 40, 40)
   total_dims = img_C * img_H * img_W
 
   # model config
@@ -17,9 +17,9 @@ class Config:
   manifold_dims = 1 * model_H * model_W
 
   # training config
-  batch_size = 32
-  learning_rate = 1e-4
-  momentum = 0.2
+  batch_size = 64
+  learning_rate = 1e-5
+  momentum = 0.5
   n_epochs = 100
 
   # paths

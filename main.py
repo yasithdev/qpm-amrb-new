@@ -9,7 +9,7 @@ from tqdm import tqdm
 import dflows as nf
 import dflows.transforms as nft
 from config import Config
-from dflows.data_loaders import load_mnist
+from dflows.data_loaders import load_amrb
 from dflows.flow_util import proj, pad
 from dflows.img_util import gen_patches_from_img, gen_img_from_patches
 from dflows.nn_util import set_requires_grad
@@ -33,7 +33,7 @@ def train_model(nn: nft.FlowTransform,
     iterable = tqdm(loader, desc=f'[TRN] Epoch {epoch}', **config.tqdm_args)
     x: torch.Tensor
     y: torch.Tensor
-    for batch_idx, (x, y) in enumerate(iterable):
+    for x, y in iterable:
       # reshape
       x = gen_patches_from_img(x.to(config.device), patch_h=config.patch_H, patch_w=config.patch_W)
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
   print(f"Using device: {config.device}")
 
   # data loaders
-  train_loader, test_loader = load_mnist(batch_size_train=config.batch_size, batch_size_test=config.batch_size, data_root=config.data_root)
+  train_loader, test_loader = load_amrb(batch_size_train=config.batch_size, batch_size_test=config.batch_size, data_root=config.data_root)
 
   # create flow (pending)
   base_dist = torch.distributions.MultivariateNormal(torch.zeros(config.manifold_dims), torch.eye(config.manifold_dims))
@@ -153,6 +153,8 @@ if __name__ == '__main__':
     'num_channels': config.model_C
   }
   ambient_model = nf.SquareNormalizingFlow(transforms=[
+    nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
+    nft.Conv1x1(**conv1x1_config),
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
     nft.Conv1x1(**conv1x1_config),
     nft.AffineCoupling(nft.CouplingNetwork(**coupling_network_config)),
