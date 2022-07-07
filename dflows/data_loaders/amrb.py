@@ -72,6 +72,7 @@ def load(
       transform=transform
     ),
     batch_size=batch_size_train,
+    shuffle=True
   )
 
   test_loader = torch.utils.data.DataLoader(
@@ -82,6 +83,7 @@ def load(
       transform=transform
     ),
     batch_size=batch_size_test,
+    shuffle=True
   )
 
   return train_loader, test_loader
