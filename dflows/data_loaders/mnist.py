@@ -18,7 +18,7 @@ def load(
   transform = torchvision.transforms.Compose(
     [
       torchvision.transforms.ToTensor(),
-      AddGaussianNoise(mean=0., std=.1)
+      AddGaussianNoise(mean=0., std=.01)
     ]
   )
 
