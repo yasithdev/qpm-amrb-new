@@ -13,7 +13,7 @@ def load(
   batch_size_train: int,
   batch_size_test: int,
   data_root: str,
-
+  ood_mode: bool,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
   transform = torchvision.transforms.Compose(
     [

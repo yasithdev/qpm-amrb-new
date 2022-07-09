@@ -137,7 +137,13 @@ if __name__ == '__main__':
   print(f"Using device: {config.device}")
 
   # data loaders
-  train_loader, test_loader = config.data_loader(batch_size_train=config.batch_size, batch_size_test=config.batch_size, data_root=config.data_root)
+  data_loader_config = {
+    'batch_size_train': config.batch_size,
+    'batch_size_test': config.batch_size,
+    'data_root': config.data_root,
+    'ood_mode': config.ood_mode,
+  }
+  train_loader, test_loader = config.data_loader(**data_loader_config)
 
   # create flow (pending)
   base_dist = torch.distributions.MultivariateNormal(torch.zeros(config.manifold_dims), torch.eye(config.manifold_dims))

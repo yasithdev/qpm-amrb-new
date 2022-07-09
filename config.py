@@ -54,4 +54,5 @@ class Config:
     # runtime
     self.dry_run = False
     self.load_saved_params = False
+    self.ood_mode = False
     self.device = get_best_device()
