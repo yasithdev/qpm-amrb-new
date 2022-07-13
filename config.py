@@ -56,3 +56,13 @@ class Config:
     self.load_saved_params = False
     self.ood_mode = False
     self.device = get_best_device()
+
+    # network configuration
+    self.coupling_network = {
+      'num_channels': self.model_C // 2,
+      'num_hidden_channels': self.model_C,
+      'num_hidden_layers': 1
+    }
+    self.conv1x1 = {
+      'num_channels': self.model_C
+    }
