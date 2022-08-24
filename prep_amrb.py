@@ -40,7 +40,7 @@ def augment_data(source_images: np.array, target_count: int):
 
 def prep_amrb(config: Config):
   print(f"Loading data for {config.dataset}")
-  dataset = np.load(os.path.join(config.data_dir, "raw.npz"))
+  dataset = np.load(os.path.join(config.data_dir, "accepted.npz"))
   split_fraction = 0.8
 
   targets = sorted(dataset.keys())
@@ -119,7 +119,7 @@ def prep_amrb(config: Config):
 
 
 if __name__ == '__main__':
-  amrb_v1_config = Config("AMRB_V1")
+  amrb_v1_config = Config("AMRB_1")
   prep_amrb(amrb_v1_config)
-  amrb_v2_config = Config("AMRB_V2")
+  amrb_v2_config = Config("AMRB_2")
   prep_amrb(amrb_v2_config)

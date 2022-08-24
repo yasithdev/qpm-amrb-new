@@ -66,7 +66,6 @@ def plot_stats(
   cnum_vals = stats[f"{label}_cnum_vals"]
   bbox_vals = stats[f"{label}_bbox_vals"]
 
-  hist_x, hist_y = np.unique(bbox_vals, return_counts=True)
   # set up a (2 x 10) plot for W samples + their contour maps
   w = 8
   h = 6
@@ -75,7 +74,15 @@ def plot_stats(
   # create summary title
   plt.title(f"{label} : Invalid ({num_invalid}), Accepted ({num_accepted}/{num_oversize_acc}), Rejected ({num_rejected}/{num_oversize_rej})")
 
-  plt.bar(hist_x, hist_y)
+  # find unique cnum_vals
+  cnum_uniq = np.unique(cnum_vals)
+
+  for cnum in cnum_uniq:
+    cond = cnum_vals == cnum
+    hist_x, hist_y = np.unique(bbox_vals[cond], return_counts=True)
+    plt.bar(hist_x, hist_y, label=f"Contours: {cnum}")
+
+  plt.legend()
   plt.ylabel("Count")
   plt.xlabel("Contour Size")
   plt.axvline(l, color='red')

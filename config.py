@@ -21,14 +21,14 @@ class Config:
     if self.dataset == "MNIST":
       self.data_loader = load_mnist
       self.img_C, self.img_H, self.img_W = (1, 28, 28)
-    elif self.dataset == "AMRB_V1":
+    elif self.dataset == "AMRB_1":
       self.data_loader = load_amrb_v1
       self.img_C, self.img_H, self.img_W = (1, 40, 40)
-    elif self.dataset == "AMRB_V2":
+    elif self.dataset == "AMRB_2":
       self.data_loader = load_amrb_v2
       self.img_C, self.img_H, self.img_W = (1, 40, 40)
     else:
-      raise ValueError("Only MNIST, AMRB_V1, and AMRB_V2 datasets are supported")
+      raise ValueError("Only MNIST, AMRB_1, and AMRB_2 datasets are supported")
     self.total_dims = self.img_C * self.img_H * self.img_W
 
     # model config

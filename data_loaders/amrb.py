@@ -25,8 +25,8 @@ class AMRB(torchvision.datasets.VisionDataset):
     assert version in [1, 2], "Unknown AMRB version: should be 1 or 2"
 
     mode = "trn" if self.train else "tst"
-    self.x_path = os.path.join(self.root, f"AMRB_V{self.version}", f"{mode}_x.npy")
-    self.y_path = os.path.join(self.root, f"AMRB_V{self.version}", f"{mode}_y.npy")
+    self.x_path = os.path.join(self.root, f"AMRB_{self.version}", f"{mode}_x.npy")
+    self.y_path = os.path.join(self.root, f"AMRB_{self.version}", f"{mode}_y.npy")
 
     self.ood_mode = ood_mode
     if version == 1:

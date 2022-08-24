@@ -10,7 +10,7 @@ from loops import test_model, train_model
 if __name__ == '__main__':
 
   # set up config
-  config = Config("MNIST")
+  config = Config("AMRB_1")
   print(f"Using device: {config.device}")
 
   train_loader, test_loader = config.data_loader(**config.data_loader_config)
