@@ -10,7 +10,7 @@ class Config:
   def __init__(self, dataset: str):
 
     from dflows.nn_util import get_best_device
-    from dflows.data_loaders import load_mnist, load_amrb_v1, load_amrb_v2
+    from data_loaders import load_mnist, load_amrb_v1, load_amrb_v2
 
     # tqdm config
     self.dataset = dataset
@@ -58,11 +58,19 @@ class Config:
     self.device = get_best_device()
 
     # network configuration
-    self.coupling_network = {
+    self.coupling_network_config = {
       'num_channels': self.model_C // 2,
       'num_hidden_channels': self.model_C,
       'num_hidden_layers': 1
     }
-    self.conv1x1 = {
+    self.conv1x1_config = {
       'num_channels': self.model_C
+    }
+
+    # data loader configuration
+    self.data_loader_config = {
+      'batch_size_train': self.batch_size,
+      'batch_size_test': self.batch_size,
+      'data_root': self.data_root,
+      'ood_mode': self.ood_mode,
     }

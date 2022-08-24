@@ -5,7 +5,7 @@ import numpy as np
 import torch.utils.data
 import torchvision
 
-from dflows.data_loaders.util import AddGaussianNoise
+from data_loaders.util import AddGaussianNoise
 
 
 class AMRB(torchvision.datasets.VisionDataset):

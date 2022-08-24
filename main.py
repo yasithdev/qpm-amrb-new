@@ -13,27 +13,20 @@ if __name__ == '__main__':
   config = Config("MNIST")
   print(f"Using device: {config.device}")
 
-  # data loaders
-  data_loader_config = {
-    'batch_size_train': config.batch_size,
-    'batch_size_test': config.batch_size,
-    'data_root': config.data_root,
-    'ood_mode': config.ood_mode,
-  }
-  train_loader, test_loader = config.data_loader(**data_loader_config)
+  train_loader, test_loader = config.data_loader(**config.data_loader_config)
 
   # create flow (pending)
   base_dist = torch.distributions.MultivariateNormal(torch.zeros(config.manifold_dims), torch.eye(config.manifold_dims))
 
   ambient_model = nf.SquareNormalizingFlow(transforms=[
-    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network)),
-    nft.Conv1x1(**config.conv1x1),
-    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network)),
-    nft.Conv1x1(**config.conv1x1),
-    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network)),
-    nft.Conv1x1(**config.conv1x1),
-    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network)),
-    nft.Conv1x1(**config.conv1x1),
+    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
+    nft.Conv1x1(**config.conv1x1_config),
+    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
+    nft.Conv1x1(**config.conv1x1_config),
+    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
+    nft.Conv1x1(**config.conv1x1_config),
+    nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
+    nft.Conv1x1(**config.conv1x1_config),
   ])
 
   # set up optimizer
