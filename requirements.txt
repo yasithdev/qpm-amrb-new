@@ -8,3 +8,4 @@ scipy~=1.9.0
 progress~=1.6
 opencv-python~=4.6.0.66
 python-dotenv~=0.20.0
+umap-learn~=0.5.3
