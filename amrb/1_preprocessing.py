@@ -113,9 +113,6 @@ def find_contours(
 
 
 def main():
-  load_dotenv()
-
-  tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
 
   data_dir = os.getenv("DATA_DIR")
   print(f"DATA_DIR={data_dir}")
@@ -123,27 +120,25 @@ def main():
   dataset_name = os.getenv("DS_NAME")
   print(f"DS_NAME={dataset_name}")
 
-  dataset_path = os.path.join(data_dir, dataset_name)
-  print(f"(Dataset Path)={dataset_path}")
-
   experiment_dir = os.getenv("EXPERIMENT_DIR")
   print(f"EXPERIMENT_DIR={experiment_dir}")
-
-  experiment_name = os.getenv("EXPERIMENT_NAME")
-  print(f"EXPERIMENT_NAME={experiment_name}")
-
-  experiment_path = os.path.join(experiment_dir, experiment_name)
-  print(f"(Experiment Path)={experiment_path}")
 
   img_l = int(os.getenv("L"))
   print(f"L={img_l}")
 
-  print(f"Reading info.json")
+  dataset_path = os.path.join(data_dir, dataset_name)
+  print(f"\n(Dataset Path)={dataset_path}")
+  
+  experiment_name = "1_preprocessing"
+  print(f"\n(Experiment Name)={experiment_name}")
+
+  experiment_path = os.path.join(experiment_dir, experiment_name, dataset_name)
+  print(f"(Experiment Path)={experiment_path}")
+
+  print(f"\nReading info.json")
   with open(os.path.join(dataset_path, "info.json"), "r") as f:
     dataset_info = json.load(f)
 
-  # initialize the RNG deterministically
-  np.random.seed(42)
   print("\nGenerating Dataset:", dataset_name)
 
   # LOGIC ============================================================================
@@ -251,18 +246,13 @@ def main():
     ds_stats[f"{label}_bbox_vals"] = np.array(bbox_vals)
 
     # print stats
-    print(
-      "\n ✔ Single:",
-      num_accepted,
-      "\n × Single (Oversize):",
-      num_oversize_acc,
-      "\n × Multi:",
-      num_rejected,
-      "\n × Multi (Oversize):",
-      num_oversize_rej,
-      "\n × None:",
-      num_invalid,
-    )
+    print({
+      "✔ cnum_y_size_y": num_accepted,
+      "x cnum_y_size_n": num_oversize_acc,
+      "x cnum_n_size_y": num_rejected,
+      "x cnum_n_size_n": num_oversize_rej,
+      "x cnum_0": num_invalid,
+    })
 
     # update categorized dataset
     ds_imag_accepted[label] = imag_accepted
@@ -292,4 +282,12 @@ def main():
 
 
 if __name__ == "__main__":
+
+  # initialize the RNG deterministically
+  np.random.seed(42)
+
+  load_dotenv()
+
+  tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
+
   main()

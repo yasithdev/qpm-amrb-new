@@ -92,9 +92,6 @@ def plot_stats(
 
 
 def main():
-  load_dotenv()
-
-  tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
 
   data_dir = os.getenv("DATA_DIR")
   print(f"DATA_DIR={data_dir}")
@@ -102,30 +99,33 @@ def main():
   dataset_name = os.getenv("DS_NAME")
   print(f"DS_NAME={dataset_name}")
 
-  dataset_path = os.path.join(data_dir, dataset_name)
-  print(f"(Dataset Path)={dataset_path}")
-
   experiment_dir = os.getenv("EXPERIMENT_DIR")
   print(f"EXPERIMENT_DIR={experiment_dir}")
-
-  experiment_name = os.getenv("EXPERIMENT_NAME")
-  print(f"EXPERIMENT_NAME={experiment_name}")
-
-  experiment_path = os.path.join(experiment_dir, experiment_name)
-  print(f"(Experiment Path)={experiment_path}")
 
   img_l = int(os.getenv("L"))
   print(f"L={img_l}")
 
-  print(f"Reading info.json")
+  dataset_path = os.path.join(data_dir, dataset_name)
+  print(f"\n(Dataset Path)={dataset_path}")
+
+  data_source_experiment_path = os.path.join(experiment_dir, "1_preprocessing", dataset_name)
+  print(f"(Data Source Experiment Path)={data_source_experiment_path}")
+
+  experiment_name = "2_preprocessing_vis"
+  print(f"\n(Experiment Name)={experiment_name}")
+
+  experiment_path = os.path.join(experiment_dir, experiment_name, dataset_name)
+  print(f"(Experiment Path)={experiment_path}")
+
+  print(f"\nReading info.json")
   with open(os.path.join(dataset_path, "info.json"), "r") as f:
     labels = sorted(json.load(f)["data"])
 
-  ds_imag_accepted_path = os.path.join(experiment_path, f"accepted.imag.npz")
-  ds_mask_accepted_path = os.path.join(experiment_path, f"accepted.mask.npz")
-  ds_imag_rejected_path = os.path.join(experiment_path, f"rejected.imag.npz")
-  ds_mask_rejected_path = os.path.join(experiment_path, f"rejected.mask.npz")
-  ds_stats_path = os.path.join(experiment_path, f"stats.npz")
+  ds_imag_accepted_path = os.path.join(data_source_experiment_path, f"accepted.imag.npz")
+  ds_mask_accepted_path = os.path.join(data_source_experiment_path, f"accepted.mask.npz")
+  ds_imag_rejected_path = os.path.join(data_source_experiment_path, f"rejected.imag.npz")
+  ds_mask_rejected_path = os.path.join(data_source_experiment_path, f"rejected.mask.npz")
+  ds_stats_path = os.path.join(data_source_experiment_path, f"stats.npz")
 
   ds_imag_accepted = np.load(ds_imag_accepted_path)
   ds_mask_accepted = np.load(ds_mask_accepted_path)
@@ -133,20 +133,20 @@ def main():
   ds_mask_rejected = np.load(ds_mask_rejected_path)
   ds_stats = np.load(ds_stats_path, allow_pickle=True)
 
-  print("Generating visualizations...")
-
   # initialize visualization directories
-  vis_dir = os.path.join(experiment_path, "vis")
-  vis_dir_accepted = os.path.join(vis_dir, "accepted")
-  vis_dir_rejected = os.path.join(vis_dir, "rejected")
+  vis_dir_accepted = os.path.join(experiment_path, "accepted")
+  vis_dir_rejected = os.path.join(experiment_path, "rejected")
+  vis_dir_stats = os.path.join(experiment_path, "stats")
 
   shutil.rmtree(vis_dir_accepted, ignore_errors=True)
   shutil.rmtree(vis_dir_rejected, ignore_errors=True)
+  shutil.rmtree(vis_dir_stats, ignore_errors=True)
 
   os.makedirs(vis_dir_accepted, exist_ok=True)
   os.makedirs(vis_dir_rejected, exist_ok=True)
+  os.makedirs(vis_dir_stats, exist_ok=True)
 
-  for label in tqdm(labels, desc=f'Generating Statistics: ', **tqdm_args):
+  for label in tqdm(labels, desc=f'Generating Visualizations: ', **tqdm_args):
     # plot 1 - examples from accepted category
     plot_image_and_contour(
       ds_imag_accepted[label],
@@ -168,10 +168,18 @@ def main():
       ds_stats,
       label,
       img_l,
-      os.path.join(vis_dir, f"stats-{label}.png")
+      os.path.join(vis_dir_stats, f"{label}.png")
     )
   print("DONE")
 
 
 if __name__ == '__main__':
+
+  # initialize the RNG deterministically
+  np.random.seed(42)
+
+  load_dotenv()
+
+  tqdm_args = {'bar_format': '{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}', 'file': sys.stdout}
+
   main()
