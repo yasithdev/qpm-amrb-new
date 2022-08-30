@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Optional, Callable
+from typing import Any, Callable, Optional, Tuple
 
 import numpy as np
 import torch.utils.data
@@ -14,6 +14,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         root: str,
         train: bool,
         version: int,
+        k: int = 0,
         transforms: Optional[Callable] = None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
@@ -22,36 +23,43 @@ class AMRB(torchvision.datasets.VisionDataset):
         super().__init__(root, transforms, transform, target_transform)
         self.train = train
         self.version = version
+        self.k = k
         assert version in [1, 2], "Unknown AMRB version: should be 1 or 2"
 
-        mode = "trn" if self.train else "tst"
-        self.x_path = os.path.join(self.root, f"AMRB_{self.version}", f"{mode}_x.npy")
-        self.y_path = os.path.join(self.root, f"AMRB_{self.version}", f"{mode}_y.npy")
+        mode = "train" if self.train else "test"
+        self.x_path = os.path.join(
+            self.root, f"AMRB_{self.version}", f"{mode}_k{k}.npz"
+        )
 
         self.ood_mode = ood_mode
         if version == 1:
             self.ood_index = 1
-            self.num_labels = 7
         elif version == 2:
             self.ood_index = 6
-            self.num_labels = 21
 
         self.data_x = np.load(self.x_path)
-        self.data_y = np.load(self.y_path)
+        self.labels = sorted(self.data_x)
+
+        self.num_labels = len(self.labels)
+        self.num_data = sum([self.data_x[key].shape[0] for key in self.labels])
 
         assert self.data_x.shape[0] == self.data_y.shape[0]
 
     def __getitem__(self, index: int) -> Any:
 
+        # yield fair training batches in the order of index
         if self.ood_mode:
             if self.train:
-                block = index // (self.num_labels - 1)
-                pos = index % (self.num_labels - 1)
-                if pos >= self.ood_index:
-                    pos += 1
-                index = (block * self.num_labels) + pos
+                pos_index = index // (self.num_labels - 1)
+                pos_label = index % (self.num_labels - 1)
+                if pos_label >= self.ood_index:
+                    pos_label += 1
             else:
-                index = (index * self.num_labels) + self.ood_index
+                pos_label = self.ood_index
+                pos_index = index
+        else:
+            pos_index = index // self.num_labels
+            pos = index % self.num_labels
 
         img = self.data_x[index]
         target = self.data_y[index]
@@ -65,7 +73,8 @@ class AMRB(torchvision.datasets.VisionDataset):
         return img, target
 
     def __len__(self) -> int:
-        num_data = self.data_y.shape[0]
+
+        num_data = self.num_data
         if self.ood_mode:
             if self.train:
                 num_data = num_data // self.num_labels * (self.num_labels - 1)

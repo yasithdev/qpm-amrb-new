@@ -1,12 +1,11 @@
+import logging
 import os
 import shutil
-import sys
 
-import einops
 import numpy as np
 from tqdm import tqdm
 
-from dotenv import load_dotenv
+from amrb_util import load_config
 
 
 def shuffle_and_augment(
@@ -51,40 +50,30 @@ def shuffle_and_augment(
     return target_images
 
 
-def main(folds: int):
-
-    data_dir = os.getenv("DATA_DIR")
-    print(f"DATA_DIR={data_dir}")
-
-    dataset_name = os.getenv("DS_NAME")
-    print(f"DS_NAME={dataset_name}")
-
-    experiment_dir = os.getenv("EXPERIMENT_DIR")
-    print(f"EXPERIMENT_DIR={experiment_dir}")
-
-    img_l = int(os.getenv("L"))
-    print(f"L={img_l}")
+def main(config: dict):
 
     data_source_experiment_path = os.path.join(
-        experiment_dir, "3_train_test_split", dataset_name
+        config.get("experiment_dir"), "3_train_test_split", config.get("dataset_name")
     )
-    print(f"\n(Data Source Experiment Path)={data_source_experiment_path}")
+    logging.info(f"(Data Source Experiment Path)={data_source_experiment_path}")
 
     experiment_name = "4_augment"
-    print(f"\n(Experiment Name)={experiment_name}")
+    logging.info(f"(Experiment Name)={experiment_name}")
 
-    experiment_path = os.path.join(experiment_dir, experiment_name, dataset_name)
-    print(f"(Experiment Path)={experiment_path}")
+    experiment_path = os.path.join(
+        config.get("experiment_dir"), experiment_name, config.get("dataset_name")
+    )
+    logging.info(f"(Experiment Path)={experiment_path}")
 
     # initialize experiment directories
     shutil.rmtree(experiment_path, ignore_errors=True)
     os.makedirs(experiment_path, exist_ok=True)
 
-    for k in range(folds):
+    for k in range(config.get("folds")):
 
-        print(f"\nFold {k+1} of {folds}\n")
+        logging.info(f"Fold {k+1} of {config.get('folds')}")
 
-        print(f"\nLoading {dataset_name}:")
+        logging.info(f"Loading {config.get('dataset_name')}:")
         trn_data = np.load(os.path.join(data_source_experiment_path, f"train_k{k}.npz"))
         tst_data = np.load(os.path.join(data_source_experiment_path, f"test_k{k}.npz"))
         targets = sorted(trn_data.keys())
@@ -99,10 +88,10 @@ def main(folds: int):
         )
 
         # augment data into a uniform distribution
-        print("augmenting train/test splits")
+        logging.info("augmenting train/test splits")
         aug_trn_data = {}
         aug_tst_data = {}
-        for target in tqdm(targets, **tqdm_args):
+        for target in tqdm(targets, **config.get("tqdm_args")):
             aug_trn_data[target] = shuffle_and_augment(
                 trn_data[target], target_count_trn
             )
@@ -110,27 +99,22 @@ def main(folds: int):
                 tst_data[target], target_count_tst
             )
 
-        print("Writing to file...")
-        np.savez_compressed(
-            os.path.join(experiment_path, f"train_k{k}.npz"), **aug_trn_data
-        )
-        np.savez_compressed(
-            os.path.join(experiment_path, f"test_k{k}.npz"), **aug_tst_data
-        )
-        print("DONE")
+        trn_data_path = os.path.join(experiment_path, f"train_k{k}.npz")
+        logging.info(f"Writing: {trn_data_path}")
+        np.savez_compressed(trn_data_path, **aug_trn_data)
+        logging.info(f"Written: {trn_data_path}")
+
+        tst_data_path = os.path.join(experiment_path, f"test_k{k}.npz")
+        logging.info(f"Writing: {tst_data_path}")
+        np.savez_compressed(tst_data_path, **aug_tst_data)
+        logging.info(f"Written: {tst_data_path}")
+
+        logging.info("DONE")
 
 
 if __name__ == "__main__":
 
     # initialize the RNG deterministically
     np.random.seed(42)
-
-    load_dotenv()
-
-    tqdm_args = {
-        "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
-        "file": sys.stdout,
-    }
-
-    folds = 10
-    main(folds)
+    config = load_config()
+    main(config)

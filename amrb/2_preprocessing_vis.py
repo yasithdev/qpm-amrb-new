@@ -1,12 +1,14 @@
 import json
+import logging
 import os
 import shutil
-import sys
 
 import numpy as np
-from dotenv import load_dotenv
-from matplotlib import pyplot as plt, gridspec
+from matplotlib import gridspec
+from matplotlib import pyplot as plt
 from tqdm import tqdm
+
+from amrb_util import load_config
 
 
 def plot_image_and_contour(
@@ -93,36 +95,27 @@ def plot_stats(
     plt.close()
 
 
-def main():
+def main(config: dict):
 
-    data_dir = os.getenv("DATA_DIR")
-    print(f"DATA_DIR={data_dir}")
-
-    dataset_name = os.getenv("DS_NAME")
-    print(f"DS_NAME={dataset_name}")
-
-    experiment_dir = os.getenv("EXPERIMENT_DIR")
-    print(f"EXPERIMENT_DIR={experiment_dir}")
-
-    img_l = int(os.getenv("L"))
-    print(f"L={img_l}")
-
-    dataset_path = os.path.join(data_dir, dataset_name)
-    print(f"\n(Dataset Path)={dataset_path}")
+    dataset_path = os.path.join(config.get("data_dir"), config.get("dataset_name"))
+    logging.info(f"(Dataset Path)={dataset_path}")
 
     data_source_experiment_path = os.path.join(
-        experiment_dir, "1_preprocessing", dataset_name
+        config.get("experiment_dir"), "1_preprocessing", config.get("dataset_name")
     )
-    print(f"(Data Source Experiment Path)={data_source_experiment_path}")
+    logging.info(f"(Data Source Experiment Path)={data_source_experiment_path}")
 
     experiment_name = "2_preprocessing_vis"
-    print(f"\n(Experiment Name)={experiment_name}")
+    logging.info(f"(Experiment Name)={experiment_name}")
 
-    experiment_path = os.path.join(experiment_dir, experiment_name, dataset_name)
-    print(f"(Experiment Path)={experiment_path}")
+    experiment_path = os.path.join(
+        config.get("experiment_dir"), experiment_name, config.get("dataset_name")
+    )
+    logging.info(f"(Experiment Path)={experiment_path}")
 
-    print(f"\nReading info.json")
-    with open(os.path.join(dataset_path, "info.json"), "r") as f:
+    info_json_path = os.path.join(dataset_path, "info.json")
+    logging.info(f"Reading: {info_json_path}")
+    with open(info_json_path, "r") as f:
         labels = sorted(json.load(f)["data"])
 
     ds_imag_accepted_path = os.path.join(
@@ -158,7 +151,9 @@ def main():
     os.makedirs(vis_dir_rejected, exist_ok=True)
     os.makedirs(vis_dir_stats, exist_ok=True)
 
-    for label in tqdm(labels, desc=f"Generating Visualizations: ", **tqdm_args):
+    for label in tqdm(
+        labels, desc=f"Generating Visualizations: ", **config.get("tqdm_args")
+    ):
         # plot 1 - examples from accepted category
         plot_image_and_contour(
             ds_imag_accepted[label],
@@ -176,20 +171,18 @@ def main():
         )
 
         # plot 3 - statistics
-        plot_stats(ds_stats, label, img_l, os.path.join(vis_dir_stats, f"{label}.png"))
-    print("DONE")
+        plot_stats(
+            ds_stats,
+            label,
+            config.get("img_l"),
+            os.path.join(vis_dir_stats, f"{label}.png"),
+        )
+    logging.info("DONE")
 
 
 if __name__ == "__main__":
 
     # initialize the RNG deterministically
     np.random.seed(42)
-
-    load_dotenv()
-
-    tqdm_args = {
-        "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
-        "file": sys.stdout,
-    }
-
-    main()
+    config = load_config()
+    main(config)

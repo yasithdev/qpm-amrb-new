@@ -1,13 +1,14 @@
 import json
+import logging
 import os
-import sys
-from typing import Tuple, Iterable
+from typing import Iterable, Tuple
 
 import cv2
 import numpy as np
-from dotenv import load_dotenv
 from scipy.io import loadmat
 from tqdm import tqdm
+
+from amrb_util import load_config
 
 
 def get_mat_data(_path: str) -> Iterable[np.ndarray]:
@@ -110,34 +111,25 @@ def find_contours(
     return num_contours, bounding_rect, bitmask
 
 
-def main():
+def main(config: dict):
 
-    data_dir = os.getenv("DATA_DIR")
-    print(f"DATA_DIR={data_dir}")
-
-    dataset_name = os.getenv("DS_NAME")
-    print(f"DS_NAME={dataset_name}")
-
-    experiment_dir = os.getenv("EXPERIMENT_DIR")
-    print(f"EXPERIMENT_DIR={experiment_dir}")
-
-    img_l = int(os.getenv("L"))
-    print(f"L={img_l}")
-
-    dataset_path = os.path.join(data_dir, dataset_name)
-    print(f"\n(Dataset Path)={dataset_path}")
+    dataset_path = os.path.join(config.get("data_dir"), config.get("dataset_name"))
+    logging.info(f"(Dataset Path)={dataset_path}")
 
     experiment_name = "1_preprocessing"
-    print(f"\n(Experiment Name)={experiment_name}")
+    logging.info(f"(Experiment Name)={experiment_name}")
 
-    experiment_path = os.path.join(experiment_dir, experiment_name, dataset_name)
-    print(f"(Experiment Path)={experiment_path}")
+    experiment_path = os.path.join(
+        config.get("experiment_dir"), experiment_name, config.get("dataset_name")
+    )
+    logging.info(f"(Experiment Path)={experiment_path}")
 
-    print(f"\nReading info.json")
-    with open(os.path.join(dataset_path, "info.json"), "r") as f:
+    info_json_path = os.path.join(dataset_path, "info.json")
+    logging.info(f"Reading: {info_json_path}")
+    with open(info_json_path, "r") as f:
         dataset_info = json.load(f)
 
-    print("\nGenerating Dataset:", dataset_name)
+    logging.info(f"Generating Dataset: {config.get('dataset_name')}")
 
     # LOGIC ============================================================================
 
@@ -175,7 +167,7 @@ def main():
             images.extend(get_mat_data(os.path.join(dataset_path, filepath)))
 
         # read mat data
-        for imag in tqdm(images, desc=f"Label: {label}", **tqdm_args):
+        for imag in tqdm(images, desc=f"Label: {label}", **config.get("tqdm_args")):
 
             # get contour count, bbox, and mask
             c_num, bounds, mask = find_contours(imag)
@@ -208,10 +200,10 @@ def main():
 
                 # adjust image to target size
                 if (
-                    img_l >= img_d
+                    config.get("img_l") >= img_d
                 ):  # case - exact/undersized: zero-pad around the object
-                    a = (img_l - img_d) // 2
-                    b = img_l - img_d - a
+                    a = (config.get("img_l") - img_d) // 2
+                    b = config.get("img_l") - img_d - a
                     final_mask = np.pad(crop_mask, ((a, b), (a, b)))
                     final_imag = np.pad(crop_imag, ((a, b), (a, b)))
 
@@ -247,8 +239,8 @@ def main():
         ds_stats[f"{label}_cnum_vals"] = np.array(cnum_vals)
         ds_stats[f"{label}_bbox_vals"] = np.array(bbox_vals)
 
-        # print stats
-        print(
+        # log stats
+        logging.info(
             {
                 "✔ cnum_y_size_y": num_accepted,
                 "x cnum_y_size_n": num_oversize_acc,
@@ -265,34 +257,39 @@ def main():
         ds_mask_accepted[label] = mask_accepted
         ds_mask_rejected[label] = mask_rejected
 
-    print("Writing to file...")
     os.makedirs(experiment_path, exist_ok=True)
-    np.savez_compressed(
-        os.path.join(experiment_path, f"accepted.imag.npz"), **ds_imag_accepted
-    )
-    np.savez_compressed(
-        os.path.join(experiment_path, f"accepted.mask.npz"), **ds_mask_accepted
-    )
-    np.savez_compressed(
-        os.path.join(experiment_path, f"rejected.imag.npz"), **ds_imag_rejected
-    )
-    np.savez_compressed(
-        os.path.join(experiment_path, f"rejected.mask.npz"), **ds_mask_rejected
-    )
-    np.savez_compressed(os.path.join(experiment_path, "stats.npz"), **ds_stats)
-    print("DONE")
+
+    accepted_imag_path = os.path.join(experiment_path, "accepted.imag.npz")
+    logging.info(f"writing: {accepted_imag_path}")
+    np.savez_compressed(accepted_imag_path, **ds_imag_accepted)
+    logging.info(f"written: {accepted_imag_path}")
+
+    accepted_mask_path = os.path.join(experiment_path, "accepted.mask.npz")
+    logging.info(f"writing: {accepted_mask_path}")
+    np.savez_compressed(accepted_mask_path, **ds_mask_accepted)
+    logging.info(f"written: {accepted_mask_path}")
+
+    rejected_imag_path = os.path.join(experiment_path, "rejected.imag.npz")
+    logging.info(f"writing: {rejected_imag_path}")
+    np.savez_compressed(rejected_imag_path, **ds_imag_rejected)
+    logging.info(f"written: {rejected_imag_path}")
+
+    rejected_mask_path = os.path.join(experiment_path, "rejected.mask.npz")
+    logging.info(f"writing: {rejected_mask_path}")
+    np.savez_compressed(rejected_mask_path, **ds_mask_rejected)
+    logging.info(f"written: {rejected_mask_path}")
+
+    stats_path = os.path.join(experiment_path, "stats.npz")
+    logging.info(f"writing: {stats_path}")
+    np.savez_compressed(stats_path, **ds_stats)
+    logging.info(f"written: {stats_path}")
+
+    logging.info(f"DONE")
 
 
 if __name__ == "__main__":
 
     # initialize the RNG deterministically
     np.random.seed(42)
-
-    load_dotenv()
-
-    tqdm_args = {
-        "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
-        "file": sys.stdout,
-    }
-
-    main()
+    config = load_config()
+    main(config)

@@ -54,7 +54,7 @@ class Config:
         # paths
         self.model_path = f"saved_models/{self.dataset}"
         self.vis_path = f"vis/{self.dataset}"
-        self.data_root = os.path.expanduser("~/Documents/datasets")
+        self.data_root = os.path.expanduser("~/Documents/projects/wadduwagelab/qpm-amr-new/experiments/4_augment")
         self.data_dir = os.path.join(self.data_root, self.dataset)
 
         os.makedirs(self.model_path, exist_ok=True)
