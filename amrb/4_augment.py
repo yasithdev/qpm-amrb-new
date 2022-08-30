@@ -22,9 +22,7 @@ def shuffle_and_augment(
 
     else:
 
-        aug_data = []
-        aug_size = source_count * 3
-
+        # define a pool of augmented images (by rotating 90, 180, and 270)
         aug_pool = np.concatenate(
             [
                 np.rot90(source_images, k=1, axes=(1, 2)),
@@ -33,18 +31,12 @@ def shuffle_and_augment(
             ],
             axis=0,
         )
+        # randomly pick images from aug_pool (without replacement)
+        aug_idxs = np.random.choice(np.arange(len(aug_pool)), size=target_count-source_count, replace=False)
+        aug_data = aug_pool[aug_idxs]
 
-        aug_mask = np.ones(aug_size, dtype=bool)
-
-        # select unselected images from pool and add to dataset
-        for _ in range(target_count - source_count):
-            while True:
-                rand_idx = np.random.randint(0, aug_size)
-                if aug_mask[rand_idx] == 1:
-                    break
-            aug_mask[rand_idx] = 0
-            aug_data.append(aug_pool[rand_idx])
-        target_images = np.concatenate([source_images, np.array(aug_data)], axis=0)
+        # concatenate source images with aug_data
+        target_images = np.concatenate([source_images, aug_data], axis=0)
 
     assert target_images.shape[0] == target_count
     return target_images
