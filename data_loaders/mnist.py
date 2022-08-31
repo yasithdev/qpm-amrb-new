@@ -3,7 +3,7 @@ from typing import Tuple
 import torch.utils.data
 import torchvision
 
-from .util import AddGaussianNoise
+from .transforms import AddGaussianNoise
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -1,12 +1,9 @@
 from os import path
 
-from ds_util import load_numpy, take_n
 from util.vis import plot_samples, gen_umap
 
-if __name__ == "__main__":
-    # imports --------------------------
-    from ds_info import DS_NAME, EXPERIMENT_DIR, SPLIT_NUM
 
+def main(config: dict):
     # ----------------------------------
 
     data = load_numpy()
@@ -61,3 +58,6 @@ if __name__ == "__main__":
         f"UMAP - Testing Samples ({n_trn})",
         path.join(vis_path, "umap.tst.png"),
     )
+
+if __name__ == "__main__":
+    

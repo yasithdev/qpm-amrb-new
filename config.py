@@ -1,83 +1,98 @@
-import os.path
+import logging
+import os
 import sys
-from typing import Callable, Tuple
 
-import torch.utils.data
+from dotenv import load_dotenv
+
+from data_loaders import get_data_loader
+from dflows.nn_util import get_best_device
 
 
-class Config:
-    def __init__(self, dataset: str):
+def getenv(key: str, default=None) -> str:
+    val = os.getenv(key, default)
+    val = os.path.expanduser(val)
+    val = os.path.expandvars(val)
+    logging.info(f"{key}={val}")
+    return val
 
-        from dflows.nn_util import get_best_device
-        from data_loaders import load_mnist, load_amrb_v1, load_amrb_v2
 
-        # tqdm config
-        self.dataset = dataset
-        self.tqdm_args = {
-            "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
-            "file": sys.stdout,
-        }
-        self.data_loader: Callable[
-            [int, int, str],
-            Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader],
-        ]
+def load_config() -> dict:
 
-        # data config
-        if self.dataset == "MNIST":
-            self.data_loader = load_mnist
-            self.img_C, self.img_H, self.img_W = (1, 28, 28)
-        elif self.dataset == "AMRB_1":
-            self.data_loader = load_amrb_v1
-            self.img_C, self.img_H, self.img_W = (1, 40, 40)
-        elif self.dataset == "AMRB_2":
-            self.data_loader = load_amrb_v2
-            self.img_C, self.img_H, self.img_W = (1, 40, 40)
-        else:
-            raise ValueError("Only MNIST, AMRB_1, and AMRB_2 datasets are supported")
-        self.total_dims = self.img_C * self.img_H * self.img_W
+    load_dotenv()
 
-        # model config
-        self.patch_H, self.patch_W = (4, 4)
-        self.model_C, self.model_H, self.model_W = (
-            (self.img_C * self.patch_H * self.patch_W),
-            (self.img_H // self.patch_H),
-            (self.img_W // self.patch_W),
-        )
-        self.manifold_dims = 1 * self.model_H * self.model_W
+    log_level = getenv("LOG_LEVEL")
+    logging.basicConfig(level=log_level)
+    logging.info(f"LOG_LEVEL={log_level}")
 
-        # training config
-        self.batch_size = 64
-        self.learning_rate = 1e-4
-        self.momentum = 0.5
-        self.n_epochs = 100
+    crossval_k = int(getenv("CROSSVAL_K"))
+    data_dir = getenv("DATA_DIR")
+    dataset_name = getenv("DS_NAME")
+    experiment_dir = getenv("EXPERIMENT_DIR")
+    saved_model_dir = getenv("SAVED_MODEL_DIR")
+    image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
+    patch_hw = (int(getenv("PATCH_H")), int(getenv("PATCH_W")))
+    manifold_c = int(getenv("MANIFOLD_C"))
+    batch_size = int(getenv("BATCH_SIZE"))
+    optim_lr = float(getenv("OPTIM_LR"))
+    optim_m = float(getenv("OPTIM_M"))
+    train_epochs = int(getenv("TRAIN_EPOCHS"))
+    exc_dry_run = bool(getenv("EXC_DRY_RUN"))
+    exc_resume = bool(getenv("EXC_RESUME"))
+    exc_ood_mode = bool(getenv("EXC_OOD_MODE"))
 
-        # paths
-        self.model_path = f"saved_models/{self.dataset}"
-        self.vis_path = f"vis/{self.dataset}"
-        self.data_root = os.path.expanduser("~/Documents/projects/wadduwagelab/qpm-amr-new/experiments/4_augment")
-        self.data_dir = os.path.join(self.data_root, self.dataset)
+    # input dims for model
+    input_chw = (
+        image_chw[-3] * patch_hw[-2] * patch_hw[-1],
+        image_chw[-2] // patch_hw[-2],
+        image_chw[-1] // patch_hw[-1],
+    )
+    # data loader
+    data_loader = get_data_loader(
+        dataset_name,
+        batch_size_train=batch_size,
+        batch_size_test=batch_size,
+        data_root=data_dir,
+        ood_mode=exc_ood_mode,
+    )
+    # runtime device
+    device = get_best_device()
+    # tqdm prompt
+    tqdm_args = {
+        "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
+        "file": sys.stdout,
+    }
+    # network configuration
+    coupling_network_config = {
+        "num_channels": input_chw[0] // 2,
+        "num_hidden_channels": input_chw[0],
+        "num_hidden_layers": 1,
+    }
+    conv1x1_config = {"num_channels": input_chw[0]}
 
-        os.makedirs(self.model_path, exist_ok=True)
-        os.makedirs(self.vis_path, exist_ok=True)
-
-        # runtime
-        self.dry_run = False
-        self.load_saved_params = False
-        self.ood_mode = False
-        self.device = get_best_device()
-
-        # network configuration
-        self.coupling_network_config = {
-            "num_channels": self.model_C // 2,
-            "num_hidden_channels": self.model_C,
-            "num_hidden_layers": 1,
-        }
-        self.conv1x1_config = {"num_channels": self.model_C}
-
-        # data loader configuration
-        self.data_loader_config = {
-            "batch_size_train": self.batch_size,
-            "batch_size_test": self.batch_size,
-            "data_root": self.data_root,
-            "ood_mode": self.ood_mode,
-        }
+    return {
+        # env params
+        "log_level": log_level,
+        "crossval_k": crossval_k,
+        "data_dir": data_dir,
+        "dataset_name": dataset_name,
+        "experiment_dir": experiment_dir,
+        "saved_model_dir": saved_model_dir,
+        "image_chw": image_chw,
+        "patch_hw": patch_hw,
+        "manifold_c": manifold_c,
+        "batch_size": batch_size,
+        "optim_lr": optim_lr,
+        "optim_m": optim_m,
+        "train_epochs": train_epochs,
+        "exc_dry_run": exc_dry_run,
+        "exc_resume": exc_resume,
+        "exc_ood_mode": exc_ood_mode,
+        # derived params
+        "input_chw": input_chw,
+        "data_loader": data_loader,
+        "device": device,
+        "coupling_network_config": coupling_network_config,
+        "conv1x1_config": conv1x1_config,
+        # hardcoded params
+        "tqdm_args": tqdm_args,
+    }

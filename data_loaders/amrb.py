@@ -5,7 +5,7 @@ import numpy as np
 import torch.utils.data
 import torchvision
 
-from data_loaders.util import AddGaussianNoise
+from .transforms import AddGaussianNoise
 
 
 class AMRB(torchvision.datasets.VisionDataset):
@@ -132,7 +132,7 @@ def load_v1(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    ood_mode: str,
+    ood_mode: bool,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     return load(
         batch_size_train, batch_size_test, data_root, version=1, ood_mode=ood_mode
@@ -146,7 +146,7 @@ def load_v2(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    ood_mode: str,
+    ood_mode: bool,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     return load(
         batch_size_train, batch_size_test, data_root, version=2, ood_mode=ood_mode
