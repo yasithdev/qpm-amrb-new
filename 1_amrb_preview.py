@@ -1,4 +1,6 @@
+import logging
 import os
+import shutil
 
 import numpy as np
 import torch
@@ -19,7 +21,8 @@ def main(config: Config):
         config.dataset_name,
         str(config.crossval_k),
     )
-    vis_path = os.path.join(experiment_path, "vis")
+    shutil.rmtree(experiment_path, ignore_errors=True)
+    os.makedirs(experiment_path, exist_ok=True)
 
     x_trn = []
     y_trn = []
@@ -42,57 +45,51 @@ def main(config: Config):
     x_tst = np.concatenate(x_tst, axis=0)
     y_tst = np.concatenate(y_tst, axis=0)
 
-    print(x_trn.shape, y_trn.shape)
-    print(x_tst.shape, y_tst.shape)
-    
-    exit(0)
+    n_trn = len(y_trn)
+    n_tst = len(y_tst)
+
+    logging.info(f"training samples={n_trn} [{x_trn.shape}, {y_trn.shape}]")
+    logging.info(f"testing samples={n_tst} [{x_tst.shape}, {y_tst.shape}]")
 
     # ----------------------------------
     # Preview - Samples
     # ----------------------------------
-    print("Preview: Inputs")
 
-    print("* TRN")
-    plot_samples(x_trn, y_trn, os.path.join(vis_path, "preview.trn.pdf"))
+    logging.info("Plotting training samples")
+    plot_samples(
+        x=x_trn,
+        y=y_trn,
+        out_path=os.path.join(experiment_path, "preview.trn.pdf"),
+        labels=train_loader.dataset.labels,
+    )
 
-    print("* VAL")
-    plot_samples(x_val, y_val, os.path.join(vis_path, "preview.val.pdf"))
-
-    print("* TST")
-    plot_samples(x_tst, y_tst, os.path.join(vis_path, "preview.tst.pdf"))
+    logging.info("Plotting testing samples")
+    plot_samples(
+        x=x_tst,
+        y=y_tst,
+        out_path=os.path.join(experiment_path, "preview.tst.pdf"),
+        labels=test_loader.dataset.labels,
+    )
 
     # ----------------------------------
     # UMAP - Samples
     # ----------------------------------
-    print(f"Selecting 30k items from {DS_NAME}")
-    (x_trn, y_trn, n_trn), (x_val, y_val, n_val), (x_tst, y_tst, n_tst) = take_n(
-        data, limit=3e4
+    logging.info("Plotting UMAP projection of training samples")
+    gen_umap(
+        x=x_trn,
+        y=y_trn,
+        out_path=os.path.join(experiment_path, "umap.trn.png"),
+        title=f"UMAP: {n_trn} Training Samples",
+        labels=train_loader.dataset.labels,
     )
 
-    print("UMAP: Inputs")
-
-    print("* TRN")
+    logging.info("Plotting UMAP projection of testing samples")
     gen_umap(
-        x_trn,
-        y_trn,
-        f"UMAP - Training Samples ({n_trn})",
-        os.path.join(vis_path, "umap.trn.png"),
-    )
-
-    print("* VAL")
-    gen_umap(
-        x_val,
-        y_val,
-        f"UMAP - Validation Samples ({n_trn})",
-        os.path.join(vis_path, "umap.val.png"),
-    )
-
-    print("* TST")
-    gen_umap(
-        x_tst,
-        y_tst,
-        f"UMAP - Testing Samples ({n_trn})",
-        os.path.join(vis_path, "umap.tst.png"),
+        x=x_tst,
+        y=y_tst,
+        out_path=os.path.join(experiment_path, "umap.tst.png"),
+        title=f"UMAP: {n_tst} Testing Samples)",
+        labels=test_loader.dataset.labels,
     )
 
 

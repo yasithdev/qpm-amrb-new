@@ -1,11 +1,13 @@
+import logging
 import sys
-from os import path
 from typing import List
 
+import einops
 import numpy as np
 import umap
 import umap.plot
-from matplotlib import pyplot as plt, cm
+from matplotlib import cm
+from matplotlib import pyplot as plt
 
 
 def gen_umap_3d(
@@ -19,14 +21,14 @@ def gen_umap_3d(
     Create a 3D UMAP plot
 
     """
-    print("Fitting UMAP")
+    logging.info("Fitting UMAP")
     reducer = umap.UMAP(random_state=42, n_components=3)
     reducer.fit(x)
 
-    print("Generating UMAP embeddings")
+    logging.info("Generating UMAP embeddings")
     embedding = reducer.transform(x)
 
-    print("Plotting UMAP Projection")
+    logging.info("Plotting UMAP Projection")
     fig = plt.figure(figsize=(10, 7), dpi=150)
     plt.title(title)
     ax = fig.add_subplot(111, projection="3d")
@@ -40,7 +42,7 @@ def gen_umap_3d(
         ax.scatter(ax1, ax2, ax3, c=c, label=label, s=5, alpha=0.5)
     ax.legend()
 
-    print("Saving plot")
+    logging.info("Saving plot")
     plt.tight_layout()
     plt.savefig(out_path)
     plt.close()
@@ -58,18 +60,18 @@ def gen_umap_2d(
 
     """
 
-    print("Fitting UMAP")
+    logging.info("Fitting UMAP")
     reducer = umap.UMAP(random_state=42, n_components=2)
     reducer.fit(x)
     labels = np.array([labels[i] for i in y])
 
-    print("Generating UMAP Plot")
+    logging.info("Generating UMAP Plot")
     fig = plt.figure(figsize=(10, 7), dpi=150)
     plt.title(title)
     ax = fig.add_subplot(111)
     umap.plot.points(reducer, labels=labels, ax=ax)
 
-    print("Saving plot")
+    logging.info("Saving plot")
     plt.savefig(out_path)
     plt.close()
 
@@ -77,11 +79,13 @@ def gen_umap_2d(
 def gen_umap(
     x: np.ndarray,
     y: np.ndarray,
-    title: str,
     out_path: str,
+    title: str,
     labels: List[str],
     projection="2d",
 ):
+    x = einops.rearrange(x, "b c h w -> b (c h w)")
+    y = np.argmax(y, axis=1)
     if projection == "2d":
         gen_umap_2d(x, y, title, out_path, labels)
     elif projection == "3d":
@@ -91,7 +95,11 @@ def gen_umap(
 
 
 def plot_samples(
-    x: np.ndarray, y: np.ndarray, out_path: str, labels: List[str], cols=15
+    x: np.ndarray,
+    y: np.ndarray,
+    out_path: str,
+    labels: List[str],
+    cols=15,
 ):
     nX, nY = cols, len(labels)
     cX = [0] * nY
