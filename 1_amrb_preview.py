@@ -1,15 +1,51 @@
-from os import path
+import os
 
-from util.vis import plot_samples, gen_umap
+import numpy as np
+import torch
+
+from config import Config, load_config
+from util.vis import gen_umap, plot_samples
 
 
-def main(config: dict):
+def main(config: Config):
     # ----------------------------------
 
-    data = load_numpy()
-    vis_path = path.join(EXPERIMENT_DIR, "vis", DS_NAME, f"S{SPLIT_NUM}")
+    train_loader, test_loader = config.data_loader()
 
-    (x_trn, y_trn), (x_val, y_val), (x_tst, y_tst) = data
+    experiment_name = "1_amrb_preview"
+    experiment_path = os.path.join(
+        config.experiment_dir,
+        experiment_name,
+        config.dataset_name,
+        str(config.crossval_k),
+    )
+    vis_path = os.path.join(experiment_path, "vis")
+
+    x_trn = []
+    y_trn = []
+    for img, target in train_loader:
+        x_trn.append(img)
+        y_trn.append(target)
+        if len(y_trn) > 500:
+            break
+
+    x_tst = []
+    y_tst = []
+    for img, target in test_loader:
+        x_tst.append(img)
+        y_tst.append(target)
+        if len(y_tst) > 500:
+            break
+
+    x_trn = np.concatenate(x_trn, axis=0)
+    y_trn = np.concatenate(y_trn, axis=0)
+    x_tst = np.concatenate(x_tst, axis=0)
+    y_tst = np.concatenate(y_tst, axis=0)
+
+    print(x_trn.shape, y_trn.shape)
+    print(x_tst.shape, y_tst.shape)
+    
+    exit(0)
 
     # ----------------------------------
     # Preview - Samples
@@ -17,13 +53,13 @@ def main(config: dict):
     print("Preview: Inputs")
 
     print("* TRN")
-    plot_samples(x_trn, y_trn, path.join(vis_path, "preview.trn.pdf"))
+    plot_samples(x_trn, y_trn, os.path.join(vis_path, "preview.trn.pdf"))
 
     print("* VAL")
-    plot_samples(x_val, y_val, path.join(vis_path, "preview.val.pdf"))
+    plot_samples(x_val, y_val, os.path.join(vis_path, "preview.val.pdf"))
 
     print("* TST")
-    plot_samples(x_tst, y_tst, path.join(vis_path, "preview.tst.pdf"))
+    plot_samples(x_tst, y_tst, os.path.join(vis_path, "preview.tst.pdf"))
 
     # ----------------------------------
     # UMAP - Samples
@@ -40,7 +76,7 @@ def main(config: dict):
         x_trn,
         y_trn,
         f"UMAP - Training Samples ({n_trn})",
-        path.join(vis_path, "umap.trn.png"),
+        os.path.join(vis_path, "umap.trn.png"),
     )
 
     print("* VAL")
@@ -48,7 +84,7 @@ def main(config: dict):
         x_val,
         y_val,
         f"UMAP - Validation Samples ({n_trn})",
-        path.join(vis_path, "umap.val.png"),
+        os.path.join(vis_path, "umap.val.png"),
     )
 
     print("* TST")
@@ -56,8 +92,13 @@ def main(config: dict):
         x_tst,
         y_tst,
         f"UMAP - Testing Samples ({n_trn})",
-        path.join(vis_path, "umap.tst.png"),
+        os.path.join(vis_path, "umap.tst.png"),
     )
 
+
 if __name__ == "__main__":
-    
+    # initialize the RNG deterministically
+    np.random.seed(42)
+    torch.random.manual_seed(42)
+    config = load_config()
+    main(config)

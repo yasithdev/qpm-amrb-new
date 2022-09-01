@@ -5,4 +5,4 @@ matplotlib~=3.5.3
 einops~=0.4.1
 numpy~=1.23.2
 python-dotenv~=0.20.0
-umap-learn~=0.5.3
+umap-learn[plot]~=0.5.3

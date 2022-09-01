@@ -7,10 +7,10 @@ from .amrb import load_v1 as load_amrb_1
 from .amrb import load_v2 as load_amrb_2
 from .mnist import load as load_mnist
 
+DataLoaderFunction = Callable[[], Tuple[DataLoader, DataLoader]]
 
-def get_data_loader(
-    dataset_name: str, **kwargs
-) -> Callable[[], Tuple[DataLoader, DataLoader]]:
+
+def get_data_loader(dataset_name: str, **kwargs) -> DataLoaderFunction:
     if dataset_name == "MNIST":
         return functools.partial(load_mnist, **kwargs)
     elif dataset_name == "AMRB_1":
