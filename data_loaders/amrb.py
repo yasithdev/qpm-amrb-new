@@ -123,7 +123,7 @@ class AMRB(torchvision.datasets.VisionDataset):
             # ----------------------------------------------------------------- #
             # rearrange x to have all classes in a batch                        #
             # ----------------------------------------------------------------- #
-            data_x = einops.rearrange(data_x, "b l h w -> (b l) 1 h w")
+            data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
 
         # ----------------------------------------------------------------- #
         # case 2 - cross validation method                                  #
@@ -134,7 +134,7 @@ class AMRB(torchvision.datasets.VisionDataset):
             # generate x                                                        #
             # ----------------------------------------------------------------- #
             data_x = np.stack([self.src_data[key] for key in self.labels], axis=1)
-            data_x = einops.rearrange(data_x, "b l h w -> (b l) 1 h w")
+            data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
 
             # ----------------------------------------------------------------- #
             # generate y                                                        #

@@ -26,7 +26,7 @@ def main(config: Config):
     for img, target in train_loader:
         x_trn.append(img)
         y_trn.append(target)
-        if len(y_trn) > 500:
+        if len(y_trn) == 200:
             break
 
     x_tst = []
@@ -34,7 +34,7 @@ def main(config: Config):
     for img, target in test_loader:
         x_tst.append(img)
         y_tst.append(target)
-        if len(y_tst) > 500:
+        if len(y_tst) == 200:
             break
 
     x_trn = np.concatenate(x_trn, axis=0)
