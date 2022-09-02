@@ -3,7 +3,8 @@ clean:
 
 amrb_1:
 	for i in $$(seq 0 9); do \
-		DS_NAME=AMRB_1 CROSSVAL_K=$${i} python -u 1_amrb_preview.py; \
+		echo "DS_NAME=AMRB_1 CROSSVAL_K=$${i} python -u 1_amrb_preview.py"; \
+		DS_NAME=AMRB_1 CROSSVAL_K=$${i} python -u 2_training.py; \
 	done
 
 amrb_2:

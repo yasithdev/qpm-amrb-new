@@ -1,19 +1,31 @@
+import logging
 import os
+import shutil
 
+import numpy as np
 import torch
 
 import dflows as nf
 import dflows.transforms as nft
-from config import load_config
-from util.loops import test_model, train_model
+from config import Config, load_config
+from loops import test_model, train_model
 
-if __name__ == "__main__":
 
-    # set up config
-    config = load_config()
-    print(f"Using device: {config.device}")
+def main(config: Config):
 
     train_loader, test_loader = config.data_loader()
+
+    # set experiment name and path
+    experiment_name = "2_training"
+    experiment_path = os.path.join(
+        config.experiment_dir,
+        experiment_name,
+        config.dataset_name,
+        str(config.crossval_k),
+    )
+    if not (config.exc_resume or config.exc_dry_run):
+        shutil.rmtree(experiment_path, ignore_errors=True)
+        os.makedirs(experiment_path, exist_ok=True)
 
     # create flow (pending)
     base_dist = torch.distributions.MultivariateNormal(
@@ -43,33 +55,30 @@ if __name__ == "__main__":
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(
-            config.saved_model_dir, config.dataset_name, config.crossval_k, "model.pth"
-        )
-        optim_state_path = os.path.join(
-            config.saved_model_dir, config.dataset_name, config.crossval_k, "optim.pth"
-        )
+        model_state_path = os.path.join(experiment_path, "model.pth")
+        optim_state_path = os.path.join(experiment_path, "optim.pth")
 
         if os.path.exists(model_state_path):
             ambient_model.load_state_dict(
                 torch.load(model_state_path, map_location=config.device)
             )
-            print("Loaded saved model state from:", model_state_path)
+            logging.info("Loaded saved model state from:", model_state_path)
 
         if os.path.exists(optim_state_path):
             optim.load_state_dict(
                 torch.load(optim_state_path, map_location=config.device)
             )
-            print("Loaded saved optim state from:", optim_state_path)
+            logging.info("Loaded saved optim state from:", optim_state_path)
 
     # run train / test loops
-    print("\nStarted Train/Test")
+    logging.info("Started Train/Test")
     test_model(
         nn=ambient_model,
         epoch=0,
         loader=test_loader,
         config=config,
         test_losses=test_losses,
+        experiment_path=experiment_path,
     )
     for current_epoch in range(1, config.train_epochs + 1):
         train_model(
@@ -79,6 +88,7 @@ if __name__ == "__main__":
             config=config,
             optim=optim,
             train_losses=train_losses,
+            experiment_path=experiment_path,
         )
         test_model(
             nn=ambient_model,
@@ -86,4 +96,13 @@ if __name__ == "__main__":
             loader=test_loader,
             config=config,
             test_losses=test_losses,
+            experiment_path=experiment_path,
         )
+
+
+if __name__ == "__main__":
+    # initialize the RNG deterministically
+    np.random.seed(42)
+    torch.random.manual_seed(42)
+    config = load_config()
+    main(config)

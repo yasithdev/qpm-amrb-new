@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from config import Config, load_config
-from util.vis import gen_umap, plot_samples
+from vis import gen_umap, plot_samples
 
 
 def main(config: Config):
@@ -14,6 +14,7 @@ def main(config: Config):
 
     train_loader, test_loader = config.data_loader()
 
+    # set experiment name and path
     experiment_name = "1_amrb_preview"
     experiment_path = os.path.join(
         config.experiment_dir,

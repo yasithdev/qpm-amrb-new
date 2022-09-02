@@ -17,7 +17,6 @@ class Config:
         data_dir: str,
         dataset_name: str,
         experiment_dir: str,
-        saved_model_dir: str,
         image_chw: Tuple[int, int, int],
         patch_hw: Tuple[int, int],
         manifold_c: int,
@@ -40,7 +39,6 @@ class Config:
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.experiment_dir = experiment_dir
-        self.saved_model_dir = saved_model_dir
         self.image_chw = image_chw
         self.patch_hw = patch_hw
         self.manifold_c = manifold_c
@@ -79,7 +77,6 @@ def load_config() -> Config:
     data_dir = getenv("DATA_DIR")
     dataset_name = getenv("DS_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
-    saved_model_dir = getenv("SAVED_MODEL_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
     patch_hw = (int(getenv("PATCH_H")), int(getenv("PATCH_W")))
     manifold_c = int(getenv("MANIFOLD_C"))
@@ -108,6 +105,8 @@ def load_config() -> Config:
     )
     # runtime device
     device = get_best_device()
+    logging.info(f"Using device: {device}")
+
     # tqdm prompt
     tqdm_args = {
         "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
@@ -128,7 +127,6 @@ def load_config() -> Config:
         data_dir=data_dir,
         dataset_name=dataset_name,
         experiment_dir=experiment_dir,
-        saved_model_dir=saved_model_dir,
         image_chw=image_chw,
         patch_hw=patch_hw,
         manifold_c=manifold_c,

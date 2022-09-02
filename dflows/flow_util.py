@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import torch
-from einops import rearrange
+import einops
 
 from .square_nf import SquareNormalizingFlow
 
@@ -52,7 +52,6 @@ def proj(
     :param manifold_dims: Dimensions of Manifold Space
     :return: Projection of Density from Ambient Space into Manifold Space
     """
-    z = rearrange(z, "b c h w -> b (c h w)")
     zu = z[:, :manifold_dims]
     return zu
 
@@ -63,7 +62,6 @@ def proj(
 def pad(
     zu: torch.Tensor,
     off_manifold_dims: int,
-    chw: Tuple[int, int, int],
 ) -> torch.Tensor:
     """
     Project Density Tensor from Manifold Space into Ambient Space
@@ -73,9 +71,7 @@ def pad(
     :param chw: Tuple of [C, H, W]
     :return: Projection of Density from Manifold Space into Ambient Space
     """
-    c, h, w = chw
-    z_pad = torch.constant_pad_nd(zu, (0, off_manifold_dims))
-    z = rearrange(z_pad, "b (c h w) -> b c h w", c=c, h=h, w=w)
+    z = torch.nn.functional.pad(zu, (0, 0, 0, 0, 0, off_manifold_dims))
     return z
 
 

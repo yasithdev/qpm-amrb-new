@@ -91,7 +91,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                 # generate y                                                        #
                 # ----------------------------------------------------------------- #
                 data_y = np.tile(
-                    A=np.eye(N=num_inc_labels, dtype=np.float16),
+                    A=np.eye(N=num_inc_labels, dtype=np.float32),
                     reps=(data_x.shape[0] // num_inc_labels, 1),
                 )
 
@@ -117,7 +117,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                 data_y = np.full(
                     shape=(len(data_x), num_inc_labels),
                     fill_value=1.0 / num_inc_labels,
-                    dtype=np.float16,
+                    dtype=np.float32,
                 )
 
             # ----------------------------------------------------------------- #
@@ -140,7 +140,7 @@ class AMRB(torchvision.datasets.VisionDataset):
             # generate y                                                        #
             # ----------------------------------------------------------------- #
             data_y = np.tile(
-                A=np.eye(N=self.num_labels, dtype=np.float16),
+                A=np.eye(N=self.num_labels, dtype=np.float32),
                 reps=(data_x.shape[0] // self.num_labels, 1),
             )
 
