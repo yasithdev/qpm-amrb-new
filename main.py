@@ -43,13 +43,19 @@ if __name__ == "__main__":
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(config.saved_model_dir, "model.pth")
+        model_state_path = os.path.join(
+            config.saved_model_dir, config.dataset_name, config.crossval_k, "model.pth"
+        )
+        optim_state_path = os.path.join(
+            config.saved_model_dir, config.dataset_name, config.crossval_k, "optim.pth"
+        )
+
         if os.path.exists(model_state_path):
             ambient_model.load_state_dict(
                 torch.load(model_state_path, map_location=config.device)
             )
             print("Loaded saved model state from:", model_state_path)
-        optim_state_path = os.path.join(config.saved_model_dir, "optim.pth")
+
         if os.path.exists(optim_state_path):
             optim.load_state_dict(
                 torch.load(optim_state_path, map_location=config.device)

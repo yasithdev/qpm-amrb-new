@@ -2,7 +2,11 @@ clean:
 	rm -rf **/__pycache__
 
 amrb_1:
-	DS_NAME=AMRB_1 python -u 1_amrb_preview.py
+	for i in $$(seq 0 9); do \
+		DS_NAME=AMRB_1 CROSSVAL_K=$${i} python -u 1_amrb_preview.py; \
+	done
 
 amrb_2:
-	DS_NAME=AMRB_2 python -u 1_amrb_preview.py
+	for i in $$(seq 0 9); do \
+		DS_NAME=AMRB_2 CROSSVAL_K=$${i} python -u 1_amrb_preview.py; \
+	done
