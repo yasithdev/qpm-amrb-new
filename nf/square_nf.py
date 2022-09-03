@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 import torch
-import torch.distributions
 
 from .transforms import FlowTransform
 

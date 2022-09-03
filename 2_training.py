@@ -5,10 +5,8 @@ import shutil
 import numpy as np
 import torch
 
-import dflows as nf
-import dflows.transforms as nft
 from config import Config, load_config
-from loops import test_model, train_model
+from models import get_model_optimizer_and_loops
 
 
 def main(config: Config):
@@ -27,75 +25,40 @@ def main(config: Config):
         shutil.rmtree(experiment_path, ignore_errors=True)
         os.makedirs(experiment_path, exist_ok=True)
 
-    # create flow (pending)
     base_dist = torch.distributions.MultivariateNormal(
         torch.zeros(config.manifold_c), torch.eye(config.manifold_c)
     )
 
-    ambient_model = nf.SquareNormalizingFlow(
-        transforms=[
-            nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
-            nft.Conv1x1(**config.conv1x1_config),
-            nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
-            nft.Conv1x1(**config.conv1x1_config),
-            nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
-            nft.Conv1x1(**config.conv1x1_config),
-            nft.AffineCoupling(nft.CouplingNetwork(**config.coupling_network_config)),
-            nft.Conv1x1(**config.conv1x1_config),
-        ]
+    model, optim, train_model, test_model = get_model_optimizer_and_loops(
+        name="nf",
+        config=config,
+        experiment_path=experiment_path
     )
 
-    # set up optimizer
-    optim_config = {"params": ambient_model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.Adam(**optim_config)
-
-    # list to store train / test losses
-    train_losses = []
-    test_losses = []
-
-    # load saved model and optimizer, if present
-    if config.exc_resume:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-
-        if os.path.exists(model_state_path):
-            ambient_model.load_state_dict(
-                torch.load(model_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved model state from:", model_state_path)
-
-        if os.path.exists(optim_state_path):
-            optim.load_state_dict(
-                torch.load(optim_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved optim state from:", optim_state_path)
+    train_stats = []
+    test_stats = []
 
     # run train / test loops
     logging.info("Started Train/Test")
-    test_model(
-        nn=ambient_model,
-        epoch=0,
-        loader=test_loader,
-        config=config,
-        test_losses=test_losses,
-        experiment_path=experiment_path,
-    )
-    for current_epoch in range(1, config.train_epochs + 1):
-        train_model(
-            nn=ambient_model,
-            epoch=current_epoch,
-            loader=train_loader,
-            config=config,
-            optim=optim,
-            train_losses=train_losses,
-            experiment_path=experiment_path,
-        )
+    for current_epoch in range(config.train_epochs + 1):
+        # training loop
+        if current_epoch > 0:
+            train_model(
+                nn=model,
+                epoch=current_epoch,
+                loader=train_loader,
+                config=config,
+                optim=optim,
+                stats=train_stats,
+                experiment_path=experiment_path,
+            )
+        # testing loop
         test_model(
-            nn=ambient_model,
+            nn=model,
             epoch=current_epoch,
             loader=test_loader,
             config=config,
-            test_losses=test_losses,
+            stats=test_stats,
             experiment_path=experiment_path,
         )
 

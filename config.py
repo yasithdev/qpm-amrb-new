@@ -6,7 +6,7 @@ from typing import Tuple
 from dotenv import load_dotenv
 
 from data_loaders import DataLoaderFunction, get_data_loader
-from dflows.nn_util import get_best_device
+from utils.torch_utils import get_best_device
 
 
 class Config:
@@ -101,7 +101,7 @@ def load_config() -> Config:
         batch_size_test=batch_size,
         data_root=data_dir,
         ood_mode=exc_ood_mode,
-        crossval_k=crossval_k
+        crossval_k=crossval_k,
     )
     # runtime device
     device = get_best_device()

@@ -1,10 +1,6 @@
-from typing import Tuple
-
 import torch
-import einops
 
 from .square_nf import SquareNormalizingFlow
-
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 

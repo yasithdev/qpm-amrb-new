@@ -1,26 +1,74 @@
+import logging
 import os
 from typing import List
 
+import nf
 import torch.nn.functional
 import torch.optim
 import torch.utils.data
+from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+from utils.image_utils import gen_img_from_patches, gen_patches_from_img
+from utils.torch_utils import set_requires_grad
 
-import dflows.transforms as nft
-from config import Config
-from dflows.flow_util import pad, proj
-from dflows.img_util import gen_img_from_patches, gen_patches_from_img
-from dflows.nn_util import set_requires_grad
+
+def load_model_and_optimizer(
+    config: Config,
+    experiment_path: str,
+):
+    model = nf.SquareNormalizingFlow(
+        transforms=[
+            nf.transforms.AffineCoupling(
+                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            ),
+            nf.transforms.Conv1x1(**config.conv1x1_config),
+            nf.transforms.AffineCoupling(
+                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            ),
+            nf.transforms.Conv1x1(**config.conv1x1_config),
+            nf.transforms.AffineCoupling(
+                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            ),
+            nf.transforms.Conv1x1(**config.conv1x1_config),
+            nf.transforms.AffineCoupling(
+                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            ),
+            nf.transforms.Conv1x1(**config.conv1x1_config),
+        ]
+    )
+
+    # set up optimizer
+    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
+    optim = torch.optim.Adam(**optim_config)
+
+    # load saved model and optimizer, if present
+    if config.exc_resume:
+        model_state_path = os.path.join(experiment_path, "model.pth")
+        optim_state_path = os.path.join(experiment_path, "optim.pth")
+
+        if os.path.exists(model_state_path):
+            model.load_state_dict(
+                torch.load(model_state_path, map_location=config.device)
+            )
+            logging.info("Loaded saved model state from:", model_state_path)
+
+        if os.path.exists(optim_state_path):
+            optim.load_state_dict(
+                torch.load(optim_state_path, map_location=config.device)
+            )
+            logging.info("Loaded saved optim state from:", optim_state_path)
+
+    return model, optim
 
 
 def train_model(
-    nn: nft.FlowTransform,
+    nn: nf.transforms.FlowTransform,
     epoch: int,
     loader: torch.utils.data.DataLoader,
     config: Config,
     optim: torch.optim.Optimizer,
-    train_losses: List,
+    stats: List,
     experiment_path: str,
 ) -> None:
     # initialize loop
@@ -42,8 +90,8 @@ def train_model(
 
             # forward pass
             z, fwd_log_det = nn.forward(x)
-            zu = proj(z, manifold_dims=config.manifold_c)
-            z_pad = pad(
+            zu = nf.util.proj(z, manifold_dims=config.manifold_c)
+            z_pad = nf.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
@@ -61,13 +109,13 @@ def train_model(
             sum_loss += minibatch_loss.item() * config.batch_size
 
             # logging
-            stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
-            iterable.set_postfix(stats)
+            log_stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
+            iterable.set_postfix(log_stats)
 
     # post-training
     avg_loss = sum_loss / size
     tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
-    train_losses.append(avg_loss)
+    stats.append(avg_loss)
 
     # save model/optimizer states
     if not config.exc_dry_run:
@@ -78,11 +126,11 @@ def train_model(
 
 
 def test_model(
-    nn: nft.FlowTransform,
+    nn: nf.transforms.FlowTransform,
     epoch: int,
     loader: torch.utils.data.DataLoader,
     config: Config,
-    test_losses: List,
+    stats: List,
     experiment_path: str,
 ) -> None:
     # initialize loop
@@ -109,8 +157,8 @@ def test_model(
 
             # forward pass
             z, fwd_log_det = nn.forward(x)
-            zu = proj(z, manifold_dims=config.manifold_c)
-            z_pad = pad(
+            zu = nf.util.proj(z, manifold_dims=config.manifold_c)
+            z_pad = nf.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
@@ -123,8 +171,8 @@ def test_model(
             sum_loss += minibatch_loss.item() * config.batch_size
 
             # logging
-            stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
-            iterable.set_postfix(stats)
+            log_stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
+            iterable.set_postfix(log_stats)
 
             # accumulate plots
             if current_plot < img_count:
@@ -138,10 +186,10 @@ def test_model(
 
     # post-testing
     avg_loss = sum_loss / size
-    test_losses.append(avg_loss)
+    stats.append(avg_loss)
     tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
 
     # save generated plot
     if not config.exc_dry_run:
-        plt.savefig(os.path.join(experiment_path, "test_epoch_{epoch}.png"))
+        plt.savefig(os.path.join(experiment_path, f"test_epoch_{epoch}.png"))
     plt.close()

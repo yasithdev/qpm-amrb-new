@@ -1,6 +1,5 @@
 import torch
 
-
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
@@ -22,7 +21,6 @@ def get_best_device():
     import torch.backends.cuda
 
     # import torch.backends.mps
-
     # check for cuda
     if torch.backends.cuda.is_built() and torch.cuda.is_available():
         return "cuda"
