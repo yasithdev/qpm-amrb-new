@@ -4,9 +4,22 @@ import sys
 from typing import Tuple
 
 from dotenv import load_dotenv
+from torch.utils.data import DataLoader
 
-from data_loaders import DataLoaderFunction, get_data_loader
-from utils.torch_utils import get_best_device
+from data_loaders import get_dataset_info, get_dataset_loaders
+
+
+def get_best_device():
+    import torch.backends.cuda
+
+    # import torch.backends.mps
+    # check for cuda
+    if torch.backends.cuda.is_built() and torch.cuda.is_available():
+        return "cuda"
+    # check for mps
+    # if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+    #   return "mps"
+    return "cpu"
 
 
 class Config:
@@ -28,7 +41,10 @@ class Config:
         exc_resume: bool,
         exc_ood_mode: bool,
         input_chw: Tuple[int, int, int],
-        data_loader: DataLoaderFunction,
+        dataset_info: dict,
+        train_loader: DataLoader,
+        test_loader: DataLoader,
+        data_info: dict,
         device: str,
         coupling_network_config: dict,
         conv1x1_config: dict,
@@ -50,7 +66,10 @@ class Config:
         self.exc_resume = exc_resume
         self.exc_ood_mode = exc_ood_mode
         self.input_chw = input_chw
-        self.data_loader = data_loader
+        self.dataset_info = dataset_info
+        self.train_loader = train_loader
+        self.test_loader = test_loader
+        self.data_info = data_info
         self.device = device
         self.coupling_network_config = coupling_network_config
         self.conv1x1_config = conv1x1_config
@@ -95,10 +114,16 @@ def load_config() -> Config:
         image_chw[-1] // patch_hw[-1],
     )
     # data loader
-    data_loader = get_data_loader(
+    train_loader, test_loader = get_dataset_loaders(
         dataset_name,
         batch_size_train=batch_size,
         batch_size_test=batch_size,
+        data_root=data_dir,
+        ood_mode=exc_ood_mode,
+        crossval_k=crossval_k,
+    )
+    dataset_info = get_dataset_info(
+        dataset_name,
         data_root=data_dir,
         ood_mode=exc_ood_mode,
         crossval_k=crossval_k,
@@ -139,7 +164,9 @@ def load_config() -> Config:
         exc_ood_mode=exc_ood_mode,
         # derived params
         input_chw=input_chw,
-        data_loader=data_loader,
+        dataset_info=dataset_info,
+        train_loader=train_loader,
+        test_loader=test_loader,
         device=device,
         coupling_network_config=coupling_network_config,
         conv1x1_config=conv1x1_config,

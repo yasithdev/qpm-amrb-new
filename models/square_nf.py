@@ -2,15 +2,16 @@ import logging
 import os
 from typing import List
 
-import nf
 import torch.nn.functional
 import torch.optim
 import torch.utils.data
 from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from utils.image_utils import gen_img_from_patches, gen_patches_from_img
-from utils.torch_utils import set_requires_grad
+
+from . import nf
+from .utils.image_utils import gen_img_from_patches, gen_patches_from_img
+from .utils.torch_utils import set_requires_grad
 
 
 def load_model_and_optimizer(
@@ -65,7 +66,6 @@ def load_model_and_optimizer(
 def train_model(
     nn: nf.transforms.FlowTransform,
     epoch: int,
-    loader: torch.utils.data.DataLoader,
     config: Config,
     optim: torch.optim.Optimizer,
     stats: List,
@@ -74,13 +74,15 @@ def train_model(
     # initialize loop
     nn = nn.to(config.device)
     nn.train()
-    size = len(loader.dataset)
+    size = len(config.train_loader.dataset)
     sum_loss = 0
 
     # training
     set_requires_grad(nn, True)
     with torch.enable_grad():
-        iterable = tqdm(loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
+        iterable = tqdm(
+            config.train_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args
+        )
         x: torch.Tensor
         y: torch.Tensor
         for x, y in iterable:
@@ -128,7 +130,6 @@ def train_model(
 def test_model(
     nn: nf.transforms.FlowTransform,
     epoch: int,
-    loader: torch.utils.data.DataLoader,
     config: Config,
     stats: List,
     experiment_path: str,
@@ -136,7 +137,7 @@ def test_model(
     # initialize loop
     nn = nn.to(config.device)
     nn.eval()
-    size = len(loader.dataset)
+    size = len(config.test_loader.dataset)
     sum_loss = 0
 
     # initialize plot(s)
@@ -147,7 +148,9 @@ def test_model(
     # testing
     set_requires_grad(nn, False)
     with torch.no_grad():
-        iterable = tqdm(loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
+        iterable = tqdm(
+            config.test_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args
+        )
         x: torch.Tensor
         y: torch.Tensor
         for x, y in iterable:

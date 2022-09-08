@@ -1,22 +1,30 @@
-import functools
-from typing import Callable, Tuple
+from typing import Tuple
 
 from torch.utils.data import DataLoader
 
-from .amrb import load_v1 as load_amrb_1
-from .amrb import load_v2 as load_amrb_2
-from .mnist import load as load_mnist
-
-DataLoaderFunction = Callable[[], Tuple[DataLoader, DataLoader]]
+from . import amrb, mnist
 
 
-def get_data_loader(dataset_name: str, **kwargs) -> DataLoaderFunction:
+def get_dataset_loaders(dataset_name: str, **kwargs) -> Tuple[DataLoader, DataLoader]:
     if dataset_name == "MNIST":
-        return functools.partial(load_mnist, **kwargs)
+        return mnist.create_data_loaders(**kwargs)
     elif dataset_name == "AMRB_1":
-        return functools.partial(load_amrb_1, **kwargs)
+        return amrb.create_data_loaders(version=1, **kwargs)
     elif dataset_name == "AMRB_2":
-        return functools.partial(load_amrb_2, **kwargs)
+        return amrb.create_data_loaders(version=2, **kwargs)
+    else:
+        raise ValueError(
+            f"Only MNIST, AMRB_1, and AMRB_2 datasets are supported. (Given: {dataset_name})"
+        )
+
+
+def get_dataset_info(dataset_name: str, **kwargs) -> dict:
+    if dataset_name == "MNIST":
+        return mnist.get_info(**kwargs)
+    elif dataset_name == "AMRB_1":
+        return amrb.get_info(version=1, **kwargs)
+    elif dataset_name == "AMRB_2":
+        return amrb.get_info(version=2, **kwargs)
     else:
         raise ValueError(
             f"Only MNIST, AMRB_1, and AMRB_2 datasets are supported. (Given: {dataset_name})"

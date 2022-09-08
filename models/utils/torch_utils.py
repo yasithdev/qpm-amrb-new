@@ -17,17 +17,4 @@ def set_requires_grad(module: torch.nn.Module, flag: bool):
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def get_best_device():
-    import torch.backends.cuda
-
-    # import torch.backends.mps
-    # check for cuda
-    if torch.backends.cuda.is_built() and torch.cuda.is_available():
-        return "cuda"
-    # check for mps
-    # if torch.backends.mps.is_built() and torch.backends.mps.is_available():
-    #   return "mps"
-    return "cpu"
-
-
 # --------------------------------------------------------------------------------------------------------------------------------------------------

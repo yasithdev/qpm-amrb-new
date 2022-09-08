@@ -1,7 +1,7 @@
 import logging
 import os
 from time import time
-from typing import Any, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import einops
 import numpy as np
@@ -158,7 +158,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         t_end = time()
         logging.info(f"Dataset optimized in {t_end - t_start} s")
 
-    def __getitem__(self, index: int) -> Any:
+    def __getitem__(self, index: int):
 
         img = self.data_x[index]
         target = self.data_y[index]
@@ -176,17 +176,20 @@ class AMRB(torchvision.datasets.VisionDataset):
         num_data = len(self.data_x)
         return num_data
 
+    def get_info(self):
+        raise NotImplementedError()
+
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def load(
+def create_data_loaders(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    version: int,
-    ood_mode: bool,
     crossval_k: int,
+    ood_mode: bool,
+    version: int,
 ) -> Tuple[DataLoader, DataLoader]:
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(), AddGaussianNoise(mean=0.0, std=0.01)]
@@ -225,38 +228,13 @@ def load(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def load_v1(
-    batch_size_train: int,
-    batch_size_test: int,
+def get_info(
     data_root: str,
-    ood_mode: bool,
     crossval_k: int,
-) -> Tuple[DataLoader, DataLoader]:
-    return load(
-        batch_size_train=batch_size_train,
-        batch_size_test=batch_size_test,
-        data_root=data_root,
-        version=1,
-        ood_mode=ood_mode,
-        crossval_k=crossval_k,
-    )
+    ood_mode: bool,
+    version: int,
+) -> dict:
+    raise NotImplementedError()
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-def load_v2(
-    batch_size_train: int,
-    batch_size_test: int,
-    data_root: str,
-    ood_mode: bool,
-    crossval_k: int,
-) -> Tuple[DataLoader, DataLoader]:
-    return load(
-        batch_size_train=batch_size_train,
-        batch_size_test=batch_size_test,
-        data_root=data_root,
-        version=2,
-        ood_mode=ood_mode,
-        crossval_k=crossval_k,
-    )

@@ -11,8 +11,6 @@ from models import get_model_optimizer_and_loops
 
 def main(config: Config):
 
-    train_loader, test_loader = config.data_loader()
-
     # set experiment name and path
     experiment_name = "2_training"
     experiment_path = os.path.join(
@@ -32,7 +30,7 @@ def main(config: Config):
     model, optim, train_model, test_model = get_model_optimizer_and_loops(
         name="nf",
         config=config,
-        experiment_path=experiment_path
+        experiment_path=experiment_path,
     )
 
     train_stats = []
@@ -46,7 +44,6 @@ def main(config: Config):
             train_model(
                 nn=model,
                 epoch=current_epoch,
-                loader=train_loader,
                 config=config,
                 optim=optim,
                 stats=train_stats,
@@ -56,7 +53,6 @@ def main(config: Config):
         test_model(
             nn=model,
             epoch=current_epoch,
-            loader=test_loader,
             config=config,
             stats=test_stats,
             experiment_path=experiment_path,

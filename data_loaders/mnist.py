@@ -8,10 +8,11 @@ from .transforms import AddGaussianNoise
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def load(
+def create_data_loaders(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
+    crossval_k: int,
     ood_mode: bool,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     transform = torchvision.transforms.Compose(
@@ -42,6 +43,17 @@ def load(
     )
 
     return train_loader, test_loader
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def get_info(
+    data_root: str,
+    crossval_k: int,
+    ood_mode: bool,
+) -> dict:
+    raise NotImplementedError()
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
