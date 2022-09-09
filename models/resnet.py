@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import List, Tuple
 
 import torch
@@ -11,9 +13,8 @@ def load_model_and_optimizer(
     config: Config,
     experiment_path: str,
 ):
-    # raise NotImplementedError()
 
-    num_features=128
+    num_features = 128
 
     # BCHW -> BD11
     encoder = get_encoder(
@@ -28,10 +29,39 @@ def load_model_and_optimizer(
     )
 
     # BD11 -> BL
+    num_labels = config.dataset_info["labels"]
     classifier = get_classifier(
         in_features=num_features,
-        out_features=config.
+        out_features=num_labels,
     )
+
+    model = torch.nn.ModuleDict(
+        {
+            "encoder": encoder,
+            "decoder": decoder,
+            "classifier": classifier,
+        }
+    )
+
+    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
+    optim = torch.optim.Adam(**optim_config)
+
+    # load saved model and optimizer, if present
+    if config.exc_resume:
+        model_state_path = os.path.join(experiment_path, "model.pth")
+        optim_state_path = os.path.join(experiment_path, "optim.pth")
+
+        if os.path.exists(model_state_path):
+            model.load_state_dict(
+                torch.load(model_state_path, map_location=config.device)
+            )
+            logging.info("Loaded saved model state from:", model_state_path)
+
+        if os.path.exists(optim_state_path):
+            optim.load_state_dict(
+                torch.load(optim_state_path, map_location=config.device)
+            )
+            logging.info("Loaded saved optim state from:", optim_state_path)
 
 
 def train_model(

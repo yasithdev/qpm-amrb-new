@@ -53,7 +53,16 @@ def get_info(
     crossval_k: int,
     ood_mode: bool,
 ) -> dict:
-    raise NotImplementedError()
+    if ood_mode:
+        return {
+            "num_train_labels": 9,
+            "num_test_labels": 1,
+        }
+    else:
+        return {
+            "num_train_labels": 10,
+            "num_test_labels": 10,
+        }
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

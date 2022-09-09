@@ -6,7 +6,7 @@ from typing import Tuple
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 
-from data_loaders import get_dataset_info, get_dataset_loaders
+from datasets import get_dataset_info, get_dataset_loaders
 
 
 def get_best_device():
@@ -44,7 +44,6 @@ class Config:
         dataset_info: dict,
         train_loader: DataLoader,
         test_loader: DataLoader,
-        data_info: dict,
         device: str,
         coupling_network_config: dict,
         conv1x1_config: dict,
@@ -69,7 +68,6 @@ class Config:
         self.dataset_info = dataset_info
         self.train_loader = train_loader
         self.test_loader = test_loader
-        self.data_info = data_info
         self.device = device
         self.coupling_network_config = coupling_network_config
         self.conv1x1_config = conv1x1_config

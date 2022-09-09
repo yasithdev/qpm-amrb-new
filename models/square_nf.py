@@ -10,8 +10,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from . import nf
-from .utils.image_utils import gen_img_from_patches, gen_patches_from_img
-from .utils.torch_utils import set_requires_grad
+from .util import gen_img_from_patches, gen_patches_from_img, set_requires_grad
 
 
 def load_model_and_optimizer(

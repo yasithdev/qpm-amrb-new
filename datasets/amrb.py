@@ -234,7 +234,30 @@ def get_info(
     ood_mode: bool,
     version: int,
 ) -> dict:
-    raise NotImplementedError()
+    if version == 1:
+        if ood_mode:
+            return {
+                "num_train_labels": 6,
+                "num_test_labels": 1,
+            }
+        else:
+            return {
+                "num_train_labels": 7,
+                "num_test_labels": 7,
+            }
+    elif version == "2":
+        if ood_mode:
+            return {
+                "num_train_labels": 20,
+                "num_test_labels": 1,
+            }
+        else:
+            return {
+                "num_train_labels": 21,
+                "num_test_labels": 21,
+            }
+    else:
+        raise NotImplementedError(f"Unknown Dataset Version: {version}")
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
