@@ -1,3 +1,4 @@
+from asyncio.log import logger
 from typing import Tuple
 
 import torch
@@ -29,48 +30,58 @@ class ResidualBlock(torch.nn.Module):
         self.stride = stride
 
         # layers
-        self.conv1 = self.Conv(
-            in_channels=self.in_channels,
-            out_channels=self.hidden_channels,
-            kernel_size=1,
-            stride=1,
-            padding="same",
+        self.conv1 = torch.nn.Sequential(
+            self.Conv(
+                in_channels=self.in_channels,
+                out_channels=self.hidden_channels,
+                kernel_size=1,
+                stride=1,
+                bias=False,
+            ),
+            self.Norm(
+                num_features=self.hidden_channels,
+            ),
         )
-        self.norm1 = self.Norm(
-            num_features=self.hidden_channels,
+        self.conv2 = torch.nn.Sequential(
+            self.Conv(
+                in_channels=self.hidden_channels,
+                out_channels=self.hidden_channels,
+                kernel_size=3,
+                stride=self.stride,
+                padding=1,
+                dilation=1,
+                bias=False,
+            ),
+            self.Norm(
+                num_features=self.hidden_channels,
+            ),
         )
-        self.conv2 = self.Conv(
-            in_channels=self.hidden_channels,
-            out_channels=self.hidden_channels,
-            kernel_size=3,
-            stride=self.stride,
-            padding="same",
-        )
-        self.norm2 = self.Norm(
-            num_features=self.hidden_channels,
-        )
-        self.conv3 = self.Conv(
-            in_channels=self.hidden_channels,
-            out_channels=self.out_channels,
-            kernel_size=1,
-            stride=1,
-            padding="same",
-        )
-        self.norm3 = self.Norm(
-            num_features=self.out_channels,
+        self.conv3 = torch.nn.Sequential(
+            self.Conv(
+                in_channels=self.hidden_channels,
+                out_channels=self.out_channels,
+                kernel_size=1,
+                stride=1,
+                bias=False,
+            ),
+            self.Norm(
+                num_features=self.out_channels,
+            ),
         )
 
         # if stride != 1, match identity to x using 1x1 convolution
         if self.stride != 1:
-            self.convI = self.Conv(
-                in_channels=self.in_channels,
-                out_channels=self.out_channels,
-                kernel_size=1,
-                stride=self.stride,
-                padding="same",
-            )
-            self.normI = self.Norm(
-                num_features=self.out_channels,
+            self.convI = torch.nn.Sequential(
+                self.Conv(
+                    in_channels=self.in_channels,
+                    out_channels=self.out_channels,
+                    kernel_size=1,
+                    stride=self.stride,
+                    bias=False,
+                ),
+                self.Norm(
+                    num_features=self.out_channels,
+                ),
             )
 
     def forward(
@@ -79,15 +90,15 @@ class ResidualBlock(torch.nn.Module):
     ) -> torch.Tensor:
         # forward on x
         x = xI = input
-        x = self.norm1(self.conv1(x))
+        x = self.conv1(x)
         x = self.activation(x)
-        x = self.norm2(self.conv2(x))
+        x = self.conv2(x)
         x = self.activation(x)
-        x = self.norm3(self.conv3(x))
+        x = self.conv3(x)
 
         # forward on xI
         if self.stride != 1:
-            xI = self.normI(self.convI(xI))
+            xI = self.convI(xI)
 
         # add xI to value
         x = x + xI

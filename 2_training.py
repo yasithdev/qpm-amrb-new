@@ -28,7 +28,7 @@ def main(config: Config):
     )
 
     model, optim, train_model, test_model = get_model_optimizer_and_loops(
-        name="nf",
+        name="resnet",
         config=config,
         experiment_path=experiment_path,
     )

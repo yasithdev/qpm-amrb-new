@@ -2,9 +2,7 @@ import logging
 import os
 from typing import List
 
-import torch.nn.functional
-import torch.optim
-import torch.utils.data
+import torch
 from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -44,8 +42,8 @@ def load_model_and_optimizer(
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
+        model_state_path = os.path.join(experiment_path, "model-nf.pth")
+        optim_state_path = os.path.join(experiment_path, "optim-nf.pth")
 
         if os.path.exists(model_state_path):
             model.load_state_dict(
@@ -85,9 +83,13 @@ def train_model(
         x: torch.Tensor
         y: torch.Tensor
         for x, y in iterable:
+
+            # cast x and y to float
+            x = x.float().to(config.device)
+            y = y.float().to(config.device)
+
             # reshape
-            x = gen_patches_from_img(x.to(config.device), patch_hw=config.patch_hw)
-            x = x.float()
+            x = gen_patches_from_img(x, patch_hw=config.patch_hw)
 
             # forward pass
             z, fwd_log_det = nn.forward(x)
@@ -119,9 +121,10 @@ def train_model(
     stats.append(avg_loss)
 
     # save model/optimizer states
-    if not config.exc_dry_run:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
+    if min(stats) == avg_loss and not config.exc_dry_run:
+        logging.info("checkpoint - saving current model and optimizer state")
+        model_state_path = os.path.join(experiment_path, "model-nf.pth")
+        optim_state_path = os.path.join(experiment_path, "optim-nf.pth")
         torch.save(nn.state_dict(), model_state_path)
         torch.save(optim.state_dict(), optim_state_path)
 
@@ -153,9 +156,13 @@ def test_model(
         x: torch.Tensor
         y: torch.Tensor
         for x, y in iterable:
+
+            # cast x and y to float
+            x = x.float().to(config.device)
+            y = y.float().to(config.device)
+
             # reshape
             x = gen_patches_from_img(x.to(config.device), patch_hw=config.patch_hw)
-            x = x.float()
 
             # forward pass
             z, fwd_log_det = nn.forward(x)
@@ -193,5 +200,5 @@ def test_model(
 
     # save generated plot
     if not config.exc_dry_run:
-        plt.savefig(os.path.join(experiment_path, f"test_epoch_{epoch}.png"))
+        plt.savefig(os.path.join(experiment_path, f"test_nf_epoch_{epoch}.png"))
     plt.close()
