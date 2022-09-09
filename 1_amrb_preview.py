@@ -10,9 +10,6 @@ from vis import gen_umap, plot_samples
 
 
 def main(config: Config):
-    # ----------------------------------
-
-    train_loader, test_loader = config.data_loader()
 
     # set experiment name and path
     experiment_name = "1_amrb_preview"
@@ -27,7 +24,7 @@ def main(config: Config):
 
     x_trn = []
     y_trn = []
-    for img, target in train_loader:
+    for img, target in config.train_loader:
         x_trn.append(img)
         y_trn.append(target)
         if len(y_trn) == 200:
@@ -35,7 +32,7 @@ def main(config: Config):
 
     x_tst = []
     y_tst = []
-    for img, target in test_loader:
+    for img, target in config.test_loader:
         x_tst.append(img)
         y_tst.append(target)
         if len(y_tst) == 200:
@@ -61,7 +58,7 @@ def main(config: Config):
         x=x_trn,
         y=y_trn,
         out_path=os.path.join(experiment_path, "preview.trn.pdf"),
-        labels=train_loader.dataset.labels,
+        labels=config.train_loader.dataset.labels,
     )
 
     logging.info("Plotting testing samples")
@@ -69,7 +66,7 @@ def main(config: Config):
         x=x_tst,
         y=y_tst,
         out_path=os.path.join(experiment_path, "preview.tst.pdf"),
-        labels=test_loader.dataset.labels,
+        labels=config.test_loader.dataset.labels,
     )
 
     # ----------------------------------
@@ -81,7 +78,7 @@ def main(config: Config):
         y=y_trn,
         out_path=os.path.join(experiment_path, "umap.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
-        labels=train_loader.dataset.labels,
+        labels=config.train_loader.dataset.labels,
     )
 
     logging.info("Plotting UMAP projection of testing samples")
@@ -90,7 +87,7 @@ def main(config: Config):
         y=y_tst,
         out_path=os.path.join(experiment_path, "umap.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
-        labels=test_loader.dataset.labels,
+        labels=config.test_loader.dataset.labels,
     )
 
 

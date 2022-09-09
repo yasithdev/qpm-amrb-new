@@ -245,7 +245,7 @@ def get_info(
                 "num_train_labels": 7,
                 "num_test_labels": 7,
             }
-    elif version == "2":
+    elif version == 2:
         if ood_mode:
             return {
                 "num_train_labels": 20,

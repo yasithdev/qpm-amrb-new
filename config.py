@@ -29,6 +29,7 @@ class Config:
         crossval_k: int,
         data_dir: str,
         dataset_name: str,
+        model_name: str,
         experiment_dir: str,
         image_chw: Tuple[int, int, int],
         patch_hw: Tuple[int, int],
@@ -53,6 +54,7 @@ class Config:
         self.crossval_k = crossval_k
         self.data_dir = data_dir
         self.dataset_name = dataset_name
+        self.model_name = model_name
         self.experiment_dir = experiment_dir
         self.image_chw = image_chw
         self.patch_hw = patch_hw
@@ -92,7 +94,8 @@ def load_config() -> Config:
 
     crossval_k = int(getenv("CROSSVAL_K"))
     data_dir = getenv("DATA_DIR")
-    dataset_name = getenv("DS_NAME")
+    dataset_name = getenv("DATASET_NAME")
+    model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
     patch_hw = (int(getenv("PATCH_H")), int(getenv("PATCH_W")))
@@ -149,6 +152,7 @@ def load_config() -> Config:
         crossval_k=crossval_k,
         data_dir=data_dir,
         dataset_name=dataset_name,
+        model_name=model_name,
         experiment_dir=experiment_dir,
         image_chw=image_chw,
         patch_hw=patch_hw,

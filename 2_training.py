@@ -16,7 +16,7 @@ def main(config: Config):
     experiment_path = os.path.join(
         config.experiment_dir,
         experiment_name,
-        config.dataset_name,
+        f"{config.dataset_name}-{config.model_name}",
         str(config.crossval_k),
     )
     if not (config.exc_resume or config.exc_dry_run):
@@ -28,7 +28,6 @@ def main(config: Config):
     )
 
     model, optim, train_model, test_model = get_model_optimizer_and_loops(
-        name="resnet",
         config=config,
         experiment_path=experiment_path,
     )
