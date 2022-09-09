@@ -1,8 +1,8 @@
 torch~=1.12.1
 torchvision~=0.13.1
-tqdm~=4.64.0
+tqdm~=4.64.1
 matplotlib~=3.5.3
 einops~=0.4.1
 numpy~=1.23.2
-python-dotenv~=0.20.0
+python-dotenv~=0.21.0
 umap-learn[plot]~=0.5.3
