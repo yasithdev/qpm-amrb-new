@@ -23,7 +23,7 @@ def main(config: Config):
         shutil.rmtree(experiment_path, ignore_errors=True)
         os.makedirs(experiment_path, exist_ok=True)
 
-    base_dist = torch.distributions.MultivariateNormal(
+    z_dist = torch.distributions.MultivariateNormal(
         torch.zeros(config.manifold_c), torch.eye(config.manifold_c)
     )
 
@@ -47,6 +47,7 @@ def main(config: Config):
                 optim=optim,
                 stats=train_stats,
                 experiment_path=experiment_path,
+                z_dist=z_dist,
             )
         # testing loop
         test_model(
@@ -55,6 +56,7 @@ def main(config: Config):
             config=config,
             stats=test_stats,
             experiment_path=experiment_path,
+            z_dist=z_dist,
         )
 
 
@@ -64,3 +66,4 @@ if __name__ == "__main__":
     torch.random.manual_seed(42)
     config = load_config()
     main(config)
+ 

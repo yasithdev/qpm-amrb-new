@@ -7,6 +7,7 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from .common import get_classifier
 from .resnet import get_decoder, get_encoder
 from .util import set_requires_grad
 
@@ -75,6 +76,7 @@ def train_model(
     optim: torch.optim.Optimizer,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     # initialize loop
     nn = nn.to(config.device)
@@ -144,6 +146,7 @@ def test_model(
     config: Config,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     # initialize loop
     nn = nn.to(config.device)
@@ -182,7 +185,6 @@ def test_model(
             y_z: torch.Tensor = classifier(z_x)
 
             # calculate loss
-            # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
@@ -210,28 +212,3 @@ def test_model(
     if not config.exc_dry_run:
         plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
     plt.close()
-
-
-def get_classifier(
-    in_features: int,
-    out_features: int,
-) -> torch.nn.Module:
-    """
-    Simple classifier with a dense layer + softmax activation
-
-    :param in_features: number of input channels (D)
-    :param out_features: number of output features (L)
-    :return: model that transforms (B, D, 1, 1) -> (B, L)
-    """
-    d = in_features
-
-    model = torch.nn.Sequential(
-        # (B, D, 1, 1)
-        torch.nn.Flatten(),
-        # (B, D)
-        torch.nn.Linear(in_features=d, out_features=out_features),
-        # (B, L)
-        torch.nn.Softmax(dim=1),
-        # (B, L)
-    )
-    return model

@@ -67,6 +67,7 @@ def train_model(
     optim: torch.optim.Optimizer,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     # initialize loop
     nn = nn.to(config.device)
@@ -135,6 +136,7 @@ def test_model(
     config: Config,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     # initialize loop
     nn = nn.to(config.device)

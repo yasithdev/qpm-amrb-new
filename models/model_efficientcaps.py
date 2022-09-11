@@ -20,6 +20,7 @@ def train_model(
     optim: torch.optim.Optimizer,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     raise NotImplementedError()
 
@@ -31,5 +32,6 @@ def test_model(
     config: Config,
     stats: List,
     experiment_path: str,
+    **kwargs,
 ) -> None:
     raise NotImplementedError()
