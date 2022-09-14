@@ -66,4 +66,3 @@ if __name__ == "__main__":
     torch.random.manual_seed(42)
     config = load_config()
     main(config)
- 
