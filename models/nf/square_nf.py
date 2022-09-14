@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import torch
 
-from .transforms import FlowTransform
+from .ops import FlowTransform
 
 
 class SquareNormalizingFlow(FlowTransform):

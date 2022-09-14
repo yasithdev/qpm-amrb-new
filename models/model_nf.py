@@ -17,22 +17,22 @@ def load_model_and_optimizer(
 ):
     model = nf.SquareNormalizingFlow(
         transforms=[
-            nf.transforms.AffineCoupling(
-                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            nf.ops.AffineCoupling(
+                nf.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.transforms.Conv1x1(**config.conv1x1_config),
-            nf.transforms.AffineCoupling(
-                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            nf.ops.Conv1x1(**config.conv1x1_config),
+            nf.ops.AffineCoupling(
+                nf.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.transforms.Conv1x1(**config.conv1x1_config),
-            nf.transforms.AffineCoupling(
-                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            nf.ops.Conv1x1(**config.conv1x1_config),
+            nf.ops.AffineCoupling(
+                nf.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.transforms.Conv1x1(**config.conv1x1_config),
-            nf.transforms.AffineCoupling(
-                nf.transforms.CouplingNetwork(**config.coupling_network_config)
+            nf.ops.Conv1x1(**config.conv1x1_config),
+            nf.ops.AffineCoupling(
+                nf.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.transforms.Conv1x1(**config.conv1x1_config),
+            nf.ops.Conv1x1(**config.conv1x1_config),
         ]
     )
 
@@ -61,7 +61,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    nn: nf.transforms.FlowTransform,
+    nn: nf.ops.FlowTransform,
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
@@ -131,7 +131,7 @@ def train_model(
 
 
 def test_model(
-    nn: nf.transforms.FlowTransform,
+    nn: nf.ops.FlowTransform,
     epoch: int,
     config: Config,
     stats: List,

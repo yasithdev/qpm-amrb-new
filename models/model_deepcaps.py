@@ -4,7 +4,7 @@ import torch
 import torch.utils.data
 from config import Config
 
-from .capsnet.deepcaps import ConvCaps3D, LinearCaps, MaskCaps, squash
+from .capsnet.ops.deepcaps import ConvCaps3D, LinearCaps, MaskCaps, squash
 
 
 def load_model_and_optimizer(
