@@ -235,7 +235,7 @@ class MaskCaps(torch.nn.Module):
             index=dist.argmax(dim=1),
         )
         # (B, D)
-        features = (x * mask.view(B, 1, D)).view(B, C * D)
+        features = (x * mask.reshape(B, 1, D)).reshape(B, C * D)
         # (B, C * D)
 
         return dist, features

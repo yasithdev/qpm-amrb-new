@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List
+from typing import List, Tuple
 
 import torch
 from config import Config
@@ -15,7 +15,7 @@ from .util import set_requires_grad
 def load_model_and_optimizer(
     config: Config,
     experiment_path: str,
-):
+) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     num_features = 128
 

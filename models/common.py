@@ -1,4 +1,5 @@
 import torch
+from types import LambdaType
 
 
 def get_classifier(
@@ -24,3 +25,12 @@ def get_classifier(
         # (B, L)
     )
     return model
+
+class Lambda(torch.nn.Module):
+    def __init__(self, func):
+        super().__init__()
+        assert type(func) is LambdaType
+        self.func = func
+
+    def forward(self, x):
+        return self.func(x)

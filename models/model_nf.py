@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List
+from typing import List, Tuple
 
 import torch
 from config import Config
@@ -14,7 +14,7 @@ from .util import gen_img_from_patches, gen_patches_from_img, set_requires_grad
 def load_model_and_optimizer(
     config: Config,
     experiment_path: str,
-):
+) -> Tuple[nf.ops.FlowTransform, torch.optim.Optimizer]:
     model = nf.SquareNormalizingFlow(
         transforms=[
             nf.ops.AffineCoupling(
