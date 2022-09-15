@@ -10,14 +10,15 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
+from .capsnet.caps import FlattenCaps, LinearCaps
 from .capsnet.common import conv_to_caps
-from .capsnet.deepcaps import ConvCaps3D, LinearCaps, MaskCaps, squash
-from .capsnet.caps import FlattenCaps
+from .capsnet.deepcaps import ConvCaps3D, MaskCaps, squash
 from .common import Functional, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
 caps_shape = (8, 32)
 kernel_size = (3, 3)
+
 
 def load_model_and_optimizer(
     config: Config,
@@ -29,8 +30,8 @@ def load_model_and_optimizer(
         caps_shape[0],
         caps_shape[1] * config.image_chw[1] * config.image_chw[2],
     )
-    out_caps_shape = (16, num_labels)
-    num_features = math.prod(out_caps_shape)
+    out_features = 16
+    out_caps_shape = (out_features, num_labels)
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
@@ -44,14 +45,14 @@ def load_model_and_optimizer(
         ConvCaps3D(
             in_capsules=caps_shape,
             out_capsules=caps_shape,
-            kernel_size=kernel_size,
+            kernel_size=(1, *kernel_size),
             padding="same",
         ),
         Functional(squash),
         FlattenCaps(),
         LinearCaps(
-            in_channels=flat_caps_shape[0],
-            out_channels=out_caps_shape[0],
+            in_capsules=flat_caps_shape,
+            out_capsules=out_caps_shape,
         ),
         Functional(squash),
     )
@@ -59,7 +60,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=num_features,
+        num_features=out_features,
         output_chw=config.image_chw,
     )
 

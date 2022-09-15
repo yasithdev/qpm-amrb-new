@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Tuple
+from typing import Callable, Tuple
 
 import torch
 from config import Config
@@ -64,14 +64,17 @@ class Functional(torch.nn.Module):
 
     """
 
-    def __init__(self, func):
+    def __init__(
+        self,
+        func: Callable[[torch.Tensor], torch.Tensor],
+    ) -> None:
         super().__init__()
-        from types import LambdaType
-
-        assert type(func) is LambdaType
         self.func = func
 
-    def forward(self, x):
+    def forward(
+        self,
+        x: torch.Tensor,
+    ) -> torch.Tensor:
         return self.func(x)
 
 

@@ -1,8 +1,8 @@
 import logging
 import math
 import os
-from typing import List, Tuple
 from functools import partial
+from typing import List, Tuple
 
 import torch
 import torch.utils.data
@@ -10,14 +10,15 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .capsnet.common import conv_to_caps
 from .capsnet.caps import ConvCaps2D, FlattenCaps, MaskCaps
+from .capsnet.common import conv_to_caps
 from .capsnet.efficientcaps import LinearCaps, squash
 from .common import Functional, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
 caps_shape = (8, 32)
 kernel_size = (3, 3)
+
 
 def load_model_and_optimizer(
     config: Config,
@@ -29,8 +30,8 @@ def load_model_and_optimizer(
         caps_shape[0],
         caps_shape[1] * config.image_chw[1] * config.image_chw[2],
     )
-    out_caps_shape = (16, num_labels)
-    num_features = math.prod(out_caps_shape)
+    out_features = 16
+    out_caps_shape = (out_features, num_labels)
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
@@ -59,7 +60,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=num_features,
+        num_features=out_features * num_labels,
         output_chw=config.image_chw,
     )
 

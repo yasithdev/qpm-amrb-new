@@ -29,8 +29,8 @@ def load_model_and_optimizer(
         caps_shape[0],
         caps_shape[1] * config.image_chw[1] * config.image_chw[2],
     )
-    out_caps_shape = (16, num_labels)
-    num_features = math.prod(out_caps_shape)
+    out_features = 16
+    out_caps_shape = (out_features, num_labels)
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
@@ -59,7 +59,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=num_features,
+        num_features=out_features * num_labels,
         output_chw=config.image_chw,
     )
 
