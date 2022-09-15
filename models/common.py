@@ -134,3 +134,13 @@ def set_requires_grad(module: torch.nn.Module, flag: bool):
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def conv_out_shape(
+    input_size: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 0,
+    dilation: int = 1,
+) -> int:
+    return (input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1

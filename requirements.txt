@@ -1,5 +1,6 @@
 torch~=1.12.1
 torchvision~=0.13.1
+torchsummary~=1.5.1
 tqdm~=4.64.1
 matplotlib~=3.5.3
 einops~=0.4.1

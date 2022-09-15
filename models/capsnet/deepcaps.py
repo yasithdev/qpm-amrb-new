@@ -46,7 +46,7 @@ class ConvCaps3D(torch.nn.Module):
         out_capsules: Tuple[int, int],
         kernel_size: Union[int, Tuple[int, int, int]] = (1, 3, 3),
         stride: Union[int, Tuple[int, int, int]] = (1, 1, 1),
-        padding: str = "same",
+        padding: str = "valid",
         groups: int = 1,
         routing_iters: int = 3,
     ):
@@ -62,6 +62,7 @@ class ConvCaps3D(torch.nn.Module):
             stride=stride,
             padding=padding,
             groups=groups,
+            bias=False,
         )
 
     def forward(

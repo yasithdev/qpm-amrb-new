@@ -12,11 +12,14 @@ from tqdm import tqdm
 
 from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCaps, MaskCaps, squash
 from .capsnet.common import conv_to_caps
-from .common import Functional, load_saved_state, set_requires_grad
+from .common import Functional, conv_out_shape, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
-caps_shape = (8, 32)
-kernel_size = (3, 3)
+caps_cd = (8, 32)
+kernel_hw = (9, 9)
+conv_stride = 1
+caps_stride = 2
+out_caps_c = 16
 
 
 def load_model_and_optimizer(
@@ -24,34 +27,34 @@ def load_model_and_optimizer(
     experiment_path: str,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
-    num_labels = config.dataset_info["num_train_labels"]
-    flat_caps_shape = (
-        caps_shape[0],
-        caps_shape[1] * config.image_chw[1] * config.image_chw[2],
-    )
-    out_features = 16
-    out_caps_shape = (out_features, num_labels)
+    out_caps_d = config.dataset_info["num_train_labels"]
+
+    # compute hw shapes of conv
+    (h0, w0) = config.image_chw[1:]
+    (kh, kw) = kernel_hw
+    (h1, w1) = conv_out_shape(h0, kh, conv_stride), conv_out_shape(w0, kw, conv_stride)
+    (h2, w2) = conv_out_shape(h1, kh, caps_stride), conv_out_shape(w1, kw, caps_stride)
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
             in_channels=config.image_chw[0],
-            out_channels=math.prod(caps_shape),
-            kernel_size=kernel_size,
-            padding="same",
+            out_channels=math.prod(caps_cd),
+            kernel_size=kernel_hw,
+            stride=conv_stride,
         ),
-        Functional(partial(conv_to_caps, out_capsules=caps_shape)),
+        Functional(partial(conv_to_caps, out_capsules=caps_cd)),
         Functional(squash),
         ConvCaps2D(
-            in_capsules=caps_shape,
-            out_capsules=caps_shape,
-            kernel_size=kernel_size,
-            padding="same",
+            in_capsules=caps_cd,
+            out_capsules=caps_cd,
+            kernel_size=kernel_hw,
+            stride=caps_stride,
         ),
         Functional(squash),
         FlattenCaps(),
         LinearCaps(
-            in_capsules=flat_caps_shape,
-            out_capsules=out_caps_shape,
+            in_capsules=(caps_cd[0], caps_cd[1] * h2 * w2),
+            out_capsules=(out_caps_c, out_caps_d),
         ),
         Functional(squash),
     )
@@ -59,7 +62,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=out_features * num_labels,
+        num_features=out_caps_c * out_caps_d,
         output_chw=config.image_chw,
     )
 
@@ -128,7 +131,7 @@ def train_model(
             y_z, z_x = classifier(z_x)
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
             # - decoder -
-            x_z = decoder(z_x)
+            x_z = decoder(z_x[..., None, None])
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # calculate loss

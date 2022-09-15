@@ -69,6 +69,7 @@ class ConvCaps2D(torch.nn.Module):
             stride=stride,
             padding=padding,
             groups=groups,
+            bias=False,
         )
 
     def forward(
@@ -155,14 +156,14 @@ class LinearCaps(torch.nn.Module):
         self.out_capsules = out_capsules
         self.routing_iters = routing_iters
 
-        # weights (c, C, D, d)
-        self.w = torch.nn.Parameter(
+        # weights (d, D, c, C)
+        self.weight = torch.nn.Parameter(
             torch.randn(
+                out_capsules[1],
+                in_capsules[1],
                 out_capsules[0],
                 in_capsules[0],
-                in_capsules[1],
-                out_capsules[1],
-            )
+            ),
         )
 
     def forward(
@@ -170,28 +171,29 @@ class LinearCaps(torch.nn.Module):
         x: torch.Tensor,
     ) -> torch.Tensor:
 
-        # prediction tensor (B, c, D, d)
-        u = torch.einsum("BCD,cCDd->BcDd", x, self.w)
+        # prediction tensor (B, d, D, c)
+        x = einops.rearrange(x, 'B C D -> B D C')
+        u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
 
-        # intialize log prior (B, D, d)
+        # intialize log prior (B, d, D)
         b = torch.zeros(
             size=(
                 u.size(0),
-                self.in_capsules[1],
                 self.out_capsules[1],
+                self.in_capsules[1],
             )
         )
 
         # dynamic routing
         for _ in range(self.routing_iters):
             # softmax of b across dim=d
-            c = torch.softmax(b, dim=2)
-            # compute s (B, c, d)
-            s = torch.einsum("BDd,BcDd->Bcd", c, u)
+            c = torch.softmax(b, dim=1)
+            # compute s (B, d, c)
+            s = torch.einsum("BdD,BdDc->Bdc", c, u)
             # update b
-            b += torch.einsum("BcDd,Bcd->BDd", u, squash(s))
+            b += torch.einsum("BdDc,Bdc->BdD", u, squash(s))
 
-        return s
+        return einops.rearrange(s, 'B d c -> B c d')
 
 
 class MaskCaps(torch.nn.Module):

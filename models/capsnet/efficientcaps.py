@@ -5,6 +5,7 @@ Implementation of 'Efficient-CapsNet: Capsule Network with Self-Attention Routin
 
 from typing import Tuple
 
+import einops
 import torch
 
 from .common import capsule_norm
@@ -58,22 +59,22 @@ class LinearCaps(torch.nn.Module):
         self.out_capsules = out_capsules
         self.nc = out_capsules[0] ** 0.5
 
-        # weights (c, C, D, d)
-        self.w = torch.nn.Parameter(
+        # weights (d, D, c, C)
+        self.weight = torch.nn.Parameter(
             torch.randn(
+                out_capsules[1],
+                in_capsules[1],
                 out_capsules[0],
                 in_capsules[0],
-                in_capsules[1],
-                out_capsules[1],
-            )
+            ),
         )
 
-        # log priors (D, d)
-        self.b = torch.nn.Parameter(
+        # log priors (d, D)
+        self.bias = torch.nn.Parameter(
             torch.randn(
-                in_capsules[1],
                 out_capsules[1],
-            )
+                in_capsules[1],
+            ),
         )
 
     def forward(
@@ -81,14 +82,15 @@ class LinearCaps(torch.nn.Module):
         x: torch.Tensor,
     ) -> torch.Tensor:
 
-        # capsule prediction (B, c, D, d)
-        u = torch.einsum("BCD,cCDd->BcDd", x, self.w)
-        # scaled dot product attention of u (B, D, d)
+        # capsule prediction (B, d, D, c)
+        x = einops.rearrange(x, "B C D -> B D C")
+        u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
+        # scaled dot product attention of u (B, d, D)
         c = torch.softmax(
-            torch.einsum("BcDd,BcDd->BDd", u, u) / self.nc,
+            torch.einsum("BdDc,BdDc->BdD", u, u) / self.nc,
             dim=2,
         )
-        # weighted capsule prediction (B, c, d)
-        s = torch.einsum("BDd,BcDd->Bcd", c + self.b, u)
+        # weighted capsule prediction (B, d, c)
+        s = torch.einsum("BdD,BdDc->Bdc", c + self.bias, u)
 
-        return s
+        return einops.rearrange(s, "B d c -> B c d")

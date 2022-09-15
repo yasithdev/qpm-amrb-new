@@ -3,6 +3,7 @@ import os
 import sys
 from typing import Tuple
 
+import torch
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 
@@ -10,15 +11,15 @@ from datasets import get_dataset_info, get_dataset_loaders
 
 
 def get_best_device():
-    import torch.backends.cuda
 
-    # import torch.backends.mps
+    from torch.backends import cuda, mps
+
     # check for cuda
-    if torch.backends.cuda.is_built() and torch.cuda.is_available():
+    if cuda.is_built() and torch.cuda.is_available():
         return "cuda"
     # check for mps
-    # if torch.backends.mps.is_built() and torch.backends.mps.is_available():
-    #   return "mps"
+    # if mps.is_built() and mps.is_available():
+    #     return "mps"
     return "cpu"
 
 
