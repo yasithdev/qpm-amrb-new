@@ -7,9 +7,8 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .common import get_classifier
+from .common import get_classifier, load_saved_state, set_requires_grad
 from .resnet import get_decoder, get_encoder
-from .util import set_requires_grad
 
 
 def load_model_and_optimizer(
@@ -51,20 +50,12 @@ def load_model_and_optimizer(
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-
-        if os.path.exists(model_state_path):
-            model.load_state_dict(
-                torch.load(model_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved model state from:", model_state_path)
-
-        if os.path.exists(optim_state_path):
-            optim.load_state_dict(
-                torch.load(optim_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved optim state from:", optim_state_path)
+        load_saved_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
 
     return model, optim
 
@@ -104,10 +95,10 @@ def train_model(
 
             # forward pass
             z_x: torch.Tensor = encoder(x)
+            y_z: torch.Tensor = classifier(z_x)
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
             x_z: torch.Tensor = decoder(z_x)
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
-            y_z: torch.Tensor = classifier(z_x)
 
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)

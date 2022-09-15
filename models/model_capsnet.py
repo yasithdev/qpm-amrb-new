@@ -1,6 +1,7 @@
 import logging
 import math
 import os
+from functools import partial
 from typing import List, Tuple
 
 import torch
@@ -11,9 +12,8 @@ from tqdm import tqdm
 
 from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCaps, MaskCaps, squash
 from .capsnet.common import conv_to_caps
-from .common import Lambda
+from .common import Functional, load_saved_state, set_requires_grad
 from .resnet import get_decoder
-from .util import set_requires_grad
 
 caps_shape = (8, 32)
 kernel_size = (9, 9)
@@ -25,7 +25,10 @@ def load_model_and_optimizer(
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     num_labels = config.dataset_info["num_train_labels"]
-    flat_caps_shape = (caps_shape[0], caps_shape[1] * config.image_chw[1] * config.image_chw[2])
+    flat_caps_shape = (
+        caps_shape[0],
+        caps_shape[1] * config.image_chw[1] * config.image_chw[2],
+    )
     out_caps_shape = (16, num_labels)
     num_features = math.prod(out_caps_shape)
 
@@ -36,21 +39,21 @@ def load_model_and_optimizer(
             kernel_size=kernel_size,
             padding="same",
         ),
-        Lambda(lambda x: conv_to_caps(x, caps_shape)),
-        Lambda(lambda x: squash(x)),
+        Functional(partial(conv_to_caps, out_capsules=caps_shape)),
+        Functional(squash),
         ConvCaps2D(
             in_capsules=caps_shape,
             out_capsules=caps_shape,
             kernel_size=kernel_size,
             padding="same",
         ),
-        Lambda(lambda x: squash(x)),
+        Functional(squash),
         FlattenCaps(),
         LinearCaps(
             in_capsules=flat_caps_shape,
             out_capsules=out_caps_shape,
         ),
-        Lambda(lambda x: squash(x)),
+        Functional(squash),
     )
 
     classifier = MaskCaps()
@@ -73,20 +76,12 @@ def load_model_and_optimizer(
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-
-        if os.path.exists(model_state_path):
-            model.load_state_dict(
-                torch.load(model_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved model state from:", model_state_path)
-
-        if os.path.exists(optim_state_path):
-            optim.load_state_dict(
-                torch.load(optim_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved optim state from:", optim_state_path)
+        load_saved_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
 
     return model, optim
 

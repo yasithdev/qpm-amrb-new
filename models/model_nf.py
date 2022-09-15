@@ -8,7 +8,12 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from . import nf
-from .util import gen_img_from_patches, gen_patches_from_img, set_requires_grad
+from .common import (
+    gen_img_from_patches,
+    gen_patches_from_img,
+    load_saved_state,
+    set_requires_grad,
+)
 
 
 def load_model_and_optimizer(
@@ -42,20 +47,12 @@ def load_model_and_optimizer(
 
     # load saved model and optimizer, if present
     if config.exc_resume:
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-
-        if os.path.exists(model_state_path):
-            model.load_state_dict(
-                torch.load(model_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved model state from:", model_state_path)
-
-        if os.path.exists(optim_state_path):
-            optim.load_state_dict(
-                torch.load(optim_state_path, map_location=config.device)
-            )
-            logging.info("Loaded saved optim state from:", optim_state_path)
+        load_saved_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
 
     return model, optim
 
