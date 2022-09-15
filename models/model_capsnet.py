@@ -16,7 +16,7 @@ from .common import Functional, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
 caps_shape = (8, 32)
-kernel_size = (9, 9)
+kernel_size = (3, 3)
 
 
 def load_model_and_optimizer(

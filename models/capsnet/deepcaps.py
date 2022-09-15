@@ -22,7 +22,7 @@ def softmax_3d(
 
 class ConvCaps3D(torch.nn.Module):
     """
-    3D Convolution Layer for Capsules.
+    3D Convolution Capsule Layer with Dynamic Routing.
 
     Op: (B, C, D, H, W) -> (B, c, d, h, w)
 
@@ -153,6 +153,7 @@ class LinearCaps(torch.nn.Module):
 class MaskCaps(torch.nn.Module):
     """
     Layer to obtain the probability distribution and capsule features.
+    (No Parameters)
 
     The features only contain values from the highest-norm capsule.
 

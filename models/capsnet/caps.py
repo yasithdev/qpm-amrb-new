@@ -32,7 +32,7 @@ def squash(
 
 class ConvCaps2D(torch.nn.Module):
     """
-    2D Convolution Layer for Capsules.
+    2D Convolution Capsule Layer.
 
     Op: (B, C, D, H, W) -> (B, c, d, h, w)
 
@@ -97,7 +97,8 @@ class ConvCaps2D(torch.nn.Module):
 
 class FlattenCaps(torch.nn.Module):
     """
-    Flatten Layer for Capsules.
+    Flatten Capsule Layer.
+    (No Parameters)
 
     Op: (B, C, D, H, W) -> (B, C, D * H * W)
 
@@ -196,6 +197,7 @@ class LinearCaps(torch.nn.Module):
 class MaskCaps(torch.nn.Module):
     """
     Layer to obtain the probability distribution and capsule features.
+    (No Parameters)
 
     The features contain values from all capsules.
     However, only the highest-norm capsule will have non-zero values.

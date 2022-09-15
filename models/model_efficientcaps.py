@@ -2,6 +2,7 @@ import logging
 import math
 import os
 from typing import List, Tuple
+from functools import partial
 
 import torch
 import torch.utils.data
@@ -10,15 +11,19 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 
 from .capsnet.common import conv_to_caps
+from .capsnet.caps import ConvCaps2D, FlattenCaps, MaskCaps
 from .capsnet.efficientcaps import LinearCaps, squash
 from .common import Functional, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
+caps_shape = (8, 32)
+kernel_size = (3, 3)
 
 def load_model_and_optimizer(
     config: Config,
     experiment_path: str,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+
     num_labels = config.dataset_info["num_train_labels"]
     flat_caps_shape = (
         caps_shape[0],
