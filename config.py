@@ -79,8 +79,9 @@ class Config:
 
 def getenv(key: str, default=None) -> str:
     val = os.getenv(key, default)
-    val = os.path.expanduser(val)
-    val = os.path.expandvars(val)
+    if val is not None:
+        val = os.path.expanduser(val)
+        val = os.path.expandvars(val)
     logging.info(f"{key}={val}")
     return val
 
