@@ -3,7 +3,6 @@ Implementation of 'DeepCaps: Going Deeper with Capsule Networks'
 
 """
 
-import math
 from typing import Tuple, Union
 
 import einops
@@ -57,7 +56,7 @@ class ConvCaps3D(torch.nn.Module):
         # (B, C, D, H, W) -> (B, c * d, D, h, w)
         self.conv = torch.nn.Conv3d(
             in_channels=in_capsules[0],
-            out_channels=math.prod(out_capsules),
+            out_channels=out_capsules[0] * out_capsules[1],
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,

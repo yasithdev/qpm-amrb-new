@@ -1,5 +1,4 @@
 import logging
-import math
 import os
 from functools import partial
 from typing import List, Tuple
@@ -39,7 +38,7 @@ def load_model_and_optimizer(
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
             in_channels=config.image_chw[0],
-            out_channels=math.prod(caps_cd),
+            out_channels=caps_cd[0] * caps_cd[1],
             kernel_size=kernel_hw,
             stride=conv_stride,
         ),

@@ -3,7 +3,6 @@ Implementation of 'Dynamic Routing Between Capsules'
 
 """
 
-import math
 from typing import Tuple, Union
 
 import einops
@@ -63,8 +62,8 @@ class ConvCaps2D(torch.nn.Module):
         self.in_capsules = in_capsules
         self.out_capsules = out_capsules
         self.conv = torch.nn.Conv2d(
-            in_channels=math.prod(in_capsules),
-            out_channels=math.prod(out_capsules),
+            in_channels=in_capsules[0] * in_capsules[1],
+            out_channels=out_capsules[0] * out_capsules[1],
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
