@@ -85,7 +85,8 @@ class ConvCaps3D(torch.nn.Module):
                 self.out_capsules[1],
                 u.size(4),
                 u.size(5),
-            )
+            ),
+            device=x.device,
         )
 
         # dynamic routing

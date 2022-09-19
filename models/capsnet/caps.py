@@ -180,7 +180,8 @@ class LinearCaps(torch.nn.Module):
                 u.size(0),
                 self.out_capsules[1],
                 self.in_capsules[1],
-            )
+            ),
+            device=x.device,
         )
 
         # dynamic routing
@@ -233,7 +234,8 @@ class MaskCaps(torch.nn.Module):
 
         # Mask most-activated capsule output (B, C * D)
         (B, C, D) = x.size()
-        mask = torch.eye(D).index_select(
+        I = torch.eye(D, device=x.device)
+        mask = I.index_select(
             dim=0,
             index=dist.argmax(dim=1),
         )
