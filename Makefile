@@ -21,13 +21,13 @@ train-efficientcaps-%:
 
 hpc-preview:
 	@for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
-		echo "sbatch -J qpm-amrb-new/preview/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=1_amrb_preview jobscript.sh"; \
+		sbatch -J qpm-amrb/preview/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=1_amrb_preview jobscript.sh; \
 	done
 
 hpc-train:
 	@for MODEL_NAME in "resnet" "capsnet" "deepcaps" "efficientcaps"; do \
 		for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
-			echo "sbatch -J qpm-amrb-new/train-$${MODEL_NAME}/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=2_training jobscript.sh"; \
+			sbatch -J qpm-amrb/train-$${MODEL_NAME}/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=2_training jobscript.sh; \
 		done; \
 	done
 
