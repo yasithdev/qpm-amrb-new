@@ -94,9 +94,9 @@ def load_config() -> Config:
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
 
-    crossval_k = int(getenv("CROSSVAL_K"))
     data_dir = getenv("DATA_DIR")
-    dataset_name = getenv("DATASET_NAME")
+    dataset_name, crossval_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
+    crossval_k = int(crossval_k)
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))

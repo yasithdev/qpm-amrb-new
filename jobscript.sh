@@ -19,17 +19,10 @@ source ~/.virtualenvs/$PROJECT_NAME/bin/activate
 # define project variables
 export DATA_DIR=~/datasets
 export EXPERIMENT_DIR=~/experiments/$PROJECT_NAME
-export LOG_DIR=~/logs/$PROJECT_NAME
-export CROSSVAL_K=$SLURM_ARRAY_TASK_ID
+export DATASET_NAME=$DATASET_NAME.$SLURM_ARRAY_TASK_ID
 
 # cd to project directory
 cd ~/projects/$PROJECT_NAME
 
-# don't forget to include the following!
-#   -J <job_name>
-#   DATASET_NAME=<dataset_name>
-#   MODEL_NAME=<model_name>
-#   SCRIPT_NAME=<script_name>
-
-python -u $SCRIPT_NAME
+python -u $SCRIPT_NAME.py
 
