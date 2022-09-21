@@ -15,8 +15,9 @@ from .capsnet.deepcaps import ConvCaps3D, MaskCaps, squash
 from .common import Functional, conv_out_shape, load_saved_state, set_requires_grad
 from .resnet import get_decoder
 
-caps_cd = (8, 32)
-kernel_hw = (9, 9)
+caps_cd_1 = (4, 32)
+caps_cd_2 = (8, 32)
+kernel_hw = (3, 3)
 conv_stride = 1
 caps_stride = 2
 out_caps_c = 16
@@ -32,28 +33,43 @@ def load_model_and_optimizer(
     # compute hw shapes of conv
     (h0, w0) = config.image_chw[1:]
     (kh, kw) = kernel_hw
-    (h1, w1) = conv_out_shape(h0, kh, conv_stride), conv_out_shape(w0, kw, conv_stride)
-    (h2, w2) = conv_out_shape(h1, kh, caps_stride), conv_out_shape(w1, kw, caps_stride)
+    (h1, w1) = conv_out_shape(h0, kh, conv_stride, blocks=1), conv_out_shape(w0, kw, conv_stride, blocks=1)
+    (h4, w4) = conv_out_shape(h1, kh, caps_stride, blocks=3), conv_out_shape(w1, kw, caps_stride, blocks=3)
+    logging.info(f'{h0},{w0} -> {h4}, {w4}')
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
             in_channels=config.image_chw[0],
-            out_channels=caps_cd[0] * caps_cd[1],
+            out_channels=caps_cd_1[0] * caps_cd_1[1],
             kernel_size=kernel_hw,
             stride=conv_stride,
         ),
-        Functional(partial(conv_to_caps, out_capsules=caps_cd)),
+        Functional(partial(conv_to_caps, out_capsules=caps_cd_1)),
         Functional(squash),
         ConvCaps3D(
-            in_capsules=caps_cd,
-            out_capsules=caps_cd,
+            in_capsules=caps_cd_1,
+            out_capsules=caps_cd_1,
+            kernel_size=(1, kh, kw),
+            stride=(1, caps_stride, caps_stride),
+        ),
+        Functional(squash),
+        ConvCaps3D(
+            in_capsules=caps_cd_1,
+            out_capsules=caps_cd_2,
+            kernel_size=(1, kh, kw),
+            stride=(1, caps_stride, caps_stride),
+        ),
+        Functional(squash),
+        ConvCaps3D(
+            in_capsules=caps_cd_2,
+            out_capsules=caps_cd_2,
             kernel_size=(1, kh, kw),
             stride=(1, caps_stride, caps_stride),
         ),
         Functional(squash),
         FlattenCaps(),
         LinearCaps(
-            in_capsules=(caps_cd[0], caps_cd[1] * h2 * w2),
+            in_capsules=(caps_cd_2[0], caps_cd_2[1] * h4 * w4),
             out_capsules=(out_caps_c, out_caps_d),
         ),
         Functional(squash),

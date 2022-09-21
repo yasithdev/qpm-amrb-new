@@ -69,9 +69,10 @@ class LinearCaps(torch.nn.Module):
             ),
         )
 
-        # log priors (d, D)
-        self.bias = torch.nn.Parameter(
+        # log priors (1, d, D)
+        self.prior = torch.nn.Parameter(
             torch.randn(
+                1,
                 out_capsules[1],
                 in_capsules[1],
             ),
@@ -82,15 +83,16 @@ class LinearCaps(torch.nn.Module):
         x: torch.Tensor,
     ) -> torch.Tensor:
 
-        # capsule prediction (B, d, D, c)
         x = einops.rearrange(x, "B C D -> B D C")
+        # prediction tensor u_{j|i} (B, d, D, c)
         u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
+        
         # scaled dot product attention of u (B, d, D)
         c = torch.softmax(
             torch.einsum("BdDc,BdDc->BdD", u, u) / self.nc,
             dim=2,
         )
         # weighted capsule prediction (B, d, c)
-        s = torch.einsum("BdD,BdDc->Bdc", c + self.bias, u)
+        s = torch.einsum("BdD,BdDc->Bdc", c + self.prior, u)
 
         return einops.rearrange(s, "B d c -> B c d")

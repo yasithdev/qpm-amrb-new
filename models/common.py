@@ -142,5 +142,9 @@ def conv_out_shape(
     stride: int = 1,
     padding: int = 0,
     dilation: int = 1,
+    blocks: int = 1,
 ) -> int:
-    return (input_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
+    output_size = input_size
+    for _ in range(blocks):
+        output_size = (output_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
+    return output_size

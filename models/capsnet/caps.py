@@ -165,35 +165,39 @@ class LinearCaps(torch.nn.Module):
             ),
         )
 
+        # log prior (1, d, D)
+        self.prior = torch.nn.Parameter(
+            torch.zeros(
+                1,
+                out_capsules[1],
+                in_capsules[1],
+            )
+        )
+
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
 
-        # prediction tensor (B, d, D, c)
-        x = einops.rearrange(x, 'B C D -> B D C')
+        x = einops.rearrange(x, "B C D -> B D C")
+        # prediction tensor u_{j|i} (B, d, D, c)
         u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
 
-        # intialize log prior (B, d, D)
-        b = torch.zeros(
-            size=(
-                u.size(0),
-                self.out_capsules[1],
-                self.in_capsules[1],
-            ),
-            device=x.device,
-        )
-
         # dynamic routing
+        b = self.prior
         for _ in range(self.routing_iters):
-            # softmax of b across dim=d
+            # coupling coefficients c_{ij} (softmax of b across dim=d)
             c = torch.softmax(b, dim=1)
-            # compute s (B, d, c)
+            # current capsule output s_j (B, d, c)
             s = torch.einsum("BdD,BdDc->Bdc", c, u)
+            # squashed capsule output s_j (B, d, c)
+            v = squash(s)
+            # agreement a_{ij} (scalar product of u and v)
+            a = torch.einsum("BdDc,Bdc->BdD", u, v)
             # update b
-            b += torch.einsum("BdDc,Bdc->BdD", u, squash(s))
+            b = b + a
 
-        return einops.rearrange(s, 'B d c -> B c d')
+        return einops.rearrange(s, "B d c -> B c d")
 
 
 class MaskCaps(torch.nn.Module):
