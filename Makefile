@@ -21,13 +21,13 @@ train-drcaps-%:
 
 hpc-preview:
 	@for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
-		sbatch -J qpm-amrb/preview/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=1_amrb_preview jobscript.sh; \
+		sbatch -J qpm-amrb_preview_$${DATASET_NAME} --export=ALL,SCRIPT_NAME=1_amrb_preview jobscript.sh; \
 	done
 
 hpc-train:
 	@for MODEL_NAME in "resnet" "capsnet" "efficientcaps" "drcaps"; do \
 		for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
-			sbatch -J qpm-amrb/train-$${MODEL_NAME}/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=2_training jobscript.sh; \
+			sbatch -J qpm-amrb_train_$${MODEL_NAME}_$${DATASET_NAME} --export=ALL,SCRIPT_NAME=2_training jobscript.sh; \
 		done; \
 	done
 

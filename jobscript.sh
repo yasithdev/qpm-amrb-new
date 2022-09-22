@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=1
-#SBATCH --output=~/logs/%j-%a.log
+#SBATCH --output=logs/%j-%a.log
 #SBATCH --array=0-9
 
 # load required modules
