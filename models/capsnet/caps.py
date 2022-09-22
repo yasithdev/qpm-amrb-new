@@ -126,7 +126,7 @@ class FlattenCaps(torch.nn.Module):
         return s
 
 
-class LinearCaps(torch.nn.Module):
+class LinearCapsDR(torch.nn.Module):
     """
     Linear Capsule Layer with Dynamic Routing.
 

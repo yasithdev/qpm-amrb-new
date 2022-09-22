@@ -13,11 +13,11 @@ train-resnet-%:
 train-capsnet-%:
 	@DATASET_NAME=$* MODEL_NAME=capsnet python -u 2_training.py
 
-train-deepcaps-%:
-	@DATASET_NAME=$* MODEL_NAME=deepcaps python -u 2_training.py
-
 train-efficientcaps-%:
 	@DATASET_NAME=$* MODEL_NAME=efficientcaps python -u 2_training.py
+
+train-drcaps-%:
+	@DATASET_NAME=$* MODEL_NAME=drcaps python -u 2_training.py
 
 hpc-preview:
 	@for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
@@ -25,7 +25,7 @@ hpc-preview:
 	done
 
 hpc-train:
-	@for MODEL_NAME in "resnet" "capsnet" "deepcaps" "efficientcaps"; do \
+	@for MODEL_NAME in "resnet" "capsnet" "efficientcaps" "drcaps"; do \
 		for DATASET_NAME in "AMRB_1" "AMRB_2"; do \
 			sbatch -J qpm-amrb/train-$${MODEL_NAME}/$${DATASET_NAME} --export=ALL,SCRIPT_NAME=2_training jobscript.sh; \
 		done; \

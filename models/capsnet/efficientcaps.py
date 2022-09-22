@@ -29,7 +29,7 @@ def squash(
     return a * b
 
 
-class LinearCaps(torch.nn.Module):
+class LinearCapsAR(torch.nn.Module):
     """
     Linear Capsule Layer with Attention Routing.
 
