@@ -1,7 +1,8 @@
+import json
 import logging
 import os
 from time import time
-from typing import Callable, Optional, Tuple
+from typing import Callable, Dict, List, Literal, Optional, Tuple
 
 import einops
 import numpy as np
@@ -14,45 +15,67 @@ from .transforms import AddGaussianNoise
 class AMRB(torchvision.datasets.VisionDataset):
     def __init__(
         self,
-        root: str,
-        train: bool,
+        data_root: str,
         version: int,
+        # query params
+        train: bool,
         crossval_k: int,
-        ood_mode: bool,
+        crossval_folds: int,
+        ood_labels: List[str] = [],
+        label_type: Literal["class", "type", "strain", "gram"] = "class",
+        split_frac: float = 0.8,
+        # projection params
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
     ) -> None:
 
-        super().__init__(root, None, transform, target_transform)
-
-        self.train = train
-        self.version = version
-        self.crossval_k = crossval_k
-        self.ood_mode = ood_mode
-
+        super().__init__(data_root, None, transform, target_transform)
         assert version in [1, 2], "Unknown AMRB version: should be 1 or 2"
 
         # ----------------------------------------------------------------- #
-        # if in leave-out mode or crossval train mode, use the test set.    #
-        # if not, use the test set                                          #
+        # base path for dataset files                                       #
         # ----------------------------------------------------------------- #
-        ds = "train" if (self.ood_mode or self.train) else "test"
-        self.x_path = os.path.join(
-            self.root,
-            f"AMRB_{self.version}",
-            "proc_data",
-            f"{ds}_k{self.crossval_k}.npz",
+        ds_path = os.path.join(data_root, f"AMRB_{version}")
+
+        # ----------------------------------------------------------------- #
+        # load dataset for sequential reading                               #
+        # ----------------------------------------------------------------- #
+        src_data_path = os.path.join(
+            ds_path,
+            "proc_data.npz",
         )
-        logging.info(f"Dataset file: {self.x_path}")
+        logging.info(f"Dataset file: {src_data_path}")
+        src_data = np.load(src_data_path)
 
-        self.src_data = np.load(self.x_path)
-        self.labels = sorted(self.src_data)
+        # ----------------------------------------------------------------- #
+        # load dataset info                                                 #
+        # ----------------------------------------------------------------- #
+        src_info_path = os.path.join(
+            ds_path,
+            "info.json",
+        )
+        logging.info(f"Dataset info: {src_info_path}")
+        with open(src_info_path, "r") as f:
+            src_info: dict = json.load(f)["data"]
 
-        self.ood_label = "S_aureus_CCUG35600"
-        self.ood_label_idx = self.labels.index(self.ood_label)
+        # ----------------------------------------------------------------- #
+        # select labels for task                                            #
+        # ----------------------------------------------------------------- #
+        class_labels = sorted(src_info)
+        if label_type == "class":
+            target_labels = class_labels
+        else:
+            target_labels = [src_info[x][label_type] for x in class_labels]
 
-        self.num_labels = len(self.labels)
-        self.num_data = sum([self.src_data[key].shape[0] for key in self.labels])
+        if len(ood_labels) == 0:
+            selected_labels = list(zip(class_labels, target_labels))
+        else:
+            selected_labels = []
+            for clabel, tlabel in zip(class_labels, target_labels):
+                if train == True and tlabel not in ood_labels:
+                    selected_labels.append((clabel, tlabel))
+                if train == False and tlabel in ood_labels:
+                    selected_labels.append((clabel, tlabel))
 
         # ----------------------------------------------------------------- #
         # generate data_x and data_y for sequential reading                 #
@@ -61,88 +84,71 @@ class AMRB(torchvision.datasets.VisionDataset):
         t_start = time()
 
         # ----------------------------------------------------------------- #
-        # case 1 - leave-out method                                         #
+        # generate x                                                        #
         # ----------------------------------------------------------------- #
-        if self.ood_mode:
-
-            # ----------------------------------------------------------------- #
-            # define excluded labels                                            #
-            # ----------------------------------------------------------------- #
-            exc_labels = [self.ood_label]
-            num_exc_labels = len(exc_labels)
-
-            # ----------------------------------------------------------------- #
-            # define included labels                                            #
-            # ----------------------------------------------------------------- #
-            inc_labels = [x for x in self.labels if x not in exc_labels]
-            num_inc_labels = len(inc_labels)
-
-            # ----------------------------------------------------------------- #
-            # case 1.1 - training data                                          #
-            # ----------------------------------------------------------------- #
-            if self.train:
-
-                # ----------------------------------------------------------------- #
-                # generate x                                                        #
-                # ----------------------------------------------------------------- #
-                data_x = np.stack([self.src_data[key] for key in inc_labels], axis=1)
-
-                # ----------------------------------------------------------------- #
-                # generate y                                                        #
-                # ----------------------------------------------------------------- #
-                data_y = np.tile(
-                    A=np.eye(N=num_inc_labels, dtype=np.float32),
-                    reps=(data_x.shape[0] // num_inc_labels, 1),
+        data_dict: Dict[str, np.ndarray] = {}
+        for clabel, tlabel in selected_labels:
+            if tlabel in data_dict:
+                data_dict[tlabel] = np.concatenate(
+                    (data_dict[tlabel], src_data[clabel]),
+                    axis=0,
                 )
-
-            # ----------------------------------------------------------------- #
-            # case 1.2 - testing data                                           #
-            # ----------------------------------------------------------------- #
             else:
+                data_dict[tlabel] = src_data[clabel]
 
-                # ----------------------------------------------------------------- #
-                # generate x                                                        #
-                # ----------------------------------------------------------------- #
-                data_x = np.stack([self.src_data[key] for key in exc_labels], axis=1)
+        # ----------------------------------------------------------------- #
+        # if no ood_labels given, do a train/test split                     #
+        # ----------------------------------------------------------------- #
+        if len(ood_labels) == 0:
+            # roll images (for crossval) and train/test split
+            for tlabel in data_dict:
+                num_images = data_dict[tlabel].shape[0]
+                shift = int(num_images * crossval_k / crossval_folds)
+                pivot = int(num_images * split_frac)
+                data_dict[tlabel] = np.roll(data_dict[tlabel], shift, axis=0)
+                if train:
+                    data_dict[tlabel] = data_dict[tlabel][:pivot]
+                else:
+                    data_dict[tlabel] = data_dict[tlabel][pivot:]
 
-                # ----------------------------------------------------------------- #
-                # generate y                                                        #
-                # ----------------------------------------------------------------- #
-                # Here, data_y is an equi-probable tensor. For evaluation purposes, #
-                # it would be better to use one of the methods below.               #
-                # ----------------------------------------------------------------- #
-                #   (a) probability encoding of the genetic similarity, or          #
-                #   (b) one-hot encoding of the closest label.                      #
-                # ----------------------------------------------------------------- #
-                data_y = np.full(
-                    shape=(len(data_x), num_inc_labels),
-                    fill_value=1.0 / num_inc_labels,
+        # ----------------------------------------------------------------- #
+        # balance the class distribution of x                               #
+        # ----------------------------------------------------------------- #
+        data_counts = [data_dict[x].shape[0] for x in data_dict]
+        target_count = min(max(data_counts), min(data_counts) * 4)
+        for tlabel in data_dict:
+            data_dict[tlabel] = augment(
+                source_images=data_dict[tlabel],
+                target_count=target_count,
+            )
+
+        # ----------------------------------------------------------------- #
+        # stack samples across labels                                       #
+        # ----------------------------------------------------------------- #
+        data_x = np.stack([data_dict[label] for label in sorted(data_dict)], axis=1)
+        data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
+
+        # ----------------------------------------------------------------- #
+        # generate y                                                        #
+        # ----------------------------------------------------------------- #
+        if len(ood_labels) == 0:
+            num_labels = len(set(target_labels))
+            data_y = np.tile(
+                A=np.eye(N=num_labels, dtype=np.float32),
+                reps=(data_x.shape[0] // num_labels, 1),
+            )
+        else:
+            num_labels = len(set(target_labels).difference(ood_labels))
+            if train:
+                data_y = np.tile(
+                    A=np.eye(N=num_labels, dtype=np.float32),
+                    reps=(data_x.shape[0] // num_labels, 1),
+                )
+            else:
+                data_y = np.zeros(
+                    shape=(data_x.shape[0], num_labels),
                     dtype=np.float32,
                 )
-
-            # ----------------------------------------------------------------- #
-            # rearrange x to have all classes in a batch                        #
-            # ----------------------------------------------------------------- #
-            data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
-
-        # ----------------------------------------------------------------- #
-        # case 2 - cross validation method                                  #
-        # ----------------------------------------------------------------- #
-        else:
-
-            # ----------------------------------------------------------------- #
-            # generate x                                                        #
-            # ----------------------------------------------------------------- #
-            data_x = np.stack([self.src_data[key] for key in self.labels], axis=1)
-            data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
-
-            # ----------------------------------------------------------------- #
-            # generate y                                                        #
-            # ----------------------------------------------------------------- #
-            data_y = np.tile(
-                A=np.eye(N=self.num_labels, dtype=np.float32),
-                reps=(data_x.shape[0] // self.num_labels, 1),
-            )
 
         # ----------------------------------------------------------------- #
         # store generated dataset view for reading                          #
@@ -181,15 +187,15 @@ class AMRB(torchvision.datasets.VisionDataset):
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 def create_data_loaders(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    crossval_k: int,
-    ood_mode: bool,
     version: int,
+    crossval_k: int,
+    crossval_folds: int,
+    ood_labels: List[str],
+    label_type: Literal["class", "type", "strain", "gram"] = "class",
 ) -> Tuple[DataLoader, DataLoader]:
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(), AddGaussianNoise(mean=0.0, std=0.01)]
@@ -198,11 +204,15 @@ def create_data_loaders(
     # load AMRB data
     train_loader = DataLoader(
         dataset=AMRB(
-            root=data_root,
-            train=True,
+            data_root=data_root,
             version=version,
+            # query params
+            train=True,
             crossval_k=crossval_k,
-            ood_mode=ood_mode,
+            crossval_folds=crossval_folds,
+            ood_labels=ood_labels,
+            label_type=label_type,
+            # projection params
             transform=transform,
         ),
         batch_size=batch_size_train,
@@ -211,11 +221,15 @@ def create_data_loaders(
 
     test_loader = DataLoader(
         dataset=AMRB(
-            root=data_root,
-            train=False,
+            data_root=data_root,
             version=version,
+            # query params
+            train=False,
             crossval_k=crossval_k,
-            ood_mode=ood_mode,
+            crossval_folds=crossval_folds,
+            ood_labels=ood_labels,
+            label_type=label_type,
+            # projection params
             transform=transform,
         ),
         batch_size=batch_size_test,
@@ -226,38 +240,67 @@ def create_data_loaders(
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 def get_info(
     data_root: str,
     crossval_k: int,
-    ood_mode: bool,
+    crossval_folds: int,
+    ood_labels: List[str],
+    label_type: Literal["class", "type", "strain", "gram"],
     version: int,
 ) -> dict:
     if version == 1:
-        if ood_mode:
-            return {
-                "num_train_labels": 6,
-                "num_test_labels": 1,
-            }
-        else:
-            return {
-                "num_train_labels": 7,
-                "num_test_labels": 7,
-            }
+        num_labels = 7
     elif version == 2:
-        if ood_mode:
-            return {
-                "num_train_labels": 20,
-                "num_test_labels": 1,
-            }
-        else:
-            return {
-                "num_train_labels": 21,
-                "num_test_labels": 21,
-            }
+        num_labels = 21
     else:
         raise NotImplementedError(f"Unknown Dataset Version: {version}")
+
+    if len(ood_labels) > 0:
+        return {
+            "num_train_labels": num_labels - len(ood_labels),
+            "num_test_labels": len(ood_labels),
+        }
+    else:
+        return {
+            "num_train_labels": num_labels,
+            "num_test_labels": num_labels,
+        }
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+def augment(
+    source_images: np.ndarray,
+    target_count: int,
+) -> np.ndarray:
+
+    source_count = source_images.shape[0]
+
+    if source_count >= target_count:
+
+        target_images = source_images[:target_count]
+
+    else:
+
+        # define a pool of augmented images (by rotating 90, 180, and 270)
+        aug_pool = np.concatenate(
+            [
+                np.rot90(source_images, k=1, axes=(1, 2)),
+                np.rot90(source_images, k=2, axes=(1, 2)),
+                np.rot90(source_images, k=3, axes=(1, 2)),
+            ],
+            axis=0,
+        )
+        # randomly pick images from aug_pool (without replacement)
+        aug_idxs = np.random.choice(
+            np.arange(len(aug_pool)), size=target_count - source_count, replace=False
+        )
+        aug_data = aug_pool[aug_idxs]
+
+        # concatenate source images with aug_data
+        target_images = np.concatenate([source_images, aug_data], axis=0)
+
+    assert target_images.shape[0] == target_count
+    return target_images
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

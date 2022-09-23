@@ -97,6 +97,7 @@ def load_config() -> Config:
     data_dir = getenv("DATA_DIR")
     dataset_name, crossval_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
     crossval_k = int(crossval_k)
+    crossval_folds = 10
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
@@ -122,14 +123,18 @@ def load_config() -> Config:
         batch_size_train=batch_size,
         batch_size_test=batch_size,
         data_root=data_dir,
-        ood_mode=exc_ood_mode,
         crossval_k=crossval_k,
+        crossval_folds=crossval_folds,
+        ood_labels=[],
+        label_type="class",
     )
     dataset_info = get_dataset_info(
         dataset_name,
         data_root=data_dir,
-        ood_mode=exc_ood_mode,
         crossval_k=crossval_k,
+        crossval_folds=crossval_folds,
+        ood_labels=[],
+        label_type="class",
     )
     # runtime device
     device = get_best_device()
