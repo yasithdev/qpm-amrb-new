@@ -43,8 +43,8 @@ def load_saved_state(
     experiment_path: str,
     config: Config,
 ) -> None:
-    model_state_path = os.path.join(experiment_path, "model.pth")
-    optim_state_path = os.path.join(experiment_path, "optim.pth")
+    model_state_path = os.path.join(experiment_path, f"model-{config.label_type}.pth")
+    optim_state_path = os.path.join(experiment_path, f"optim-{config.label_type}.pth")
 
     if os.path.exists(model_state_path):
         model.load_state_dict(torch.load(model_state_path, map_location=config.device))
@@ -53,6 +53,22 @@ def load_saved_state(
     if os.path.exists(optim_state_path):
         optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
         logging.info("Loaded saved optim state from:", optim_state_path)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def save_state(
+    model: torch.nn.Module,
+    optim: torch.optim.Optimizer,
+    experiment_path: str,
+    config: Config,
+) -> None:
+    logging.info("checkpoint - saving current model and optimizer state")
+    model_state_path = os.path.join(experiment_path, f"model-{config.label_type}.pth")
+    optim_state_path = os.path.join(experiment_path, f"optim-{config.label_type}.pth")
+    torch.save(model.state_dict(), model_state_path)
+    torch.save(optim.state_dict(), optim_state_path)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

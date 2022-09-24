@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import List, Tuple
 
@@ -12,6 +11,7 @@ from .common import (
     gen_img_from_patches,
     gen_patches_from_img,
     load_saved_state,
+    save_state,
     set_requires_grad,
 )
 
@@ -58,7 +58,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    nn: nf.ops.FlowTransform,
+    model: nf.ops.FlowTransform,
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
@@ -67,13 +67,13 @@ def train_model(
     **kwargs,
 ) -> None:
     # initialize loop
-    nn = nn.to(config.device)
-    nn.train()
+    model = model.to(config.device)
+    model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
 
     # training
-    set_requires_grad(nn, True)
+    set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(
             config.train_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args
@@ -90,13 +90,13 @@ def train_model(
             x = gen_patches_from_img(x, patch_hw=config.patch_hw)
 
             # forward pass
-            z, fwd_log_det = nn.forward(x)
+            z, fwd_log_det = model.forward(x)
             zu = nf.util.proj(z, manifold_dims=config.manifold_c)
             z_pad = nf.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
-            x_r, inv_log_det = nn.inverse(z_pad)
+            x_r, inv_log_det = model.inverse(z_pad)
 
             # calculate loss
             minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
@@ -120,15 +120,16 @@ def train_model(
 
     # save model/optimizer states
     if min(stats) == avg_loss and not config.exc_dry_run:
-        logging.info("checkpoint - saving current model and optimizer state")
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-        torch.save(nn.state_dict(), model_state_path)
-        torch.save(optim.state_dict(), optim_state_path)
+        save_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
 
 
 def test_model(
-    nn: nf.ops.FlowTransform,
+    model: nf.ops.FlowTransform,
     epoch: int,
     config: Config,
     stats: List,
@@ -136,8 +137,8 @@ def test_model(
     **kwargs,
 ) -> None:
     # initialize loop
-    nn = nn.to(config.device)
-    nn.eval()
+    model = model.to(config.device)
+    model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0
 
@@ -147,7 +148,7 @@ def test_model(
     current_plot = 0
 
     # testing
-    set_requires_grad(nn, False)
+    set_requires_grad(model, False)
     with torch.no_grad():
         iterable = tqdm(
             config.test_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args
@@ -164,13 +165,13 @@ def test_model(
             x = gen_patches_from_img(x.to(config.device), patch_hw=config.patch_hw)
 
             # forward pass
-            z, fwd_log_det = nn.forward(x)
+            z, fwd_log_det = model.forward(x)
             zu = nf.util.proj(z, manifold_dims=config.manifold_c)
             z_pad = nf.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
-            x_r, inv_log_det = nn.inverse(z_pad)
+            x_r, inv_log_det = model.inverse(z_pad)
 
             # calculate loss
             minibatch_loss = torch.nn.functional.mse_loss(x_r, x)

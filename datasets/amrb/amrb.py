@@ -65,22 +65,25 @@ class AMRB(torchvision.datasets.VisionDataset):
             target_labels = class_labels
         else:
             target_labels = [src_info[x][label_type] for x in class_labels]
+        logging.info(f"Labels: {sorted(set(target_labels))}")
 
         zipped_labels = zip(class_labels, target_labels)
         if mode == CROSSVAL_MODE:
+            # use all labels
             selected_labels = list(zipped_labels)
         else:
+            # if training, use all labels except ood_labels
             if train == True:
                 cond = lambda _, t: t not in ood_labels
+            # if testing, only use ood_labels
             else:
                 cond = lambda _, t: t in ood_labels
             selected_labels = list(filter(cond, zipped_labels))
-        logging.info(f"Labels: {sorted(set(target_labels))}")
 
         # ----------------------------------------------------------------- #
         # generate data_x and data_y for sequential reading                 #
         # ----------------------------------------------------------------- #
-        logging.info(f"Optimizing dataset for reading")
+        logging.info(f"Preparing dataset for reading")
         t_start = time()
 
         # ----------------------------------------------------------------- #
@@ -99,7 +102,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                 )
             else:
                 data_dict[tlabel] = source_x
-        logging.info("Filtered outliers")
+        logging.info("[preparation] filtered outliers")
 
         # ----------------------------------------------------------------- #
         # if mode is cross-val, do a train/test split                       #
@@ -115,7 +118,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                     data_dict[tlabel] = data_dict[tlabel][:pivot]
                 else:
                     data_dict[tlabel] = data_dict[tlabel][pivot:]
-            logging.info("Performed cross-val train/test split")
+            logging.info("[preparation] performed train/test split for cross-validation")
 
         # ----------------------------------------------------------------- #
         # balance the class distribution of x                               #
@@ -127,12 +130,14 @@ class AMRB(torchvision.datasets.VisionDataset):
                 source_images=data_dict[tlabel],
                 target_count=target_count,
             )
+        logging.info("[preparation] balanced class distribution")
 
         # ----------------------------------------------------------------- #
         # stack samples across labels                                       #
         # ----------------------------------------------------------------- #
         data_x = np.stack([data_dict[label] for label in sorted(data_dict)], axis=1)
         data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
+        logging.info("[preparation] generated data_x")
 
         # ----------------------------------------------------------------- #
         # generate y                                                        #
@@ -157,6 +162,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                     fill_value=1 / num_labels,
                     dtype=np.float32,
                 )
+        logging.info("[preparation] generated data_y")
 
         # ----------------------------------------------------------------- #
         # store generated dataset view for reading                          #
@@ -170,7 +176,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         assert self.data_x.shape[0] == self.data_y.shape[0]
 
         t_end = time()
-        logging.info(f"Dataset optimized in {t_end - t_start} s")
+        logging.info(f"Prepared dataset in {t_end - t_start} s")
 
     def __getitem__(self, index: int):
 

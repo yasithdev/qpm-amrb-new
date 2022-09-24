@@ -13,7 +13,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    nn: torch.nn.Module,
+    model: torch.nn.Module,
     epoch: int,
     loader: torch.utils.data.DataLoader,
     config: Config,
@@ -26,7 +26,7 @@ def train_model(
 
 
 def test_model(
-    nn: torch.nn.Module,
+    model: torch.nn.Module,
     epoch: int,
     loader: torch.utils.data.DataLoader,
     config: Config,

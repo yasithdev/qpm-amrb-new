@@ -30,6 +30,7 @@ class Config:
         crossval_k: int,
         crossval_folds: int,
         ood_labels: List[str],
+        label_type: str,
         data_dir: str,
         dataset_name: str,
         model_name: str,
@@ -56,6 +57,7 @@ class Config:
         self.crossval_k = crossval_k
         self.crossval_folds = crossval_folds
         self.ood_labels = ood_labels
+        self.label_type = label_type
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.model_name = model_name
@@ -162,6 +164,7 @@ def load_config() -> Config:
         crossval_k=crossval_k,
         crossval_folds=crossval_folds,
         ood_labels=ood_labels,
+        label_type=label_type,
         data_dir=data_dir,
         dataset_name=dataset_name,
         model_name=model_name,

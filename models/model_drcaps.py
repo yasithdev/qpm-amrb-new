@@ -13,7 +13,7 @@ from .capsnet.caps import FlattenCaps, LinearCapsDR, squash
 from .capsnet.common import conv_to_caps
 from .capsnet.drcaps import ConvCapsDR
 from .capsnet.deepcaps import MaskCaps
-from .common import Functional, conv_out_shape, load_saved_state, set_requires_grad
+from .common import Functional, conv_out_shape, load_saved_state, save_state, set_requires_grad
 from .resnet import get_decoder
 
 caps_cd_1 = (8, 16)
@@ -109,7 +109,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    nn: torch.nn.ModuleDict,
+    model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
@@ -118,20 +118,20 @@ def train_model(
     **kwargs,
 ) -> None:
     # initialize loop
-    nn = nn.to(config.device)
-    nn.train()
+    model = model.to(config.device)
+    model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
 
     # training
-    set_requires_grad(nn, True)
+    set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(
             config.train_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args
         )
-        encoder = nn["encoder"]
-        classifier = nn["classifier"]
-        decoder = nn["decoder"]
+        encoder = model["encoder"]
+        classifier = model["classifier"]
+        decoder = model["decoder"]
 
         x: torch.Tensor
         y: torch.Tensor
@@ -177,15 +177,16 @@ def train_model(
     stats.append(avg_loss)
 
     if min(stats) == avg_loss and not config.exc_dry_run:
-        logging.info("checkpoint - saving current model and optimizer state")
-        model_state_path = os.path.join(experiment_path, "model.pth")
-        optim_state_path = os.path.join(experiment_path, "optim.pth")
-        torch.save(nn.state_dict(), model_state_path)
-        torch.save(optim.state_dict(), optim_state_path)
+        save_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
 
 
 def test_model(
-    nn: torch.nn.ModuleDict,
+    model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
     stats: List,
@@ -193,8 +194,8 @@ def test_model(
     **kwargs,
 ) -> None:
     # initialize loop
-    nn = nn.to(config.device)
-    nn.eval()
+    model = model.to(config.device)
+    model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0
 
@@ -204,14 +205,14 @@ def test_model(
     current_plot = 0
 
     # testing
-    set_requires_grad(nn, False)
+    set_requires_grad(model, False)
     with torch.no_grad():
         iterable = tqdm(
             config.test_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args
         )
-        encoder = nn["encoder"]
-        classifier = nn["classifier"]
-        decoder = nn["decoder"]
+        encoder = model["encoder"]
+        classifier = model["classifier"]
+        decoder = model["decoder"]
 
         x: torch.Tensor
         y: torch.Tensor
