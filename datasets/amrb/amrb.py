@@ -133,23 +133,23 @@ class AMRB(torchvision.datasets.VisionDataset):
         logging.info("[preparation] balanced class distribution")
 
         # ----------------------------------------------------------------- #
-        # stack samples across labels                                       #
+        # generate x and y                                                  #
         # ----------------------------------------------------------------- #
-        data_x = np.stack([data_dict[label] for label in sorted(data_dict)], axis=1)
+        self.labels = sorted(data_dict)
+
+        data_x = np.stack([data_dict[label] for label in self.labels], axis=1)
         data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
         logging.info("[preparation] generated data_x")
 
-        # ----------------------------------------------------------------- #
-        # generate y                                                        #
-        # ----------------------------------------------------------------- #
         if mode == CROSSVAL_MODE:
-            num_labels = len(set(target_labels))
+            num_labels = len(self.labels)
             data_y = np.tile(
                 A=np.eye(N=num_labels, dtype=np.float32),
                 reps=(data_x.shape[0] // num_labels, 1),
             )
         else:
-            num_labels = len(set(target_labels).difference(ood_labels))
+            # TODO the value of self.labels may be incorrect for vis.py
+            num_labels = len(set(self.labels).difference(ood_labels))
             if train:
                 data_y = np.tile(
                     A=np.eye(N=num_labels, dtype=np.float32),

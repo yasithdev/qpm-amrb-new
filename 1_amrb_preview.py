@@ -57,7 +57,7 @@ def main(config: Config):
     plot_samples(
         x=x_trn,
         y=y_trn,
-        out_path=os.path.join(experiment_path, "preview.trn.pdf"),
+        out_path=os.path.join(experiment_path, f"preview-{config.label_type}.trn.pdf"),
         labels=config.train_loader.dataset.labels,
     )
 
@@ -65,7 +65,7 @@ def main(config: Config):
     plot_samples(
         x=x_tst,
         y=y_tst,
-        out_path=os.path.join(experiment_path, "preview.tst.pdf"),
+        out_path=os.path.join(experiment_path, f"preview-{config.label_type}.tst.pdf"),
         labels=config.test_loader.dataset.labels,
     )
 
@@ -76,7 +76,7 @@ def main(config: Config):
     gen_umap(
         x=x_trn,
         y=y_trn,
-        out_path=os.path.join(experiment_path, "umap.trn.png"),
+        out_path=os.path.join(experiment_path, f"umap-{config.label_type}.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
         labels=config.train_loader.dataset.labels,
     )
@@ -85,7 +85,7 @@ def main(config: Config):
     gen_umap(
         x=x_tst,
         y=y_tst,
-        out_path=os.path.join(experiment_path, "umap.tst.png"),
+        out_path=os.path.join(experiment_path, f"umap-{config.label_type}.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
         labels=config.test_loader.dataset.labels,
     )
