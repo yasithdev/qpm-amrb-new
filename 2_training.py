@@ -17,7 +17,7 @@ def main(config: Config):
         config.experiment_dir,
         experiment_name,
         f"{config.dataset_name}-{config.model_name}",
-        str(config.crossval_k),
+        f"{config.label_type}-{config.crossval_k}",
     )
     if not (config.exc_resume or config.exc_dry_run):
         shutil.rmtree(experiment_path, ignore_errors=True)

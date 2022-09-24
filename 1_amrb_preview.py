@@ -17,7 +17,7 @@ def main(config: Config):
         config.experiment_dir,
         experiment_name,
         config.dataset_name,
-        str(config.crossval_k),
+        f"{config.label_type}-{config.crossval_k}",
     )
     shutil.rmtree(experiment_path, ignore_errors=True)
     os.makedirs(experiment_path, exist_ok=True)
@@ -57,7 +57,7 @@ def main(config: Config):
     plot_samples(
         x=x_trn,
         y=y_trn,
-        out_path=os.path.join(experiment_path, f"preview-{config.label_type}.trn.pdf"),
+        out_path=os.path.join(experiment_path, f"preview.trn.pdf"),
         labels=config.train_loader.dataset.labels,
     )
 
@@ -65,7 +65,7 @@ def main(config: Config):
     plot_samples(
         x=x_tst,
         y=y_tst,
-        out_path=os.path.join(experiment_path, f"preview-{config.label_type}.tst.pdf"),
+        out_path=os.path.join(experiment_path, f"preview.tst.pdf"),
         labels=config.test_loader.dataset.labels,
     )
 
@@ -76,7 +76,7 @@ def main(config: Config):
     gen_umap(
         x=x_trn,
         y=y_trn,
-        out_path=os.path.join(experiment_path, f"umap-{config.label_type}.trn.png"),
+        out_path=os.path.join(experiment_path, f"umap.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
         labels=config.train_loader.dataset.labels,
     )
@@ -85,7 +85,7 @@ def main(config: Config):
     gen_umap(
         x=x_tst,
         y=y_tst,
-        out_path=os.path.join(experiment_path, f"umap-{config.label_type}.tst.png"),
+        out_path=os.path.join(experiment_path, f"umap.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
         labels=config.test_loader.dataset.labels,
     )
