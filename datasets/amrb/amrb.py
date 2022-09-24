@@ -2,14 +2,14 @@ import json
 import logging
 import os
 from time import time
-from typing import Callable, Dict, List, Literal, Optional, Tuple
+from typing import Callable, Dict, List, Literal, Optional
 
 import einops
 import numpy as np
 import torchvision
-from torch.utils.data import DataLoader
 
-from .transforms import AddGaussianNoise
+CROSSVAL_MODE = 0
+LEAVE_OUT_MODE = 1
 
 
 class AMRB(torchvision.datasets.VisionDataset):
@@ -21,8 +21,8 @@ class AMRB(torchvision.datasets.VisionDataset):
         train: bool,
         crossval_k: int,
         crossval_folds: int,
-        ood_labels: List[str] = [],
-        label_type: Literal["class", "type", "strain", "gram"] = "class",
+        ood_labels: List[str],
+        label_type: Literal["class", "type", "strain", "gram"],
         split_frac: float = 0.8,
         # projection params
         transform: Optional[Callable] = None,
@@ -32,6 +32,11 @@ class AMRB(torchvision.datasets.VisionDataset):
         super().__init__(data_root, None, transform, target_transform)
         assert version in [1, 2], "Unknown AMRB version: should be 1 or 2"
 
+        if len(ood_labels) == 0:
+            mode = CROSSVAL_MODE
+        else:
+            mode = LEAVE_OUT_MODE
+
         # ----------------------------------------------------------------- #
         # base path for dataset files                                       #
         # ----------------------------------------------------------------- #
@@ -40,20 +45,14 @@ class AMRB(torchvision.datasets.VisionDataset):
         # ----------------------------------------------------------------- #
         # load dataset for sequential reading                               #
         # ----------------------------------------------------------------- #
-        src_data_path = os.path.join(
-            ds_path,
-            "proc_data.npz",
-        )
+        src_data_path = os.path.join(ds_path, "proc_data.npz")
         logging.info(f"Dataset file: {src_data_path}")
         src_data = np.load(src_data_path)
 
         # ----------------------------------------------------------------- #
         # load dataset info                                                 #
         # ----------------------------------------------------------------- #
-        src_info_path = os.path.join(
-            ds_path,
-            "info.json",
-        )
+        src_info_path = os.path.join(ds_path, "info.json")
         logging.info(f"Dataset info: {src_info_path}")
         with open(src_info_path, "r") as f:
             src_info: dict = json.load(f)["data"]
@@ -67,15 +66,16 @@ class AMRB(torchvision.datasets.VisionDataset):
         else:
             target_labels = [src_info[x][label_type] for x in class_labels]
 
-        if len(ood_labels) == 0:
-            selected_labels = list(zip(class_labels, target_labels))
+        zipped_labels = zip(class_labels, target_labels)
+        if mode == CROSSVAL_MODE:
+            selected_labels = list(zipped_labels)
         else:
-            selected_labels = []
-            for clabel, tlabel in zip(class_labels, target_labels):
-                if train == True and tlabel not in ood_labels:
-                    selected_labels.append((clabel, tlabel))
-                if train == False and tlabel in ood_labels:
-                    selected_labels.append((clabel, tlabel))
+            if train == True:
+                cond = lambda _, t: t not in ood_labels
+            else:
+                cond = lambda _, t: t in ood_labels
+            selected_labels = list(filter(cond, zipped_labels))
+        logging.info(f"Labels: {sorted(set(target_labels))}")
 
         # ----------------------------------------------------------------- #
         # generate data_x and data_y for sequential reading                 #
@@ -87,19 +87,24 @@ class AMRB(torchvision.datasets.VisionDataset):
         # generate x                                                        #
         # ----------------------------------------------------------------- #
         data_dict: Dict[str, np.ndarray] = {}
+
         for clabel, tlabel in selected_labels:
+
+            source_x = self.filter_outliers(src_data[clabel])
+
             if tlabel in data_dict:
                 data_dict[tlabel] = np.concatenate(
-                    (data_dict[tlabel], src_data[clabel]),
+                    (data_dict[tlabel], source_x),
                     axis=0,
                 )
             else:
-                data_dict[tlabel] = src_data[clabel]
+                data_dict[tlabel] = source_x
+        logging.info("Filtered outliers")
 
         # ----------------------------------------------------------------- #
-        # if no ood_labels given, do a train/test split                     #
+        # if mode is cross-val, do a train/test split                       #
         # ----------------------------------------------------------------- #
-        if len(ood_labels) == 0:
+        if mode == CROSSVAL_MODE:
             # roll images (for crossval) and train/test split
             for tlabel in data_dict:
                 num_images = data_dict[tlabel].shape[0]
@@ -110,6 +115,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                     data_dict[tlabel] = data_dict[tlabel][:pivot]
                 else:
                     data_dict[tlabel] = data_dict[tlabel][pivot:]
+            logging.info("Performed cross-val train/test split")
 
         # ----------------------------------------------------------------- #
         # balance the class distribution of x                               #
@@ -117,7 +123,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         data_counts = [data_dict[x].shape[0] for x in data_dict]
         target_count = min(max(data_counts), min(data_counts) * 4)
         for tlabel in data_dict:
-            data_dict[tlabel] = augment(
+            data_dict[tlabel] = self.augment(
                 source_images=data_dict[tlabel],
                 target_count=target_count,
             )
@@ -131,7 +137,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         # ----------------------------------------------------------------- #
         # generate y                                                        #
         # ----------------------------------------------------------------- #
-        if len(ood_labels) == 0:
+        if mode == CROSSVAL_MODE:
             num_labels = len(set(target_labels))
             data_y = np.tile(
                 A=np.eye(N=num_labels, dtype=np.float32),
@@ -145,8 +151,10 @@ class AMRB(torchvision.datasets.VisionDataset):
                     reps=(data_x.shape[0] // num_labels, 1),
                 )
             else:
-                data_y = np.zeros(
+                # assign equal probability to all classes (TODO improve this)
+                data_y = np.full(
                     shape=(data_x.shape[0], num_labels),
+                    fill_value=1 / num_labels,
                     dtype=np.float32,
                 )
 
@@ -182,125 +190,57 @@ class AMRB(torchvision.datasets.VisionDataset):
         num_data = len(self.data_x)
         return num_data
 
-    def get_info(self):
-        raise NotImplementedError()
+    def augment(
+        self,
+        source_images: np.ndarray,
+        target_count: int,
+    ) -> np.ndarray:
 
+        source_count = source_images.shape[0]
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-def create_data_loaders(
-    batch_size_train: int,
-    batch_size_test: int,
-    data_root: str,
-    version: int,
-    crossval_k: int,
-    crossval_folds: int,
-    ood_labels: List[str],
-    label_type: Literal["class", "type", "strain", "gram"] = "class",
-) -> Tuple[DataLoader, DataLoader]:
-    transform = torchvision.transforms.Compose(
-        [torchvision.transforms.ToTensor(), AddGaussianNoise(mean=0.0, std=0.01)]
-    )
+        if source_count >= target_count:
 
-    # load AMRB data
-    train_loader = DataLoader(
-        dataset=AMRB(
-            data_root=data_root,
-            version=version,
-            # query params
-            train=True,
-            crossval_k=crossval_k,
-            crossval_folds=crossval_folds,
-            ood_labels=ood_labels,
-            label_type=label_type,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_train,
-        shuffle=True,
-    )
+            target_images = source_images[:target_count]
 
-    test_loader = DataLoader(
-        dataset=AMRB(
-            data_root=data_root,
-            version=version,
-            # query params
-            train=False,
-            crossval_k=crossval_k,
-            crossval_folds=crossval_folds,
-            ood_labels=ood_labels,
-            label_type=label_type,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_test,
-        shuffle=True,
-    )
+        else:
 
-    return train_loader, test_loader
+            # define a pool of augmented images (by rotating 90, 180, and 270)
+            aug_pool = np.concatenate(
+                [
+                    np.rot90(source_images, k=1, axes=(1, 2)),
+                    np.rot90(source_images, k=2, axes=(1, 2)),
+                    np.rot90(source_images, k=3, axes=(1, 2)),
+                ],
+                axis=0,
+            )
+            # randomly pick images from aug_pool (without replacement)
+            aug_idxs = np.random.choice(
+                np.arange(len(aug_pool)),
+                size=target_count - source_count,
+                replace=False,
+            )
+            aug_data = aug_pool[aug_idxs]
 
+            # concatenate source images with aug_data
+            target_images = np.concatenate([source_images, aug_data], axis=0)
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-def get_info(
-    data_root: str,
-    crossval_k: int,
-    crossval_folds: int,
-    ood_labels: List[str],
-    label_type: Literal["class", "type", "strain", "gram"],
-    version: int,
-) -> dict:
-    if version == 1:
-        num_labels = 7
-    elif version == 2:
-        num_labels = 21
-    else:
-        raise NotImplementedError(f"Unknown Dataset Version: {version}")
+        assert target_images.shape[0] == target_count
+        return target_images
 
-    if len(ood_labels) > 0:
-        return {
-            "num_train_labels": num_labels - len(ood_labels),
-            "num_test_labels": len(ood_labels),
-        }
-    else:
-        return {
-            "num_train_labels": num_labels,
-            "num_test_labels": num_labels,
-        }
+    def filter_outliers(
+        self,
+        x: np.ndarray,
+    ) -> np.ndarray:
 
+        x_out = x
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-def augment(
-    source_images: np.ndarray,
-    target_count: int,
-) -> np.ndarray:
+        # filter 1 - remove samples with negative values
+        x_out = x_out[np.min(x_out, axis=(1, 2)) >= 0]
 
-    source_count = source_images.shape[0]
+        # filter 2 - drop samples with i_max > Q3 + 1.5 * IQR
+        i_max = np.max(x_out, axis=(1, 2))
+        q3 = np.percentile(i_max, 75)
+        iqr = q3 - np.percentile(i_max, 25)
+        x_out = x_out[i_max <= q3 + 1.5 * iqr]
 
-    if source_count >= target_count:
-
-        target_images = source_images[:target_count]
-
-    else:
-
-        # define a pool of augmented images (by rotating 90, 180, and 270)
-        aug_pool = np.concatenate(
-            [
-                np.rot90(source_images, k=1, axes=(1, 2)),
-                np.rot90(source_images, k=2, axes=(1, 2)),
-                np.rot90(source_images, k=3, axes=(1, 2)),
-            ],
-            axis=0,
-        )
-        # randomly pick images from aug_pool (without replacement)
-        aug_idxs = np.random.choice(
-            np.arange(len(aug_pool)), size=target_count - source_count, replace=False
-        )
-        aug_data = aug_pool[aug_idxs]
-
-        # concatenate source images with aug_data
-        target_images = np.concatenate([source_images, aug_data], axis=0)
-
-    assert target_images.shape[0] == target_count
-    return target_images
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------
+        return x_out

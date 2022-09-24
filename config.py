@@ -1,7 +1,7 @@
 import logging
 import os
 import sys
-from typing import Tuple
+from typing import List, Tuple
 
 import torch
 from dotenv import load_dotenv
@@ -28,6 +28,8 @@ class Config:
         self,
         log_level: str,
         crossval_k: int,
+        crossval_folds: int,
+        ood_labels: List[str],
         data_dir: str,
         dataset_name: str,
         model_name: str,
@@ -41,7 +43,6 @@ class Config:
         train_epochs: int,
         exc_dry_run: bool,
         exc_resume: bool,
-        exc_ood_mode: bool,
         input_chw: Tuple[int, int, int],
         dataset_info: dict,
         train_loader: DataLoader,
@@ -53,6 +54,8 @@ class Config:
     ) -> None:
         self.log_level = log_level
         self.crossval_k = crossval_k
+        self.crossval_folds = crossval_folds
+        self.ood_labels = ood_labels
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.model_name = model_name
@@ -66,7 +69,6 @@ class Config:
         self.train_epochs = train_epochs
         self.exc_dry_run = exc_dry_run
         self.exc_resume = exc_resume
-        self.exc_ood_mode = exc_ood_mode
         self.input_chw = input_chw
         self.dataset_info = dataset_info
         self.train_loader = train_loader
@@ -97,7 +99,7 @@ def load_config() -> Config:
     data_dir = getenv("DATA_DIR")
     dataset_name, crossval_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
     crossval_k = int(crossval_k)
-    crossval_folds = 10
+    crossval_folds = int(getenv("CROSSVAL_FOLDS"))
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
@@ -109,7 +111,10 @@ def load_config() -> Config:
     train_epochs = int(getenv("TRAIN_EPOCHS"))
     exc_dry_run = bool(int(getenv("EXC_DRY_RUN")))
     exc_resume = bool(int(getenv("EXC_RESUME")))
-    exc_ood_mode = bool(int(getenv("EXC_OOD_MODE")))
+    label_type = getenv("LABEL_TYPE")
+
+    # TODO get this from environment vars
+    ood_labels = []
 
     # input dims for model
     input_chw = (
@@ -125,16 +130,14 @@ def load_config() -> Config:
         data_root=data_dir,
         crossval_k=crossval_k,
         crossval_folds=crossval_folds,
-        ood_labels=[],
-        label_type="class",
+        ood_labels=ood_labels,
+        label_type=label_type,
     )
     dataset_info = get_dataset_info(
         dataset_name,
         data_root=data_dir,
-        crossval_k=crossval_k,
-        crossval_folds=crossval_folds,
-        ood_labels=[],
-        label_type="class",
+        ood_labels=ood_labels,
+        label_type=label_type,
     )
     # runtime device
     device = get_best_device()
@@ -157,6 +160,8 @@ def load_config() -> Config:
         # env params
         log_level=log_level,
         crossval_k=crossval_k,
+        crossval_folds=crossval_folds,
+        ood_labels=ood_labels,
         data_dir=data_dir,
         dataset_name=dataset_name,
         model_name=model_name,
@@ -170,7 +175,6 @@ def load_config() -> Config:
         train_epochs=train_epochs,
         exc_dry_run=exc_dry_run,
         exc_resume=exc_resume,
-        exc_ood_mode=exc_ood_mode,
         # derived params
         input_chw=input_chw,
         dataset_info=dataset_info,
