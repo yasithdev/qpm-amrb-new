@@ -32,7 +32,7 @@ def main(config: Config):
         experiment_path=experiment_path,
     )
 
-    train_stats = []
+    train_stats = [np.nan]
     test_stats = []
 
     # run train / test loops
@@ -57,6 +57,14 @@ def main(config: Config):
             stats=test_stats,
             experiment_path=experiment_path,
             z_dist=z_dist,
+        )
+
+        # at each epoch, save train/test stats to file
+        stats_path = os.path.join(experiment_path, "stats.npz")
+        np.savez_compressed(
+            stats_path,
+            train=np.array(train_stats),
+            test=np.array(test_stats),
         )
 
 
