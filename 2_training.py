@@ -41,7 +41,7 @@ def main(config: Config):
         # training loop
         if current_epoch > 0:
             train_model(
-                nn=model,
+                model=model,
                 epoch=current_epoch,
                 config=config,
                 optim=optim,
@@ -51,7 +51,7 @@ def main(config: Config):
             )
         # testing loop
         test_model(
-            nn=model,
+            model=model,
             epoch=current_epoch,
             config=config,
             stats=test_stats,
