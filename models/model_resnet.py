@@ -7,7 +7,13 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .common import get_classifier, load_saved_state, save_state, set_requires_grad
+from .common import (
+    generate_confusion_matrix,
+    get_classifier,
+    load_saved_state,
+    save_state,
+    set_requires_grad,
+)
 from .resnet import get_decoder, get_encoder
 
 
@@ -163,6 +169,10 @@ def test_model(
 
         x: torch.Tensor
         y: torch.Tensor
+
+        y_true = []
+        y_pred = []
+
         for x, y in iterable:
 
             # cast x and y to float
@@ -175,6 +185,10 @@ def test_model(
             x_z: torch.Tensor = decoder(z_x)
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
             y_z: torch.Tensor = classifier(z_x)
+
+            # accumulate predictions
+            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
 
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
@@ -191,8 +205,8 @@ def test_model(
 
             # accumulate plots
             if current_plot < img_count:
-                ax[current_plot, 0].imshow(x.to("cpu")[0, 0])
-                ax[current_plot, 1].imshow(x_z.to("cpu")[0, 0])
+                ax[current_plot, 0].imshow(x.cpu().numpy()[0, 0])
+                ax[current_plot, 1].imshow(x_z.cpu().numpy()[0, 0])
                 current_plot += 1
 
     # post-testing
@@ -204,3 +218,12 @@ def test_model(
     if not config.exc_dry_run:
         plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
     plt.close()
+
+    # save confusion matrix
+    generate_confusion_matrix(
+        y_pred=y_pred,
+        y_true=y_true,
+        labels=config.train_loader.dataset.labels,
+        experiment_path=experiment_path,
+        epoch=epoch,
+    )

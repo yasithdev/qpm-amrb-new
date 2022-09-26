@@ -29,7 +29,7 @@ class Config:
         log_level: str,
         crossval_k: int,
         crossval_folds: int,
-        ood_labels: List[str],
+        crossval_mode: str,
         label_type: str,
         data_dir: str,
         dataset_name: str,
@@ -56,7 +56,7 @@ class Config:
         self.log_level = log_level
         self.crossval_k = crossval_k
         self.crossval_folds = crossval_folds
-        self.ood_labels = ood_labels
+        self.crossval_mode = crossval_mode
         self.label_type = label_type
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -102,6 +102,7 @@ def load_config() -> Config:
     dataset_name, crossval_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
     crossval_k = int(crossval_k)
     crossval_folds = int(getenv("CROSSVAL_FOLDS"))
+    crossval_mode = getenv("CROSSVAL_MODE")
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
@@ -114,9 +115,6 @@ def load_config() -> Config:
     exc_dry_run = bool(int(getenv("EXC_DRY_RUN")))
     exc_resume = bool(int(getenv("EXC_RESUME")))
     label_type = getenv("LABEL_TYPE")
-
-    # TODO get this from environment vars
-    ood_labels = []
 
     # input dims for model
     input_chw = (
@@ -132,13 +130,13 @@ def load_config() -> Config:
         data_root=data_dir,
         crossval_k=crossval_k,
         crossval_folds=crossval_folds,
-        ood_labels=ood_labels,
+        crossval_mode=crossval_mode,
         label_type=label_type,
     )
     dataset_info = get_dataset_info(
         dataset_name,
         data_root=data_dir,
-        ood_labels=ood_labels,
+        crossval_mode=crossval_mode,
         label_type=label_type,
     )
     # runtime device
@@ -163,7 +161,7 @@ def load_config() -> Config:
         log_level=log_level,
         crossval_k=crossval_k,
         crossval_folds=crossval_folds,
-        ood_labels=ood_labels,
+        crossval_mode=crossval_mode,
         label_type=label_type,
         data_dir=data_dir,
         dataset_name=dataset_name,

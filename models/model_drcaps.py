@@ -11,9 +11,16 @@ from tqdm import tqdm
 
 from .capsnet.caps import FlattenCaps, LinearCapsDR, squash
 from .capsnet.common import conv_to_caps
-from .capsnet.drcaps import ConvCapsDR
 from .capsnet.deepcaps import MaskCaps
-from .common import Functional, conv_out_shape, load_saved_state, save_state, set_requires_grad
+from .capsnet.drcaps import ConvCapsDR
+from .common import (
+    Functional,
+    conv_out_shape,
+    generate_confusion_matrix,
+    load_saved_state,
+    save_state,
+    set_requires_grad,
+)
 from .resnet import get_decoder
 
 caps_cd_1 = (8, 16)
@@ -36,9 +43,13 @@ def load_model_and_optimizer(
     (h0, w0) = config.image_chw[1:]
     (conv_kh, conv_kw) = conv_kernel_hw
     (caps_kh, caps_hw) = caps_kernel_hw
-    (h1, w1) = conv_out_shape(h0, conv_kh, conv_stride, blocks=1), conv_out_shape(w0, conv_kw, conv_stride, blocks=1)
-    (h4, w4) = conv_out_shape(h1, caps_kh, caps_stride, blocks=3), conv_out_shape(w1, caps_hw, caps_stride, blocks=3)
-    logging.info(f'{h0},{w0} -> {h4}, {w4}')
+    (h1, w1) = conv_out_shape(h0, conv_kh, conv_stride, blocks=1), conv_out_shape(
+        w0, conv_kw, conv_stride, blocks=1
+    )
+    (h4, w4) = conv_out_shape(h1, caps_kh, caps_stride, blocks=3), conv_out_shape(
+        w1, caps_hw, caps_stride, blocks=3
+    )
+    logging.info(f"{h0},{w0} -> {h4}, {w4}")
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
@@ -216,6 +227,10 @@ def test_model(
 
         x: torch.Tensor
         y: torch.Tensor
+
+        y_true = []
+        y_pred = []
+
         for x, y in iterable:
 
             # cast x and y to float
@@ -234,6 +249,10 @@ def test_model(
             x_z = decoder(z_x[..., None, None])
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
+            # accumulate predictions
+            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
@@ -249,8 +268,8 @@ def test_model(
 
             # accumulate plots
             if current_plot < img_count:
-                ax[current_plot, 0].imshow(x.to("cpu")[0, 0])
-                ax[current_plot, 1].imshow(x_z.to("cpu")[0, 0])
+                ax[current_plot, 0].imshow(x.cpu().numpy()[0, 0])
+                ax[current_plot, 1].imshow(x_z.cpu().numpy()[0, 0])
                 current_plot += 1
 
     # post-testing
@@ -262,3 +281,12 @@ def test_model(
     if not config.exc_dry_run:
         plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
     plt.close()
+
+    # save confusion matrix
+    generate_confusion_matrix(
+        y_pred=y_pred,
+        y_true=y_true,
+        labels=config.train_loader.dataset.labels,
+        experiment_path=experiment_path,
+        epoch=epoch,
+    )

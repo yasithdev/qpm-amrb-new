@@ -5,6 +5,8 @@ from typing import Callable, Tuple
 import torch
 from config import Config
 from einops import rearrange
+from matplotlib import pyplot as plt
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -160,7 +162,25 @@ def conv_out_shape(
     dilation: int = 1,
     blocks: int = 1,
 ) -> int:
-    output_size = input_size
+    size_o = input_size
     for _ in range(blocks):
-        output_size = (output_size + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
-    return output_size
+        size_o = (size_o + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
+    return size_o
+
+
+def generate_confusion_matrix(
+    y_pred: list,
+    y_true: list,
+    labels: list,
+    experiment_path: str,
+    epoch: int,
+) -> None:
+    # generate confusion matrix
+    cf_matrix = confusion_matrix(y_true, y_pred)
+    disp = ConfusionMatrixDisplay(
+        confusion_matrix=cf_matrix,
+        display_labels=labels,
+    )
+    disp.plot()
+    plt.savefig(os.path.join(experiment_path, f"cm_e{epoch}.png"))
+    plt.close()

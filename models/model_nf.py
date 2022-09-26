@@ -10,6 +10,7 @@ from . import nf
 from .common import (
     gen_img_from_patches,
     gen_patches_from_img,
+    generate_confusion_matrix,
     load_saved_state,
     save_state,
     set_requires_grad,
@@ -155,6 +156,10 @@ def test_model(
         )
         x: torch.Tensor
         y: torch.Tensor
+
+        y_true = []
+        y_pred = []
+
         for x, y in iterable:
 
             # cast x and y to float
@@ -173,6 +178,11 @@ def test_model(
             )
             x_r, inv_log_det = model.inverse(z_pad)
 
+            # accumulate predictions
+            # TODO fix this
+            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(y, dim=1).cpu().numpy())
+
             # calculate loss
             minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
 
@@ -186,10 +196,10 @@ def test_model(
             # accumulate plots
             if current_plot < img_count:
                 ax[current_plot, 0].imshow(
-                    gen_img_from_patches(x, patch_hw=config.patch_hw).to("cpu")[0, 0]
+                    gen_img_from_patches(x, patch_hw=config.patch_hw).cpu().numpy()[0, 0]
                 )
                 ax[current_plot, 1].imshow(
-                    gen_img_from_patches(x_r, patch_hw=config.patch_hw).to("cpu")[0, 0]
+                    gen_img_from_patches(x_r, patch_hw=config.patch_hw).cpu().numpy()[0, 0]
                 )
                 current_plot += 1
 
@@ -202,3 +212,12 @@ def test_model(
     if not config.exc_dry_run:
         plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
     plt.close()
+
+    # save confusion matrix
+    generate_confusion_matrix(
+        y_pred=y_pred,
+        y_true=y_true,
+        labels=config.train_loader.dataset.labels,
+        experiment_path=experiment_path,
+        epoch=epoch,
+    )

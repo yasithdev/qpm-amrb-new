@@ -2,14 +2,11 @@ import json
 import logging
 import os
 from time import time
-from typing import Callable, Dict, List, Literal, Optional
+from typing import Callable, Dict, Literal, Optional
 
 import einops
 import numpy as np
 import torchvision
-
-CROSSVAL_MODE = 0
-LEAVE_OUT_MODE = 1
 
 
 class AMRB(torchvision.datasets.VisionDataset):
@@ -21,7 +18,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         train: bool,
         crossval_k: int,
         crossval_folds: int,
-        ood_labels: List[str],
+        crossval_mode: Literal["k-fold", "leave-out"],
         label_type: Literal["class", "type", "strain", "gram"],
         split_frac: float = 0.8,
         # projection params
@@ -31,11 +28,6 @@ class AMRB(torchvision.datasets.VisionDataset):
 
         super().__init__(data_root, None, transform, target_transform)
         assert version in [1, 2], "Unknown AMRB version: should be 1 or 2"
-
-        if len(ood_labels) == 0:
-            mode = CROSSVAL_MODE
-        else:
-            mode = LEAVE_OUT_MODE
 
         # ----------------------------------------------------------------- #
         # base path for dataset files                                       #
@@ -58,27 +50,30 @@ class AMRB(torchvision.datasets.VisionDataset):
             src_info: dict = json.load(f)["data"]
 
         # ----------------------------------------------------------------- #
-        # select labels for task                                            #
+        # select tlabels for task                                            #
         # ----------------------------------------------------------------- #
-        class_labels = sorted(src_info)
+        slabels = sorted(src_info)
         if label_type == "class":
-            target_labels = class_labels
+            tlabels = slabels
         else:
-            target_labels = [src_info[x][label_type] for x in class_labels]
-        logging.info(f"Labels: {sorted(set(target_labels))}")
+            tlabels = [src_info[x][label_type] for x in slabels]
+        uniq_tlabels = sorted(set(tlabels))
 
-        zipped_labels = zip(class_labels, target_labels)
-        if mode == CROSSVAL_MODE:
-            # use all labels
-            selected_labels = list(zipped_labels)
+        if crossval_mode == "leave-out":
+            assert crossval_folds == len(uniq_tlabels)
+            # select the k-th tlabel
+            tlabel_k = uniq_tlabels[crossval_k]
+            # select all tlabels where train  == (tlabel != tlabel_k)
+            cond = lambda t: train == (t != tlabel_k)
+            self.labels = list(filter(lambda t: cond(t), uniq_tlabels))
+            label_map = list(filter(lambda _, t: cond(t), zip(slabels, tlabels)))
         else:
-            # if training, use all labels except ood_labels
-            if train == True:
-                cond = lambda _, t: t not in ood_labels
-            # if testing, only use ood_labels
-            else:
-                cond = lambda _, t: t in ood_labels
-            selected_labels = list(filter(cond, zipped_labels))
+            # select all tlabels
+            self.labels = uniq_tlabels
+            label_map = list(zip(slabels, tlabels))
+        logging.info(
+            f"[preparation] selected labels for {crossval_mode} crossval: {self.labels}"
+        )
 
         # ----------------------------------------------------------------- #
         # generate data_x and data_y for sequential reading                 #
@@ -87,28 +82,28 @@ class AMRB(torchvision.datasets.VisionDataset):
         t_start = time()
 
         # ----------------------------------------------------------------- #
-        # generate x                                                        #
+        # generate data dict                                                #
         # ----------------------------------------------------------------- #
         data_dict: Dict[str, np.ndarray] = {}
 
-        for clabel, tlabel in selected_labels:
+        for slabel, tlabel in label_map:
 
-            source_x = self.filter_outliers(src_data[clabel])
+            src_x = self.filter_outliers(src_data[slabel])
 
             if tlabel in data_dict:
                 data_dict[tlabel] = np.concatenate(
-                    (data_dict[tlabel], source_x),
+                    (data_dict[tlabel], src_x),
                     axis=0,
                 )
             else:
-                data_dict[tlabel] = source_x
-        logging.info("[preparation] filtered outliers")
+                data_dict[tlabel] = src_x
+        logging.info("[preparation] gathered data and filtered outliers")
 
         # ----------------------------------------------------------------- #
-        # if mode is cross-val, do a train/test split                       #
+        # if crossval_mode is 'k-fold', select the k-th crossval fold       #
         # ----------------------------------------------------------------- #
-        if mode == CROSSVAL_MODE:
-            # roll images (for crossval) and train/test split
+        if crossval_mode == "k-fold":
+            # select the k-th subset of the data_dict
             for tlabel in data_dict:
                 num_images = data_dict[tlabel].shape[0]
                 shift = int(num_images * crossval_k / crossval_folds)
@@ -118,7 +113,7 @@ class AMRB(torchvision.datasets.VisionDataset):
                     data_dict[tlabel] = data_dict[tlabel][:pivot]
                 else:
                     data_dict[tlabel] = data_dict[tlabel][pivot:]
-            logging.info("[preparation] performed train/test split for cross-validation")
+            logging.info(f"[preparation] selected the k-th crossval fold")
 
         # ----------------------------------------------------------------- #
         # balance the class distribution of x                               #
@@ -135,31 +130,29 @@ class AMRB(torchvision.datasets.VisionDataset):
         # ----------------------------------------------------------------- #
         # generate x and y                                                  #
         # ----------------------------------------------------------------- #
-        self.labels = sorted(data_dict)
 
-        data_x = np.stack([data_dict[label] for label in self.labels], axis=1)
+        data_x = np.stack([data_dict[label] for label in sorted(data_dict)], axis=1)
         data_x = einops.rearrange(data_x, "b l h w -> (b l) h w 1")
         logging.info("[preparation] generated data_x")
 
-        if mode == CROSSVAL_MODE:
-            num_labels = len(self.labels)
+        N = len(uniq_tlabels)
+        if crossval_mode == "k-fold":
             data_y = np.tile(
-                A=np.eye(N=num_labels, dtype=np.float32),
-                reps=(data_x.shape[0] // num_labels, 1),
+                A=np.eye(N, dtype=np.float32),
+                reps=(data_x.shape[0] // N, 1),
             )
         else:
-            # TODO the value of self.labels may be incorrect for vis.py
-            num_labels = len(set(self.labels).difference(ood_labels))
+            N -= 1
             if train:
                 data_y = np.tile(
-                    A=np.eye(N=num_labels, dtype=np.float32),
-                    reps=(data_x.shape[0] // num_labels, 1),
+                    A=np.eye(N, dtype=np.float32),
+                    reps=(data_x.shape[0] // N, 1),
                 )
             else:
-                # assign equal probability to all classes (TODO improve this)
+                # TODO use the correct genetic probability here
                 data_y = np.full(
-                    shape=(data_x.shape[0], num_labels),
-                    fill_value=1 / num_labels,
+                    shape=(data_x.shape[0], N),
+                    fill_value=1 / N,
                     dtype=np.float32,
                 )
         logging.info("[preparation] generated data_y")

@@ -18,7 +18,7 @@ def create_data_loaders(
     version: int,
     crossval_k: int,
     crossval_folds: int,
-    ood_labels: List[str],
+    crossval_mode: Literal["k-fold", "leave-out"],
     label_type: Literal["class", "type", "strain", "gram"],
 ) -> Tuple[DataLoader, DataLoader]:
     transform = torchvision.transforms.Compose(
@@ -34,7 +34,7 @@ def create_data_loaders(
             train=True,
             crossval_k=crossval_k,
             crossval_folds=crossval_folds,
-            ood_labels=ood_labels,
+            crossval_mode=crossval_mode,
             label_type=label_type,
             # projection params
             transform=transform,
@@ -51,7 +51,7 @@ def create_data_loaders(
             train=False,
             crossval_k=crossval_k,
             crossval_folds=crossval_folds,
-            ood_labels=ood_labels,
+            crossval_mode=crossval_mode,
             label_type=label_type,
             # projection params
             transform=transform,
@@ -66,9 +66,9 @@ def create_data_loaders(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 def get_info(
     data_root: str,
-    version: Literal[1,2],
+    version: Literal[1, 2],
     label_type: Literal["class", "type", "strain", "gram"],
-    ood_labels: List[str],
+    crossval_mode: Literal["k-fold", "leave-out"],
 ) -> dict:
 
     src_info_path = os.path.join(data_root, f"AMRB_{version}", "info.json")
@@ -84,10 +84,10 @@ def get_info(
 
     num_labels = len(set(target_labels))
 
-    if len(ood_labels) > 0:
+    if crossval_mode == "leave-out":
         return {
-            "num_train_labels": num_labels - len(ood_labels),
-            "num_test_labels": len(ood_labels),
+            "num_train_labels": num_labels - 1,
+            "num_test_labels": 1,
         }
     else:
         return {
