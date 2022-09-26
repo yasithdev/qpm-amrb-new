@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Callable, Tuple
+import numpy as np
 
 import torch
 from config import Config
@@ -182,5 +183,6 @@ def generate_confusion_matrix(
         display_labels=labels,
     )
     disp.plot()
+    np.save(os.path.join(experiment_path, f"cm_e{epoch}.npy"), cf_matrix)
     plt.savefig(os.path.join(experiment_path, f"cm_e{epoch}.png"))
     plt.close()
