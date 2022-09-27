@@ -65,7 +65,6 @@ def save_state(
     model: torch.nn.Module,
     optim: torch.optim.Optimizer,
     experiment_path: str,
-    config: Config,
 ) -> None:
     logging.info("checkpoint - saving current model and optimizer state")
     model_state_path = os.path.join(experiment_path, f"model.pth")
@@ -155,7 +154,7 @@ def set_requires_grad(module: torch.nn.Module, flag: bool):
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def conv_out_shape(
+def get_conv_out_shape(
     input_size: int,
     kernel_size: int,
     stride: int = 1,
@@ -169,7 +168,7 @@ def conv_out_shape(
     return size_o
 
 
-def generate_confusion_matrix(
+def gen_confusion_matrix(
     y_pred: list,
     y_true: list,
     labels: list,

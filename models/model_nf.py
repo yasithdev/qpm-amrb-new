@@ -10,7 +10,7 @@ from . import nf
 from .common import (
     gen_img_from_patches,
     gen_patches_from_img,
-    generate_confusion_matrix,
+    gen_confusion_matrix,
     load_saved_state,
     save_state,
     set_requires_grad,
@@ -125,7 +125,6 @@ def train_model(
             model=model,
             optim=optim,
             experiment_path=experiment_path,
-            config=config,
         )
 
 
@@ -214,7 +213,7 @@ def test_model(
     plt.close()
 
     # save confusion matrix
-    generate_confusion_matrix(
+    gen_confusion_matrix(
         y_pred=y_pred,
         y_true=y_true,
         labels=config.train_loader.dataset.labels,

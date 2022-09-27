@@ -53,7 +53,7 @@ class ConvCapsDR(torch.nn.Module):
         )
 
         # log prior (1, D, d, 1, 1)
-        from ..common import conv_out_shape
+        from ..common import get_conv_out_shape
         self.prior = torch.zeros(
             1,
             in_capsules[1],
