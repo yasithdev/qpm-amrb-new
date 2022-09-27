@@ -181,7 +181,9 @@ def gen_confusion_matrix(
         confusion_matrix=cf_matrix,
         display_labels=labels,
     )
-    disp.plot()
+    n = len(labels)
+    fig, ax = plt.subplots(figsize=(n+1,n+1))
+    disp.plot(ax=ax)
     np.save(os.path.join(experiment_path, f"cm_e{epoch}.npy"), cf_matrix)
     plt.savefig(os.path.join(experiment_path, f"cm_e{epoch}.png"))
     plt.close()
