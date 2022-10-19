@@ -1,7 +1,7 @@
 from typing import Callable, Tuple
 
 import torch
-import torchsummary
+import torchinfo
 from config import Config
 
 
@@ -34,18 +34,16 @@ def get_model_optimizer_and_loops(
     
     # print model summary
     if type(model) == torch.nn.ModuleDict:
-            torchsummary.summary(
+            torchinfo.summary(
                 model["encoder"],
-                input_size=input_size,
-                batch_size=config.batch_size,
-                device=config.device
+                input_size=(config.batch_size, *input_size),
+                depth=5
             )
     else:
-        torchsummary.summary(
+        torchinfo.summary(
             model,
-            input_size=input_size,
-            batch_size=config.batch_size,
-            device=config.device
+            input_size=(config.batch_size, *input_size),
+            depth=5
         )
 
     # return model, optimizer, training loop, and testing loop
