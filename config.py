@@ -7,7 +7,7 @@ import torch
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 
-from datasets import get_dataset_info, get_dataset_loaders
+from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 
 
 def get_best_device():
@@ -99,13 +99,12 @@ def load_config() -> Config:
     logging.info(f"LOG_LEVEL={log_level}")
 
     data_dir = getenv("DATA_DIR")
-    dataset_name, cv_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
+    dataset_name, cv_k = getenv("DATASET_NAME").rsplit(".", maxsplit=1)
     cv_k = int(cv_k)
     cv_folds = int(getenv("CV_FOLDS"))
     cv_mode = getenv("CV_MODE")
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
-    image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
     patch_hw = (int(getenv("PATCH_H")), int(getenv("PATCH_W")))
     manifold_c = int(getenv("MANIFOLD_C"))
     batch_size = int(getenv("BATCH_SIZE"))
@@ -116,12 +115,16 @@ def load_config() -> Config:
     exc_resume = bool(int(getenv("EXC_RESUME")))
     label_type = getenv("LABEL_TYPE")
 
+    # image dims (get from the data loader)
+    image_chw = get_dataset_chw(dataset_name)
+
     # input dims for model
     input_chw = (
         image_chw[-3] * patch_hw[-2] * patch_hw[-1],
         image_chw[-2] // patch_hw[-2],
         image_chw[-1] // patch_hw[-1],
     )
+
     # data loader
     train_loader, test_loader = get_dataset_loaders(
         dataset_name,

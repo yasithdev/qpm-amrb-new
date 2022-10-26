@@ -31,7 +31,7 @@ def get_classifier(
         # (B, D)
         torch.nn.Linear(in_features=d, out_features=out_features),
         # (B, L)
-        torch.nn.Softmax(dim=1),
+        # torch.nn.Softmax(dim=1),
         # (B, L)
     )
     return model
@@ -165,6 +165,30 @@ def get_conv_out_shape(
     size_o = input_size
     for _ in range(blocks):
         size_o = (size_o + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
+    return size_o
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def get_convt_out_shape(
+    input_size: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 0,
+    output_padding: int = 0,
+    dilation: int = 1,
+    blocks: int = 1,
+) -> int:
+    size_o = input_size
+    for _ in range(blocks):
+        size_o = (
+            (size_o - 1) * stride
+            - 2 * padding
+            + dilation * (kernel_size - 1)
+            + output_padding
+            + 1
+        )
     return size_o
 
 

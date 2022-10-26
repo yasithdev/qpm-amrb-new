@@ -2,6 +2,7 @@ from typing import Tuple
 
 import torch
 
+from ..common import Functional
 from .residual_block import ResidualBlock
 
 
@@ -19,12 +20,20 @@ def get_encoder(
     (c, h, w) = input_chw
     d = num_features
 
+    rh = 8 - (h % 8)
+    rw = 8 - (w % 8)
+    ph1, pw1 = rh // 2, rw // 2
+    ph2, pw2 = rh - ph1, rw - pw1
+
     model = torch.nn.Sequential(
+        # zero-pad for consistency
+        torch.nn.ZeroPad2d((pw1, pw2, ph1, ph2)),
         # (B, C, H, W)
         torch.nn.Conv2d(
             in_channels=c,
             out_channels=d // 4,
             kernel_size=7,
+            padding=3,
             stride=2,
             bias=False,
         ),
@@ -75,7 +84,7 @@ def get_encoder(
             in_channels=d,
             out_channels=d,
             groups=d,
-            kernel_size=(h // 8, w // 8),
+            kernel_size=((h + rh) // 8, (w + rw) // 8),
             bias=False,
         ),
         # (B, D, 1, 1)
@@ -101,13 +110,18 @@ def get_decoder(
     d = num_features
     (c, h, w) = output_chw
 
+    rh = 8 - (h % 8)
+    rw = 8 - (w % 8)
+    ph1, pw1 = rh // 2, rw // 2
+    ph2, pw2 = rh - ph1, rw - pw1
+
     model = torch.nn.Sequential(
         # (B, D, 1, 1)
         torch.nn.ConvTranspose2d(
             in_channels=d,
             out_channels=d,
             groups=d,
-            kernel_size=(h // 8, w // 8),
+            kernel_size=((h + rh) // 8 + 1, (w + rw) // 8 + 1),
         ),
         # (B, D, H/8, W/8)
         ResidualBlock(
@@ -150,9 +164,11 @@ def get_decoder(
             in_channels=d // 4,
             out_channels=c,
             kernel_size=7,
+            padding=3,
             stride=2,
-            output_padding=1,
         ),
         # (B, C, H, W)
+        Functional(lambda x: x[..., ph1 : -ph2 - 1, pw1 : -pw2 - 1]),
+        # crop for consistency
     )
     return model

@@ -39,6 +39,11 @@ def get_model_optimizer_and_loops(
                 input_size=(config.batch_size, *input_size),
                 depth=5
             )
+            torchinfo.summary(
+                model["decoder"],
+                input_size=(config.batch_size, 128, 1, 1),
+                depth=5
+            )
     else:
         torchinfo.summary(
             model,

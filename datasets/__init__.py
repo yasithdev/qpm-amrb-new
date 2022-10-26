@@ -18,6 +18,19 @@ def get_dataset_loaders(dataset_name: str, **kwargs) -> Tuple[DataLoader, DataLo
         )
 
 
+def get_dataset_chw(dataset_name: str) -> Tuple[int, int, int]:
+    if dataset_name == "MNIST":
+        return (1, 28, 28)
+    elif dataset_name == "AMRB_1":
+        return (1, 40, 40)
+    elif dataset_name == "AMRB_2":
+        return (1, 40, 40)
+    else:
+        raise ValueError(
+            f"Only MNIST, AMRB_1, and AMRB_2 datasets are supported. (Given: {dataset_name})"
+        )
+
+
 def get_dataset_info(dataset_name: str, **kwargs) -> dict:
     if dataset_name == "MNIST":
         return mnist.get_info(**kwargs)

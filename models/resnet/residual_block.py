@@ -46,7 +46,6 @@ class ResidualBlock(torch.nn.Module):
                 kernel_size=3,
                 stride=self.stride,
                 padding=1,
-                dilation=1,
                 bias=False,
             ),
             self.Norm(
