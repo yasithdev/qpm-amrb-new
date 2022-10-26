@@ -78,13 +78,12 @@ if __name__ == "__main__":
 
     wandb.init(
         project="qpm-amrb",
-        name=experiment_name,
         config={
-            "dataset": config.dataset_name,
-            "model": config.model_name,
-            "cv_mode": config.cv_mode,
             "cv_folds": config.cv_folds,
             "cv_k": config.cv_k,
+            "cv_mode": config.cv_mode,
+            "dataset": config.dataset_name,
+            "model": config.model_name,
         },
     )
 
