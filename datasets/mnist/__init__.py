@@ -1,25 +1,19 @@
-import json
-import logging
-import os
 from typing import Literal, Tuple
 
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
 
 from ..transforms import AddGaussianNoise
-from .amrb import AMRBDataset
+from .mnist import MNISTDataset
 
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
 def create_data_loaders(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    version: int,
     cv_k: int,
     cv_folds: int,
     cv_mode: Literal["k-fold", "leave-out"],
-    label_type: Literal["class", "type", "strain", "gram"],
     **kwargs,
 ) -> Tuple[DataLoader, DataLoader]:
 
@@ -31,17 +25,15 @@ def create_data_loaders(
         ]
     )
 
-    # load AMRB data
+    # load MNIST data
     train_loader = DataLoader(
-        dataset=AMRBDataset(
+        dataset=MNISTDataset(
             data_root=data_root,
-            version=version,
             # query params
             train=True,
             cv_k=cv_k,
             cv_folds=cv_folds,
             cv_mode=cv_mode,
-            label_type=label_type,
             # projection params
             transform=transform,
         ),
@@ -49,15 +41,13 @@ def create_data_loaders(
     )
 
     test_loader = DataLoader(
-        dataset=AMRBDataset(
+        dataset=MNISTDataset(
             data_root=data_root,
-            version=version,
             # query params
             train=False,
             cv_k=cv_k,
             cv_folds=cv_folds,
             cv_mode=cv_mode,
-            label_type=label_type,
             # projection params
             transform=transform,
         ),
@@ -68,26 +58,14 @@ def create_data_loaders(
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 def get_info(
-    data_root: str,
-    version: Literal[1, 2],
-    label_type: Literal["class", "type", "strain", "gram"],
     cv_mode: Literal["k-fold", "leave-out"],
     **kwargs,
 ) -> dict:
 
-    src_info_path = os.path.join(data_root, f"AMRB_{version}", "info.json")
-    logging.info(f"Dataset info: {src_info_path}")
-    with open(src_info_path, "r") as f:
-        src_info: dict = json.load(f)["data"]
-
-    class_labels = sorted(src_info)
-    if label_type == "class":
-        target_labels = class_labels
-    else:
-        target_labels = [src_info[clabel][label_type] for clabel in class_labels]
-
-    num_labels = len(set(target_labels))
+    num_labels = 10
 
     if cv_mode == "leave-out":
         return {

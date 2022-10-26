@@ -17,7 +17,7 @@ def main(config: Config):
         config.experiment_dir,
         experiment_name,
         config.dataset_name,
-        f"{config.label_type}-{config.crossval_k}",
+        f"{config.label_type}-{config.cv_k}",
     )
     shutil.rmtree(experiment_path, ignore_errors=True)
     os.makedirs(experiment_path, exist_ok=True)

@@ -9,16 +9,16 @@ import numpy as np
 import torchvision
 
 
-class AMRB(torchvision.datasets.VisionDataset):
+class AMRBDataset(torchvision.datasets.VisionDataset):
     def __init__(
         self,
         data_root: str,
         version: int,
         # query params
         train: bool,
-        crossval_k: int,
-        crossval_folds: int,
-        crossval_mode: Literal["k-fold", "leave-out"],
+        cv_k: int,
+        cv_folds: int,
+        cv_mode: Literal["k-fold", "leave-out"],
         label_type: Literal["class", "type", "strain", "gram"],
         split_frac: float = 0.8,
         # projection params
@@ -59,10 +59,10 @@ class AMRB(torchvision.datasets.VisionDataset):
             tlabels = [src_info[x][label_type] for x in slabels]
         uniq_tlabels = sorted(set(tlabels))
 
-        if crossval_mode == "leave-out":
-            assert crossval_folds == len(uniq_tlabels)
+        if cv_mode == "leave-out":
+            assert cv_folds == len(uniq_tlabels)
             # select the k-th tlabel
-            tlabel_k = uniq_tlabels[crossval_k]
+            tlabel_k = uniq_tlabels[cv_k]
             # select all tlabels where train  == (tlabel != tlabel_k)
             cond = lambda t: train == (t != tlabel_k)
             self.labels = list(filter(lambda t: cond(t), uniq_tlabels))
@@ -72,7 +72,7 @@ class AMRB(torchvision.datasets.VisionDataset):
             self.labels = uniq_tlabels
             label_map = list(zip(slabels, tlabels))
         logging.info(
-            f"[preparation] selected labels for {crossval_mode} crossval: {self.labels}"
+            f"[preparation] selected labels for {cv_mode} crossval: {self.labels}"
         )
 
         # ----------------------------------------------------------------- #
@@ -100,13 +100,13 @@ class AMRB(torchvision.datasets.VisionDataset):
         logging.info("[preparation] gathered data and filtered outliers")
 
         # ----------------------------------------------------------------- #
-        # if crossval_mode is 'k-fold', select the k-th crossval fold       #
+        # if cv_mode is 'k-fold', select the k-th crossval fold       #
         # ----------------------------------------------------------------- #
-        if crossval_mode == "k-fold":
+        if cv_mode == "k-fold":
             # select the k-th subset of the data_dict
             for tlabel in data_dict:
                 num_images = data_dict[tlabel].shape[0]
-                shift = int(num_images * crossval_k / crossval_folds)
+                shift = int(num_images * cv_k / cv_folds)
                 pivot = int(num_images * split_frac)
                 data_dict[tlabel] = np.roll(data_dict[tlabel], shift, axis=0)
                 if train:
@@ -136,7 +136,7 @@ class AMRB(torchvision.datasets.VisionDataset):
         logging.info("[preparation] generated data_x")
 
         N = len(uniq_tlabels)
-        if crossval_mode == "k-fold":
+        if cv_mode == "k-fold":
             data_y = np.tile(
                 A=np.eye(N, dtype=np.float32),
                 reps=(data_x.shape[0] // N, 1),
@@ -150,9 +150,8 @@ class AMRB(torchvision.datasets.VisionDataset):
                 )
             else:
                 # TODO use the correct genetic probability here
-                data_y = np.full(
+                data_y = np.zeros(
                     shape=(data_x.shape[0], N),
-                    fill_value=1 / N,
                     dtype=np.float32,
                 )
         logging.info("[preparation] generated data_y")

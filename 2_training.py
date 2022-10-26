@@ -11,14 +11,6 @@ from models import get_model_optimizer_and_loops
 
 def main(config: Config):
 
-    # set experiment name and path
-    experiment_name = "2_training"
-    experiment_path = os.path.join(
-        config.experiment_dir,
-        experiment_name,
-        f"{config.dataset_name}-{config.model_name}",
-        f"{config.label_type}-{config.crossval_k}",
-    )
     if not (config.exc_resume or config.exc_dry_run):
         shutil.rmtree(experiment_path, ignore_errors=True)
         os.makedirs(experiment_path, exist_ok=True)
@@ -31,8 +23,9 @@ def main(config: Config):
         config=config,
         experiment_path=experiment_path,
     )
+    wandb.watch(model, log_freq=100)
 
-    train_stats = [np.nan]
+    train_stats = []
     test_stats = []
 
     # run train / test loops
@@ -40,7 +33,7 @@ def main(config: Config):
     for current_epoch in range(config.train_epochs + 1):
         # training loop
         if current_epoch > 0:
-            train_model(
+            train_stat = train_model(
                 model=model,
                 epoch=current_epoch,
                 config=config,
@@ -49,8 +42,10 @@ def main(config: Config):
                 experiment_path=experiment_path,
                 z_dist=z_dist,
             )
+            wandb.log(train_stat)
+
         # testing loop
-        test_model(
+        test_stat = test_model(
             model=model,
             epoch=current_epoch,
             config=config,
@@ -58,19 +53,39 @@ def main(config: Config):
             experiment_path=experiment_path,
             z_dist=z_dist,
         )
-
-        # at each epoch, save train/test stats to file
-        stats_path = os.path.join(experiment_path, "stats.npz")
-        np.savez_compressed(
-            stats_path,
-            train=np.array(train_stats),
-            test=np.array(test_stats),
-        )
+        wandb.log(test_stat)
 
 
 if __name__ == "__main__":
+
     # initialize the RNG deterministically
     np.random.seed(42)
-    torch.random.manual_seed(42)
+    torch.manual_seed(42)
+    torch.use_deterministic_algorithms(mode=True)
+
     config = load_config()
+
+    # set experiment name and path
+    experiment_name = "2_training"
+    experiment_path = os.path.join(
+        config.experiment_dir,
+        experiment_name,
+        f"{config.dataset_name}-{config.model_name}",
+        f"{config.label_type}-{config.cv_k}",
+    )
+
+    import wandb
+
+    wandb.init(
+        project="qpm-amrb",
+        name=experiment_name,
+        config={
+            "dataset": config.dataset_name,
+            "model": config.model_name,
+            "cv_mode": config.cv_mode,
+            "cv_folds": config.cv_folds,
+            "cv_k": config.cv_k,
+        },
+    )
+
     main(config)

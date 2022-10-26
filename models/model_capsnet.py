@@ -13,8 +13,8 @@ from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCapsDR, MaskCaps, squas
 from .capsnet.common import conv_to_caps
 from .common import (
     Functional,
-    get_conv_out_shape,
     gen_confusion_matrix,
+    get_conv_out_shape,
     load_saved_state,
     save_state,
     set_requires_grad,
@@ -44,9 +44,9 @@ def load_model_and_optimizer(
     (h1, w1) = get_conv_out_shape(h0, conv_kh, conv_stride), get_conv_out_shape(
         w0, conv_kw, conv_stride
     )
-    (h4, w4) = get_conv_out_shape(h1, caps_kh, caps_stride, blocks=3), get_conv_out_shape(
-        w1, caps_kw, caps_stride, blocks=3
-    )
+    (h4, w4) = get_conv_out_shape(
+        h1, caps_kh, caps_stride, blocks=3
+    ), get_conv_out_shape(w1, caps_kw, caps_stride, blocks=3)
 
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(

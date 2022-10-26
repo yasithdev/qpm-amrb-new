@@ -27,9 +27,9 @@ class Config:
     def __init__(
         self,
         log_level: str,
-        crossval_k: int,
-        crossval_folds: int,
-        crossval_mode: str,
+        cv_k: int,
+        cv_folds: int,
+        cv_mode: str,
         label_type: str,
         data_dir: str,
         dataset_name: str,
@@ -54,9 +54,9 @@ class Config:
         tqdm_args: dict,
     ) -> None:
         self.log_level = log_level
-        self.crossval_k = crossval_k
-        self.crossval_folds = crossval_folds
-        self.crossval_mode = crossval_mode
+        self.cv_k = cv_k
+        self.cv_folds = cv_folds
+        self.cv_mode = cv_mode
         self.label_type = label_type
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -99,10 +99,10 @@ def load_config() -> Config:
     logging.info(f"LOG_LEVEL={log_level}")
 
     data_dir = getenv("DATA_DIR")
-    dataset_name, crossval_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
-    crossval_k = int(crossval_k)
-    crossval_folds = int(getenv("CROSSVAL_FOLDS"))
-    crossval_mode = getenv("CROSSVAL_MODE")
+    dataset_name, cv_k = getenv("DATASET_NAME").rsplit('.', maxsplit=1)
+    cv_k = int(cv_k)
+    cv_folds = int(getenv("CV_FOLDS"))
+    cv_mode = getenv("CV_MODE")
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
     image_chw = (int(getenv("IMAGE_C")), int(getenv("IMAGE_H")), int(getenv("IMAGE_W")))
@@ -128,15 +128,15 @@ def load_config() -> Config:
         batch_size_train=batch_size,
         batch_size_test=batch_size,
         data_root=data_dir,
-        crossval_k=crossval_k,
-        crossval_folds=crossval_folds,
-        crossval_mode=crossval_mode,
+        cv_k=cv_k,
+        cv_folds=cv_folds,
+        cv_mode=cv_mode,
         label_type=label_type,
     )
     dataset_info = get_dataset_info(
         dataset_name,
         data_root=data_dir,
-        crossval_mode=crossval_mode,
+        cv_mode=cv_mode,
         label_type=label_type,
     )
     # runtime device
@@ -159,9 +159,9 @@ def load_config() -> Config:
     return Config(
         # env params
         log_level=log_level,
-        crossval_k=crossval_k,
-        crossval_folds=crossval_folds,
-        crossval_mode=crossval_mode,
+        cv_k=cv_k,
+        cv_folds=cv_folds,
+        cv_mode=cv_mode,
         label_type=label_type,
         data_dir=data_dir,
         dataset_name=dataset_name,
