@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 import torch
 import torch.utils.data
@@ -8,7 +8,8 @@ from config import Config
 def load_model_and_optimizer(
     config: Config,
     experiment_path: str,
-):
+) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+
     raise NotImplementedError()
 
 
@@ -21,7 +22,8 @@ def train_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     raise NotImplementedError()
 
 
@@ -33,5 +35,6 @@ def test_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     raise NotImplementedError()

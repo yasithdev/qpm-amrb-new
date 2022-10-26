@@ -13,9 +13,10 @@ from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCapsDR, MaskCaps, squas
 from .capsnet.common import conv_to_caps
 from .common import (
     Functional,
-    gen_confusion_matrix,
+    gen_epoch_stats,
     get_conv_out_shape,
     load_saved_state,
+    plot_confusion_matrix,
     save_state,
     set_requires_grad,
 )
@@ -124,7 +125,8 @@ def train_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     # initialize loop
     model = model.to(config.device)
     model.train()
@@ -143,6 +145,9 @@ def train_model(
 
         x: torch.Tensor
         y: torch.Tensor
+        y_true = []
+        y_pred = []
+
         for x, y in iterable:
 
             # cast x and y to float
@@ -160,6 +165,10 @@ def train_model(
             # - decoder -
             x_z = decoder(z_x[..., None, None])
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
+
+            # accumulate predictions
+            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
 
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
@@ -181,8 +190,10 @@ def train_model(
 
     # post-training
     avg_loss = sum_loss / size
-    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
+    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
     stats.append(avg_loss)
+
+    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
     if min(stats) == avg_loss and not config.exc_dry_run:
         save_state(
@@ -190,6 +201,11 @@ def train_model(
             optim=optim,
             experiment_path=experiment_path,
         )
+
+    return {
+        "train_loss": avg_loss,
+        "train_acc": acc_score,
+    }
 
 
 def test_model(
@@ -199,7 +215,8 @@ def test_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     # initialize loop
     model = model.to(config.device)
     model.eval()
@@ -223,7 +240,6 @@ def test_model(
 
         x: torch.Tensor
         y: torch.Tensor
-
         y_true = []
         y_pred = []
 
@@ -270,8 +286,10 @@ def test_model(
 
     # post-testing
     avg_loss = sum_loss / size
+    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
     stats.append(avg_loss)
-    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
+
+    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
     # save generated plot
     if not config.exc_dry_run:
@@ -279,10 +297,14 @@ def test_model(
     plt.close()
 
     # save confusion matrix
-    gen_confusion_matrix(
-        y_pred=y_pred,
-        y_true=y_true,
+    plot_confusion_matrix(
+        cf_matrix=cf_matrix,
         labels=config.train_loader.dataset.labels,
         experiment_path=experiment_path,
         epoch=epoch,
     )
+
+    return {
+        "test_loss": avg_loss,
+        "test_acc": acc_score,
+    }

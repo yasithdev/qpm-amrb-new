@@ -1,13 +1,13 @@
 import logging
 import os
 from typing import Callable, Tuple
-import numpy as np
 
+import numpy as np
 import torch
 from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score, confusion_matrix
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -168,21 +168,34 @@ def get_conv_out_shape(
     return size_o
 
 
-def gen_confusion_matrix(
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def gen_epoch_stats(
     y_pred: list,
     y_true: list,
+) -> Tuple[np.ndarray, float]:
+    # generate confusion matrix
+    cf_matrix = confusion_matrix(y_true, y_pred)
+    acc_score = accuracy_score(y_true, y_pred)
+    return cf_matrix, acc_score
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def plot_confusion_matrix(
+    cf_matrix: np.ndarray,
     labels: list,
     experiment_path: str,
     epoch: int,
 ) -> None:
-    # generate confusion matrix
-    cf_matrix = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(
         confusion_matrix=cf_matrix,
         display_labels=labels,
     )
     n = len(labels)
-    fig, ax = plt.subplots(figsize=(n+1,n+1))
+    fig, ax = plt.subplots(figsize=(n + 1, n + 1))
     disp.plot(ax=ax)
     np.save(os.path.join(experiment_path, f"cm_e{epoch}.npy"), cf_matrix)
     plt.savefig(os.path.join(experiment_path, f"cm_e{epoch}.png"))

@@ -8,10 +8,11 @@ from tqdm import tqdm
 
 from . import nf
 from .common import (
+    gen_epoch_stats,
     gen_img_from_patches,
     gen_patches_from_img,
-    gen_confusion_matrix,
     load_saved_state,
+    plot_confusion_matrix,
     save_state,
     set_requires_grad,
 )
@@ -66,7 +67,8 @@ def train_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     # initialize loop
     model = model.to(config.device)
     model.train()
@@ -81,6 +83,9 @@ def train_model(
         )
         x: torch.Tensor
         y: torch.Tensor
+        y_true = []
+        y_pred = []
+
         for x, y in iterable:
 
             # cast x and y to float
@@ -99,6 +104,10 @@ def train_model(
             )
             x_r, inv_log_det = model.inverse(z_pad)
 
+            # accumulate predictions TODO fix this
+            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
+            y_pred.extend(torch.argmax(y, dim=1).cpu().numpy())
+
             # calculate loss
             minibatch_loss = torch.nn.functional.mse_loss(x_r, x)
 
@@ -116,8 +125,10 @@ def train_model(
 
     # post-training
     avg_loss = sum_loss / size
-    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
+    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
     stats.append(avg_loss)
+
+    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
     # save model/optimizer states
     if min(stats) == avg_loss and not config.exc_dry_run:
@@ -127,6 +138,11 @@ def train_model(
             experiment_path=experiment_path,
         )
 
+    return {
+        "train_loss": avg_loss,
+        "train_acc": acc_score,
+    }
+
 
 def test_model(
     model: nf.ops.FlowTransform,
@@ -135,7 +151,8 @@ def test_model(
     stats: List,
     experiment_path: str,
     **kwargs,
-) -> None:
+) -> dict:
+
     # initialize loop
     model = model.to(config.device)
     model.eval()
@@ -155,7 +172,6 @@ def test_model(
         )
         x: torch.Tensor
         y: torch.Tensor
-
         y_true = []
         y_pred = []
 
@@ -177,8 +193,7 @@ def test_model(
             )
             x_r, inv_log_det = model.inverse(z_pad)
 
-            # accumulate predictions
-            # TODO fix this
+            # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
             y_pred.extend(torch.argmax(y, dim=1).cpu().numpy())
 
@@ -195,28 +210,38 @@ def test_model(
             # accumulate plots
             if current_plot < img_count:
                 ax[current_plot, 0].imshow(
-                    gen_img_from_patches(x, patch_hw=config.patch_hw).cpu().numpy()[0, 0]
+                    gen_img_from_patches(x, patch_hw=config.patch_hw)
+                    .cpu()
+                    .numpy()[0, 0]
                 )
                 ax[current_plot, 1].imshow(
-                    gen_img_from_patches(x_r, patch_hw=config.patch_hw).cpu().numpy()[0, 0]
+                    gen_img_from_patches(x_r, patch_hw=config.patch_hw)
+                    .cpu()
+                    .numpy()[0, 0]
                 )
                 current_plot += 1
 
     # post-testing
     avg_loss = sum_loss / size
+    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
     stats.append(avg_loss)
-    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}")
+
+    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
     # save generated plot
     if not config.exc_dry_run:
         plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
     plt.close()
 
-    # save confusion matrix
-    gen_confusion_matrix(
-        y_pred=y_pred,
-        y_true=y_true,
+    # plot confusion matrix
+    plot_confusion_matrix(
+        cf_matrix=cf_matrix,
         labels=config.train_loader.dataset.labels,
         experiment_path=experiment_path,
         epoch=epoch,
     )
+
+    return {
+        "test_loss": avg_loss,
+        "test_acc": acc_score,
+    }
