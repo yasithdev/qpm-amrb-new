@@ -38,62 +38,54 @@ class ConvCapsDR(torch.nn.Module):
         super().__init__()
         self.in_capsules = in_capsules
         self.out_capsules = out_capsules
-        self.kernel_size = kernel_size
+        k = kernel_size
+        k = (1, k, k) if isinstance(k, int) else (1, *k)
+        s = stride
+        self.stride = (1, s, s) if isinstance(s, int) else (1, *s)
+        self.padding = padding
         self.routing_iters = routing_iters
-
-        # weights (D*C, D*c*d, kH, kW)
-        self.conv = torch.nn.Conv2d(
-            in_channels=in_capsules[1] * in_capsules[0],
-            out_channels=in_capsules[1] * out_capsules[1] * out_capsules[0],
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            groups=in_capsules[1],
-            bias=False,
-        )
-
-        # log prior (1, D, d, 1, 1)
-        from ..common import get_conv_out_shape
-        self.prior = torch.zeros(
-            1,
-            in_capsules[1],
-            out_capsules[1],
-            1,
-            1,
-        )
+        C, D = in_capsules
+        c, d = out_capsules
+        # convolution weights and biases
+        self.conv_k = torch.nn.Parameter(torch.randn(d * c, C, *k))
+        self.conv_b = torch.nn.Parameter(torch.randn(d * c))
+        # log prior
+        self.prior = torch.nn.Parameter(torch.zeros(1, d, D, 1, 1))
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        # (B, C, D, H, W) -> (B, C * D, H, W)
-        x = einops.rearrange(
-            x,
-            "B C D H W -> B (D C) H W",
-            C=self.in_capsules[0],
-            D=self.in_capsules[1],
+        # prediction tensor (B, C, D, H, W) -> (B, d*c, D, h, w)
+        u = torch.nn.functional.conv3d(
+            input=x,
+            weight=self.conv_k,
+            bias=self.conv_b,
+            stride=self.stride,
+            padding=self.padding,
         )
-        # prediction tensor (B, D, c, d, h, w)
+        # rearrange prediction tensor
         u = einops.rearrange(
-            self.conv(x),
-            "B (D c d) h w -> B D c d h w",
-            D=self.in_capsules[1],
-            d=self.out_capsules[1],
+            u,
+            "B (c d) D h w -> B c d D h w",
             c=self.out_capsules[0],
+            d=self.out_capsules[1],
+            D=self.in_capsules[1],
         )
-
         # dynamic routing
         b = self.prior
         for _ in range(self.routing_iters):
             # coupling coefficients c_{ij} (softmax of b across dim=d)
-            c = torch.softmax(b, dim=2)
-            # current capsule output s_j (B, d, c)
-            s = torch.einsum("BDdhw,BDcdhw->Bcdhw", c, u)
-            # squashed capsule output s_j (B, d, c)
+            c = torch.softmax(b, dim=1)
+            # current capsule output s_j (B, c, d, h, w)
+            s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
+            # squashed capsule output s_j (B, c, d, h, w)
             v = squash(s)
             # agreement a_{ij} (scalar product of u and v)
-            a = torch.einsum("BDcdhw,Bcdhw->BDdhw", u, v)
+            a = torch.einsum("BcdDhw,Bcdhw->BdDhw", u, v)
             # update b
             b = b + a
-
+        # post-routing
+        c = torch.softmax(b, dim=1)
+        s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
         return s

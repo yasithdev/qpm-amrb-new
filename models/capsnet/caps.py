@@ -56,42 +56,48 @@ class ConvCaps2D(torch.nn.Module):
         kernel_size: Union[int, Tuple[int, int]],
         stride: Union[int, Tuple[int, int]] = 1,
         padding: str = "valid",
-        groups: int = 1,
     ) -> None:
         super().__init__()
         self.in_capsules = in_capsules
         self.out_capsules = out_capsules
-        self.conv = torch.nn.Conv2d(
-            in_channels=in_capsules[0] * in_capsules[1],
-            out_channels=out_capsules[0] * out_capsules[1],
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            groups=groups,
-            bias=False,
-        )
+        k = kernel_size
+        k = (k, k) if isinstance(k, int) else k
+        s = stride
+        self.stride = (s, s) if isinstance(s, int) else s
+        self.padding = padding
+        C, D = in_capsules
+        c, d = out_capsules
+        self.groups = D
+        self.conv_k = torch.nn.Parameter(torch.randn(d * c, C, *k))
+        self.conv_b = torch.nn.Parameter(torch.randn(d * c))
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        # (B, C, D, H, W)
+        # (B, C, D, H, W) -> (B, D*C, H, W)
         s = einops.rearrange(
             x,
-            "B C D H W -> B (C D) H W",
+            "B C D H W -> B (D C) H W",
             C=self.in_capsules[0],
             D=self.in_capsules[1],
         )
-        # (B, C * D, H, W)
-        s = self.conv(s)
-        # (B, c * d, h, w)
+        # (B, D*C, H, W) -> (B, d*c, h, w)
+        s = torch.nn.functional.conv2d(
+            input=s,
+            weight=self.conv_k,
+            bias=self.conv_b,
+            stride=self.stride,
+            padding=self.padding,
+            groups=self.groups,
+        )
+        # (B, d*c, h, w) -> (B, c, d, h, w)
         s = einops.rearrange(
             s,
-            "B (c d) h w -> B c d h w",
+            "B (d c) h w -> B c d h w",
             c=self.out_capsules[0],
             d=self.out_capsules[1],
         )
-        # (B, c, d, h, w)
         return s
 
 
@@ -154,35 +160,20 @@ class LinearCapsDR(torch.nn.Module):
         self.in_capsules = in_capsules
         self.out_capsules = out_capsules
         self.routing_iters = routing_iters
-
+        C, D = in_capsules
+        c, d = out_capsules
         # weights (d, D, c, C)
-        self.weight = torch.nn.Parameter(
-            torch.randn(
-                out_capsules[1],
-                in_capsules[1],
-                out_capsules[0],
-                in_capsules[0],
-            ),
-        )
-
+        self.weight = torch.nn.Parameter(torch.randn(d, D, c, C))
         # log prior (1, d, D)
-        self.prior = torch.nn.Parameter(
-            torch.zeros(
-                1,
-                out_capsules[1],
-                in_capsules[1],
-            )
-        )
+        self.prior = torch.nn.Parameter(torch.zeros(1, d, D))
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-
         x = einops.rearrange(x, "B C D -> B D C")
         # prediction tensor u_{j|i} (B, d, D, c)
         u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
-
         # dynamic routing
         b = self.prior
         for _ in range(self.routing_iters):
@@ -196,22 +187,24 @@ class LinearCapsDR(torch.nn.Module):
             a = torch.einsum("BdDc,Bdc->BdD", u, v)
             # update b
             b = b + a
-
-        return einops.rearrange(s, "B d c -> B c d")
+        # post-routing
+        c = torch.softmax(b, dim=1)
+        s = torch.einsum("BdD,BdDc->Bcd", c, u)
+        return s
 
 
 class MaskCaps(torch.nn.Module):
     """
-    Layer to obtain the probability distribution and capsule features.
+    Layer to obtain the capsule logits and latent.
     (No Parameters)
 
-    The features contain values from all capsules.
-    However, only the highest-norm capsule will have non-zero values.
+    The latent contain features from all capsules.
+    However, only the highest-norm capsule will have non-zero features.
 
-    Op: (B, C, D) -> [Class Distribution, Features]
+    Op: (B, C, D) -> [logits, latent]
 
-    Class Distribution: (B, D)
-    Features: (B, C * D)
+    logits: (B, D)
+    latent: (B, C * D)
 
     Terms
     -----
@@ -232,19 +225,18 @@ class MaskCaps(torch.nn.Module):
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        # Compute class distribution (B, D)
-        x_norm = capsule_norm(x).squeeze()
-        dist = torch.nn.functional.softmax(x_norm, dim=1)
+        # Compute logits via capsule norm (B, D)
+        logits = capsule_norm(x).squeeze()
 
         # Mask most-activated capsule output (B, C * D)
         (B, C, D) = x.size()
         I = torch.eye(D, device=x.device)
         mask = I.index_select(
             dim=0,
-            index=dist.argmax(dim=1),
+            index=logits.argmax(dim=1),
         )
         # (B, D)
-        features = (x * mask.reshape(B, 1, D)).reshape(B, C * D)
+        latent = (x * mask.reshape(B, 1, D)).reshape(B, C * D)
         # (B, C * D)
 
-        return dist, features
+        return logits, latent
