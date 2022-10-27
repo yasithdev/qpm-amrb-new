@@ -21,6 +21,7 @@ from .common import (
     plot_confusion_matrix,
     save_state,
     set_requires_grad,
+    margin_loss,
 )
 from .resnet import get_decoder
 
@@ -173,7 +174,7 @@ def train_model(
             y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
 
             # calculate loss
-            classification_loss = torch.nn.functional.cross_entropy(y_z, y)
+            classification_loss = margin_loss(y_z, y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
@@ -269,7 +270,7 @@ def test_model(
             y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
 
             # calculate loss
-            classification_loss = torch.nn.functional.cross_entropy(y_z, y)
+            classification_loss = margin_loss(y_z, y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss

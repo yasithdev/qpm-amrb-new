@@ -224,3 +224,16 @@ def plot_confusion_matrix(
     np.save(os.path.join(experiment_path, f"cm_e{epoch}.npy"), cf_matrix)
     plt.savefig(os.path.join(experiment_path, f"cm_e{epoch}.png"))
     plt.close()
+
+
+def margin_loss(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    m_hi: float = 0.9,
+    m_lo: float = 0.1,
+    t: float = 0.5,
+) -> torch.Tensor:
+    loss_hi = torch.clamp(m_hi - y_pred, min=0) ** 2
+    loss_lo = torch.clamp(y_pred - m_lo, min=0) ** 2
+    loss =  y_true * loss_hi + (1 - y_true) * t * loss_lo
+    return loss.sum(dim=1).mean()
