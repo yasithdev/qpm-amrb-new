@@ -171,14 +171,13 @@ class LinearCapsDR(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        x = einops.rearrange(x, "B C D -> B D C")
         # prediction tensor u_{j|i} (B, d, D, c)
-        u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
+        u = torch.einsum("BCD,dDcC->BdDc", x, self.weight)
         # dynamic routing
         b = self.prior
         for _ in range(self.routing_iters):
             # coupling coefficients c_{ij} (softmax of b across dim=d)
-            c = torch.softmax(b, dim=1)
+            c = torch.softmax(b, dim=2)
             # current capsule output s_j (B, d, c)
             s = torch.einsum("BdD,BdDc->Bdc", c, u)
             # squashed capsule output s_j (B, d, c)
@@ -188,7 +187,7 @@ class LinearCapsDR(torch.nn.Module):
             # update b
             b = b + a
         # post-routing
-        c = torch.softmax(b, dim=1)
+        c = torch.softmax(b, dim=2)
         s = torch.einsum("BdD,BdDc->Bcd", c, u)
         return s
 

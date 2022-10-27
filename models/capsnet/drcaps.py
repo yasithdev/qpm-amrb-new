@@ -76,7 +76,7 @@ class ConvCapsDR(torch.nn.Module):
         b = self.prior
         for _ in range(self.routing_iters):
             # coupling coefficients c_{ij} (softmax of b across dim=d)
-            c = torch.softmax(b, dim=1)
+            c = torch.softmax(b, dim=2)
             # current capsule output s_j (B, c, d, h, w)
             s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
             # squashed capsule output s_j (B, c, d, h, w)
@@ -86,6 +86,6 @@ class ConvCapsDR(torch.nn.Module):
             # update b
             b = b + a
         # post-routing
-        c = torch.softmax(b, dim=1)
+        c = torch.softmax(b, dim=2)
         s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
         return s
