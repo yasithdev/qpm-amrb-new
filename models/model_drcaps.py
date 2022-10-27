@@ -9,10 +9,10 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .capsnet.caps import FlattenCaps, LinearCapsDR, squash
+from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
 from .capsnet.deepcaps import MaskCaps
-from .capsnet.drcaps import ConvCapsDR
+from .capsnet.drcaps import ConvCapsDR, squash
 from .common import (
     Functional,
     gen_epoch_stats,
@@ -131,7 +131,7 @@ def train_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
@@ -221,7 +221,7 @@ def test_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0

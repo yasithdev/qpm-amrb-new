@@ -58,7 +58,7 @@ def get_model_optimizer_and_loops(
         C, N = 16, config.dataset_info["num_train_labels"]
         enc_out_size = (config.batch_size, C, N)
         cls_in_size = enc_out_size
-        dec_in_size = (config.batch_size, C * N, 1, 1)
+        dec_in_size = (config.batch_size, C, 1, 1)
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
         torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
         torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
@@ -68,7 +68,7 @@ def get_model_optimizer_and_loops(
         C, N = 16, config.dataset_info["num_train_labels"]
         enc_out_size = (config.batch_size, C, N)
         cls_in_size = enc_out_size
-        dec_in_size = (config.batch_size, C * N, 1, 1)
+        dec_in_size = (config.batch_size, C, 1, 1)
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
         torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
         torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)

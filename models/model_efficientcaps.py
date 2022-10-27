@@ -91,7 +91,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=out_caps_c * out_caps_d,
+        num_features=out_caps_c,
         output_chw=config.image_chw,
     )
 
@@ -129,7 +129,7 @@ def train_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
@@ -219,7 +219,7 @@ def test_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0

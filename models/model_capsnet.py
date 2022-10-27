@@ -9,8 +9,10 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCapsDR, MaskCaps, squash
+from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
+from .capsnet.deepcaps import MaskCaps
+from .capsnet.efficientcaps import squash
 from .common import (
     Functional,
     gen_epoch_stats,
@@ -90,7 +92,7 @@ def load_model_and_optimizer(
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=out_caps_c * out_caps_d,
+        num_features=out_caps_c,
         output_chw=config.image_chw,
     )
 
@@ -128,7 +130,7 @@ def train_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
@@ -179,6 +181,7 @@ def train_model(
             # backward pass
             optim.zero_grad()
             minibatch_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
             optim.step()
 
             # accumulate sum loss
@@ -218,7 +221,7 @@ def test_model(
 ) -> dict:
 
     # initialize loop
-    model = model.to(config.device)
+    model = model.float().to(config.device)
     model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0
