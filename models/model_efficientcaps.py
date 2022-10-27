@@ -9,8 +9,9 @@ from config import Config
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .capsnet.caps import ConvCaps2D, FlattenCaps, MaskCaps
+from .capsnet.caps import ConvCaps2D, FlattenCaps
 from .capsnet.common import conv_to_caps
+from .capsnet.deepcaps import MaskCaps
 from .capsnet.efficientcaps import LinearCapsAR, squash
 from .common import (
     Functional,

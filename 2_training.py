@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.manual_seed(42)
-    torch.use_deterministic_algorithms(mode=True)
+    # torch.use_deterministic_algorithms(mode=True)
 
     config = load_config()
 
