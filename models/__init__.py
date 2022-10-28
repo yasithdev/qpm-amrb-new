@@ -7,7 +7,6 @@ from config import Config
 
 def get_model_optimizer_and_loops(
     config: Config,
-    experiment_path: str,
 ) -> Tuple[torch.nn.Module, torch.optim.Optimizer, Callable, Callable]:
 
     # load requested module, if available
@@ -34,7 +33,7 @@ def get_model_optimizer_and_loops(
         raise ImportError(f"Model not found: {config.model_name}")
 
     # load model and optimizer to device
-    model, optimizer = load_model_and_optimizer(config, experiment_path)
+    model, optimizer = load_model_and_optimizer(config)
     model = model.to(config.device)
 
     # print model summary

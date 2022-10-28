@@ -44,10 +44,7 @@ def main(config: Config):
         torch.zeros(config.manifold_c), torch.eye(config.manifold_c)
     )
 
-    model, optim, train_model, test_model = get_model_optimizer_and_loops(
-        config=config,
-        experiment_path=experiment_path,
-    )
+    model, optim, train_model, test_model = get_model_optimizer_and_loops(config)
 
     # load saved model and optimizer, if present
     if config.exc_resume:
