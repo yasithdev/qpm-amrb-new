@@ -1,26 +1,16 @@
 import logging
-import os
-from typing import List, Tuple
+from typing import Tuple
 
 import torch
 from config import Config
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from .common import (
-    gen_epoch_stats,
-    get_classifier,
-    load_saved_state,
-    plot_confusion_matrix,
-    save_state,
-    set_requires_grad,
-)
+from .common import gather_samples, gen_epoch_acc, get_classifier, set_requires_grad
 from .resnet import get_decoder, get_encoder
 
 
 def load_model_and_optimizer(
     config: Config,
-    experiment_path: str,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     num_features = 128
@@ -55,15 +45,6 @@ def load_model_and_optimizer(
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
     optim = torch.optim.Adam(**optim_config)
 
-    # load saved model and optimizer, if present
-    if config.exc_resume:
-        load_saved_state(
-            model=model,
-            optim=optim,
-            experiment_path=experiment_path,
-            config=config,
-        )
-
     return model, optim
 
 
@@ -72,8 +53,6 @@ def train_model(
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
-    stats: List,
-    experiment_path: str,
     **kwargs,
 ) -> dict:
 
@@ -97,6 +76,7 @@ def train_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        samples = []
 
         for x, y in iterable:
 
@@ -114,6 +94,7 @@ def train_model(
             # accumulate predictions
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
             y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
@@ -135,21 +116,16 @@ def train_model(
 
     # post-training
     avg_loss = sum_loss / size
-    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
-    stats.append(avg_loss)
+    acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
     tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
-    if min(stats) == avg_loss and not config.exc_dry_run:
-        save_state(
-            model=model,
-            optim=optim,
-            experiment_path=experiment_path,
-        )
-
     return {
-        "train_loss": avg_loss,
-        "train_acc": acc_score,
+        "loss": avg_loss,
+        "acc": acc_score,
+        "y_true": y_true,
+        "y_pred": y_pred,
+        "samples": samples,
     }
 
 
@@ -157,8 +133,6 @@ def test_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
-    stats: List,
-    experiment_path: str,
     **kwargs,
 ) -> dict:
 
@@ -167,11 +141,6 @@ def test_model(
     model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0
-
-    # initialize plot(s)
-    img_count = 5
-    fig, ax = plt.subplots(img_count, 2)
-    current_plot = 0
 
     # testing
     set_requires_grad(model, False)
@@ -187,6 +156,7 @@ def test_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        samples = []
 
         for x, y in iterable:
 
@@ -204,6 +174,7 @@ def test_model(
             # accumulate predictions
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
             y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
             classification_loss = torch.nn.functional.cross_entropy(y_z, y)
@@ -218,33 +189,16 @@ def test_model(
             log_stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
             iterable.set_postfix(log_stats)
 
-            # accumulate plots
-            if current_plot < img_count:
-                ax[current_plot, 0].imshow(x.cpu().numpy()[0, 0])
-                ax[current_plot, 1].imshow(x_z.cpu().numpy()[0, 0])
-                current_plot += 1
-
     # post-testing
     avg_loss = sum_loss / size
-    cf_matrix, acc_score = gen_epoch_stats(y_pred=y_pred, y_true=y_true)
-    stats.append(avg_loss)
+    acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
     tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: {acc_score:.4f}")
 
-    # save generated plot
-    if not config.exc_dry_run:
-        plt.savefig(os.path.join(experiment_path, f"test_e{epoch}.png"))
-    plt.close()
-
-    # plot confusion matrix
-    plot_confusion_matrix(
-        cf_matrix=cf_matrix,
-        labels=config.train_loader.dataset.labels,
-        experiment_path=experiment_path,
-        epoch=epoch,
-    )
-
     return {
-        "test_loss": avg_loss,
-        "test_acc": acc_score,
+        "loss": avg_loss,
+        "acc": acc_score,
+        "y_true": y_true,
+        "y_pred": y_pred,
+        "samples": samples,
     }

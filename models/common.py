@@ -7,7 +7,7 @@ import torch
 from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score, confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -65,10 +65,11 @@ def save_state(
     model: torch.nn.Module,
     optim: torch.optim.Optimizer,
     experiment_path: str,
+    epoch: int,
 ) -> None:
     logging.info("checkpoint - saving current model and optimizer state")
-    model_state_path = os.path.join(experiment_path, f"model.pth")
-    optim_state_path = os.path.join(experiment_path, f"optim.pth")
+    model_state_path = os.path.join(experiment_path, f"model_e{epoch}.pth")
+    optim_state_path = os.path.join(experiment_path, f"optim_e{epoch}.pth")
     torch.save(model.state_dict(), model_state_path)
     torch.save(optim.state_dict(), optim_state_path)
 
@@ -195,14 +196,12 @@ def get_convt_out_shape(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def gen_epoch_stats(
+def gen_epoch_acc(
     y_pred: list,
     y_true: list,
-) -> Tuple[np.ndarray, float]:
-    # generate confusion matrix
-    cf_matrix = confusion_matrix(y_true, y_pred)
+) -> float:
     acc_score = accuracy_score(y_true, y_pred)
-    return cf_matrix, acc_score
+    return acc_score
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -226,6 +225,9 @@ def plot_confusion_matrix(
     plt.close()
 
 
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 def margin_loss(
     y_pred: torch.Tensor,
     y_true: torch.Tensor,
@@ -235,5 +237,27 @@ def margin_loss(
 ) -> torch.Tensor:
     loss_hi = torch.clamp(m_hi - y_pred, min=0) ** 2
     loss_lo = torch.clamp(y_pred - m_lo, min=0) ** 2
-    loss =  y_true * loss_hi + (1 - y_true) * t * loss_lo
+    loss = y_true * loss_hi + (1 - y_true) * t * loss_lo
     return loss.sum(dim=1).mean()
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def gather_samples(
+    predictions: list,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    x_z: torch.Tensor,
+    y_z: torch.Tensor,
+    num_predictions: int = 5,
+) -> None:
+    if len(predictions) < num_predictions:
+        predictions.append(
+            (
+                x[0, 0].cpu().numpy(),
+                torch.argmax(y[0], dim=1).cpu().numpy(),
+                x_z[0, 0].cpu().numpy(),
+                torch.argmax(y_z[0], dim=1).cpu().numpy(),
+            )
+        )

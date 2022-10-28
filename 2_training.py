@@ -7,6 +7,31 @@ import torch
 
 from config import Config, load_config
 from models import get_model_optimizer_and_loops
+from models.common import load_saved_state, save_state
+
+
+def stats_to_wandb_log(
+    stats: dict,
+    labels: list,
+    prefix: str,
+) -> dict:
+    return {
+        f"{prefix}_loss": stats["loss"],
+        f"{prefix}_acc": stats["acc"],
+        f"{prefix}_samples": wandb.Table(
+            data=[
+                [
+                    wandb.Image(x, caption=labels[y]),
+                    wandb.Image(x_z, caption=labels[y_z]),
+                ]
+                for x, y, x_z, y_z in stats["samples"]
+            ],
+            columns=["target", "predicted"],
+        ),
+        f"{prefix}_cm": wandb.plot.confusion_matrix(
+            y_true=stats["y_true"], preds=stats["y_pred"]
+        ),
+    }
 
 
 def main(config: Config):
@@ -23,37 +48,58 @@ def main(config: Config):
         config=config,
         experiment_path=experiment_path,
     )
-    wandb.watch(model, log_freq=100)
 
-    train_stats = []
-    test_stats = []
+    # load saved model and optimizer, if present
+    if config.exc_resume:
+        load_saved_state(
+            model=model,
+            optim=optim,
+            experiment_path=experiment_path,
+            config=config,
+        )
+
+    wandb.watch(model, log_freq=100)
 
     # run train / test loops
     logging.info("Started Train/Test")
-    for current_epoch in range(config.train_epochs + 1):
+    labels = config.train_loader.dataset.labels
+
+    for epoch in range(config.train_epochs + 1):
+
         # training loop
-        if current_epoch > 0:
-            train_stat = train_model(
+        if epoch > 0:
+            stats = train_model(
                 model=model,
-                epoch=current_epoch,
+                epoch=epoch,
                 config=config,
                 optim=optim,
-                stats=train_stats,
-                experiment_path=experiment_path,
                 z_dist=z_dist,
             )
-            wandb.log(train_stat)
+            wandb.log(stats_to_wandb_log(stats, labels, prefix="train"))
 
         # testing loop
-        test_stat = test_model(
+        stats = test_model(
             model=model,
-            epoch=current_epoch,
+            epoch=epoch,
             config=config,
-            stats=test_stats,
-            experiment_path=experiment_path,
             z_dist=z_dist,
         )
-        wandb.log(test_stat)
+        wandb.log(stats_to_wandb_log(stats, labels, prefix="test"))
+
+        # save model/optimizer states
+        if not config.exc_dry_run:
+            save_state(
+                model=model,
+                optim=optim,
+                experiment_path=experiment_path,
+                epoch=epoch,
+            )
+
+        model_savename = f"{config.model_name}-{config.label_type}-{config.cv_k}"
+        artifact = wandb.Artifact(model_savename, type="model")
+        artifact.add_file(os.path.join(experiment_path, f"model_e{epoch}.pth"))
+        artifact.add_file(os.path.join(experiment_path, f"optim_e{epoch}.pth"))
+        wandb.log_artifact(artifact)
 
 
 if __name__ == "__main__":
