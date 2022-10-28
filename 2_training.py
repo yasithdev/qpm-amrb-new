@@ -29,7 +29,9 @@ def stats_to_wandb_log(
             columns=["target", "predicted"],
         ),
         f"{prefix}_cm": wandb.plot.confusion_matrix(
-            y_true=stats["y_true"], preds=stats["y_pred"]
+            y_true=stats["y_true"],
+            preds=stats["y_pred"],
+            class_names=labels,
         ),
     }
 
