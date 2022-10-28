@@ -256,8 +256,8 @@ def gather_samples(
         predictions.append(
             (
                 x[0, 0].cpu().numpy(),
-                y[0].argmax(dim=1).cpu().numpy(),
+                y[0].argmax(dim=0).cpu().numpy(),
                 x_z[0, 0].cpu().numpy(),
-                y_z[0].argmax(dim=1).cpu().numpy(),
+                y_z[0].argmax(dim=0).cpu().numpy(),
             )
         )
