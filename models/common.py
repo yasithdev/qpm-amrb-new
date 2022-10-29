@@ -255,9 +255,9 @@ def gather_samples(
     if len(predictions) < num_predictions:
         predictions.append(
             (
-                x[0, 0].cpu().numpy(),
+                x[0].cpu().numpy(),
                 y[0].argmax(dim=0).cpu().numpy(),
-                x_z[0, 0].detach().cpu().numpy(),
+                x_z[0].detach().cpu().numpy(),
                 y_z[0].detach().argmax(dim=0).cpu().numpy(),
             )
         )

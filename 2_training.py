@@ -17,21 +17,18 @@ def stats_to_wandb_log(
 ) -> dict:
     return {
         f"{prefix}_loss": stats["loss"],
-        f"{prefix}_acc": stats["acc"],
-        f"{prefix}_samples": wandb.Table(
-            data=[
-                [
-                    wandb.Image(x, caption=labels[y]),
-                    wandb.Image(x_z, caption=labels[y_z]),
-                ]
-                for x, y, x_z, y_z in stats["samples"]
-            ],
-            columns=["target", "predicted"],
-        ),
+        f"{prefix}_accuracy": stats["acc"],
+        f"{prefix}_targets": [
+            wandb.Image(x, caption=labels[y]) for x, y, _, _ in stats["samples"]
+        ],
+        f"{prefix}_estimates": [
+            wandb.Image(x_z, caption=labels[y_z]) for _, _, x_z, y_z in stats["samples"]
+        ],
         f"{prefix}_cm": wandb.plot.confusion_matrix(
             y_true=stats["y_true"],
             preds=stats["y_pred"],
             class_names=labels,
+            title=f"Confusion Matrix ({prefix})",
         ),
     }
 
