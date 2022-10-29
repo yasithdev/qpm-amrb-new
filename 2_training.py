@@ -115,11 +115,15 @@ if __name__ == "__main__":
         f"{config.dataset_name}-{config.model_name}",
         f"{config.label_type}-{config.cv_k}",
     )
+    name_tags = [config.dataset_name, config.model_name, config.cv_mode, str(config.cv_k)]
+    if config.dataset_name.startswith("AMRB"):
+        name_tags.insert(1, config.label_type)
 
     import wandb
 
     wandb.init(
         project="qpm-amrb",
+        name="-".join(name_tags),
         config={
             "cv_folds": config.cv_folds,
             "cv_k": config.cv_k,
