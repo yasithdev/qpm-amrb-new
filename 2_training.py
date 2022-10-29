@@ -71,7 +71,7 @@ def main(config: Config):
                 optim=optim,
                 z_dist=z_dist,
             )
-            wandb.log(stats_to_wandb_log(stats, labels, prefix="train"))
+            wandb.log(stats_to_wandb_log(stats, labels, prefix="train"), step=epoch)
 
         # testing loop
         stats = test_model(
@@ -80,7 +80,7 @@ def main(config: Config):
             config=config,
             z_dist=z_dist,
         )
-        wandb.log(stats_to_wandb_log(stats, labels, prefix="test"))
+        wandb.log(stats_to_wandb_log(stats, labels, prefix="test"), step=epoch)
 
         # save model/optimizer states
         if not config.exc_dry_run:
