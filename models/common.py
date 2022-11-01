@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Callable, Tuple
+from typing import List, Callable, Tuple
 
 import numpy as np
 import torch
@@ -245,7 +245,7 @@ def margin_loss(
 
 
 def gather_samples(
-    predictions: list,
+    predictions: List,
     x: torch.Tensor,
     y: torch.Tensor,
     x_z: torch.Tensor,
