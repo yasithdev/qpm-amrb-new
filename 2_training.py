@@ -53,6 +53,7 @@ def main(config: Config):
             experiment_path=experiment_path,
             config=config,
         )
+    model = model.float().to(config.device)
 
     wandb.watch(model, log_freq=100)
 

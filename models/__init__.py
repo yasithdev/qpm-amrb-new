@@ -34,7 +34,7 @@ def get_model_optimizer_and_loops(
 
     # load model and optimizer to device
     model, optimizer = load_model_and_optimizer(config)
-    model = model.to(config.device)
+    model = model.float().to(config.device)
 
     # print model summary
 

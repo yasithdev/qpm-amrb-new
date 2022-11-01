@@ -115,7 +115,6 @@ def train_model(
 ) -> dict:
 
     # initialize loop
-    model = model.float().to(config.device)
     model.train()
     size = len(config.train_loader.dataset)
     sum_loss = 0
@@ -201,7 +200,6 @@ def test_model(
 ) -> dict:
 
     # initialize loop
-    model = model.float().to(config.device)
     model.eval()
     size = len(config.test_loader.dataset)
     sum_loss = 0
