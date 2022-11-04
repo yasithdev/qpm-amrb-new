@@ -81,11 +81,10 @@ class Config:
         self.tqdm_args = tqdm_args
 
 
-def getenv(key: str, default=None) -> str:
+def getenv(key: str, default="") -> str:
     val = os.getenv(key, default)
-    if val is not None:
-        val = os.path.expanduser(val)
-        val = os.path.expandvars(val)
+    val = os.path.expanduser(val)
+    val = os.path.expandvars(val)
     logging.info(f"{key}={val}")
     return val
 
@@ -94,7 +93,7 @@ def load_config() -> Config:
 
     load_dotenv()
 
-    log_level = os.getenv("LOG_LEVEL")
+    log_level = os.getenv("LOG_LEVEL", "INFO")
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
 
