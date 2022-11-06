@@ -47,7 +47,7 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         src_info_path = os.path.join(ds_path, "info.json")
         logging.info(f"Dataset info: {src_info_path}")
         with open(src_info_path, "r") as f:
-            src_info: dict = json.load(f)["data"]
+            src_info: Dict[str, Dict[str, str]] = json.load(f)["data"]
 
         # ----------------------------------------------------------------- #
         # select tlabels for task                                            #
@@ -64,9 +64,9 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
             # select the k-th tlabel
             tlabel_k = uniq_tlabels[cv_k]
             # select all tlabels where train  == (tlabel != tlabel_k)
-            cond = lambda t: train == (t != tlabel_k)
+            cond: Callable[[str], bool] = lambda t: train == (t != tlabel_k)
             self.labels = list(filter(lambda t: cond(t), uniq_tlabels))
-            label_map = list(filter(lambda _, t: cond(t), zip(slabels, tlabels)))
+            label_map = list(filter(lambda s_t : cond(s_t[1]), list(zip(slabels, tlabels))))
         else:
             # select all tlabels
             self.labels = uniq_tlabels
