@@ -4,7 +4,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=1
 #SBATCH --output=logs/%x-%a.log
-#SBATCH --array=0-9
 
 # load required modules (not needed for pytorch)
 # module load cuda/10.1.186
