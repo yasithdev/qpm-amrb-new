@@ -15,45 +15,36 @@ def load_model_and_optimizer(
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     # network configuration
-    k0, k1 = 2, 2
+    k0 = 4
     c0, h0, w0 = config.image_chw
     c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
-    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
     cm = config.manifold_c
 
     model = torch.nn.ModuleDict(
         {
             "x_flow": flow.CompositeFlowTransform(
                 transforms=[
-                    # MNIST: (1, 28, 28) -> (4, 14, 14) -> (16, 7, 7)
+                    # MNIST: (1, 28, 28) -> (16, 7, 7)
                     flow.ops.ConformalConv2D_KxK(c0, k0), #*
-                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.ConformalConv2D_1x1(c1),
-                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(c1, cm),
-                    flow.ops.ConformalConv2D_KxK(c1, k1), #*
-                    flow.ops.ConformalActNorm(c2, cm),
+                    flow.ops.ConformalConv2D_1x1(c1), #*
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(c2 // 2, 3)
+                        flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(c2, cm),
-                    flow.ops.ConformalConv2D_1x1(c2),
-                    flow.ops.ConformalActNorm(c2, cm),
+                    flow.ops.ConformalConv2D_1x1(c1),
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(c2 // 2, 3)
+                        flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(c2, cm),
                 ]
             ),
             "m_flow": flow.CompositeFlowTransform(
-                # MNIST: (cm, 7, 7) -> (cm, 7, 7)
+                # MNIST: (cm, 7, 7) -> (cm * 7 * 7)
                 transforms=[
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(cm // 2, 3)
@@ -77,8 +68,8 @@ def load_model_and_optimizer(
                         flow.ops.CouplingNetwork(cm // 2, 3)
                     ),
                     flow.ops.ActNorm(cm),
-                    flow.ops.ConformalConv2D_KxK(cm, (h2,w2)),
-                    flow.ops.ActNorm(cm),
+                    flow.ops.ConformalConv2D_KxK(cm, (h1,w1)),
+                    flow.ops.ActNorm(cm * h1 * w1),
                 ]
             )
             # mnist - (m, 7, 7)
