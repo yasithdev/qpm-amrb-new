@@ -50,11 +50,11 @@ class ActNorm(FlowTransform):
         outputs = scale * x + shift
 
         if x.dim() == 4:
-            batch_size, _, h, w = x.shape
-            logabsdet = h * w * torch.sum(self.log_scale) * outputs.new_ones(batch_size)
+            B, _, H, W = x.size()
+            logabsdet = H * W * self.log_scale.sum() * outputs.new_ones(B)
         else:
-            batch_size, _ = x.shape
-            logabsdet = torch.sum(self.log_scale) * outputs.new_ones(batch_size)
+            B, _ = x.size()
+            logabsdet = self.log_scale.sum() * outputs.new_ones(B)
 
         return outputs, logabsdet
 
@@ -71,15 +71,13 @@ class ActNorm(FlowTransform):
         outputs = (z - shift) / scale
 
         if z.dim() == 4:
-            batch_size, _, h, w = z.shape
-            logabsdet = (
-                -h * w * torch.sum(self.log_scale) * outputs.new_ones(batch_size)
-            )
+            B, _, H, W = z.size()
+            logabsdet = H * W * self.log_scale.sum() * outputs.new_ones(B)
         else:
-            batch_size, _ = z.shape
-            logabsdet = -torch.sum(self.log_scale) * outputs.new_ones(batch_size)
+            B, _ = z.size()
+            logabsdet = self.log_scale.sum() * outputs.new_ones(B)
 
-        return outputs, logabsdet
+        return outputs, -logabsdet
 
     def _initialize(
         self,
