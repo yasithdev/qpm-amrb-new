@@ -17,26 +17,30 @@ from .common import (
 
 def load_model_and_optimizer(
     config: Config,
-) -> Tuple[flow.ops.FlowTransform, torch.optim.Optimizer]:
-    model = flow.SquareNormalizingFlow(
-        transforms=[
-            flow.ops.AffineCoupling(
-                flow.ops.CouplingNetwork(**config.coupling_network_config)
-            ),
-            flow.ops.Conv2D_1x1(**config.conv1x1_config),
-            flow.ops.AffineCoupling(
-                flow.ops.CouplingNetwork(**config.coupling_network_config)
-            ),
-            flow.ops.Conv2D_1x1(**config.conv1x1_config),
-            flow.ops.AffineCoupling(
-                flow.ops.CouplingNetwork(**config.coupling_network_config)
-            ),
-            flow.ops.Conv2D_1x1(**config.conv1x1_config),
-            flow.ops.AffineCoupling(
-                flow.ops.CouplingNetwork(**config.coupling_network_config)
-            ),
-            flow.ops.Conv2D_1x1(**config.conv1x1_config),
-        ]
+) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+    model = torch.nn.ModuleDict(
+        {
+            "main": flow.SquareNormalizingFlow(
+                transforms=[
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                    ),
+                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                    ),
+                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                    ),
+                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                    ),
+                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                ]
+            )
+        }
     )
 
     # set up optimizer
@@ -47,7 +51,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    model: flow.ops.FlowTransform,
+    model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
@@ -63,7 +67,10 @@ def train_model(
     # training
     set_requires_grad(model, True)
     with torch.enable_grad():
+
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
+        main_flow: flow.FlowTransform = model["main"] # type: ignore
+        
         x: torch.Tensor
         y: torch.Tensor
         y_true = []
@@ -78,13 +85,13 @@ def train_model(
 
             # forward pass
             xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
-            z, fwd_log_det = model.forward(xp)
+            z, fwd_log_det = main_flow.forward(xp)
             zu = flow.util.proj(z, manifold_dims=config.manifold_c)
             z_pad = flow.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
-            xp_r, inv_log_det = model.inverse(z_pad)
+            xp_r, inv_log_det = main_flow.inverse(z_pad)
             x_r = gen_img_from_patches(xp_r, patch_hw=config.patch_hw)
 
             # accumulate predictions TODO fix this
@@ -139,6 +146,8 @@ def test_model(
     set_requires_grad(model, False)
     with torch.no_grad():
         iterable = tqdm(data_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
+        main_flow: flow.FlowTransform = model["main"] # type: ignore
+
         x: torch.Tensor
         y: torch.Tensor
         y_true = []
@@ -153,13 +162,13 @@ def test_model(
 
             # forward pass
             xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
-            z, fwd_log_det = model.forward(xp)
+            z, fwd_log_det = main_flow.forward(xp)
             zu = flow.util.proj(z, manifold_dims=config.manifold_c)
             z_pad = flow.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
-            xp_r, inv_log_det = model.inverse(z_pad)
+            xp_r, inv_log_det = main_flow.inverse(z_pad)
             x_r = gen_img_from_patches(xp_r, patch_hw=config.patch_hw)
 
             # accumulate predictions TODO fix this
