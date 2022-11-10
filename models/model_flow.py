@@ -1,10 +1,11 @@
 from typing import Tuple
 
 import torch
-from config import Config
 from tqdm import tqdm
 
-from . import nf
+from config import Config
+
+from . import flow
 from .common import (
     gather_samples,
     gen_epoch_acc,
@@ -16,25 +17,25 @@ from .common import (
 
 def load_model_and_optimizer(
     config: Config,
-) -> Tuple[nf.ops.FlowTransform, torch.optim.Optimizer]:
-    model = nf.SquareNormalizingFlow(
+) -> Tuple[flow.ops.FlowTransform, torch.optim.Optimizer]:
+    model = flow.SquareNormalizingFlow(
         transforms=[
-            nf.ops.AffineCoupling(
-                nf.ops.CouplingNetwork(**config.coupling_network_config)
+            flow.ops.AffineCoupling(
+                flow.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.ops.Conv1x1(**config.conv1x1_config),
-            nf.ops.AffineCoupling(
-                nf.ops.CouplingNetwork(**config.coupling_network_config)
+            flow.ops.Conv2D_1x1(**config.conv1x1_config),
+            flow.ops.AffineCoupling(
+                flow.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.ops.Conv1x1(**config.conv1x1_config),
-            nf.ops.AffineCoupling(
-                nf.ops.CouplingNetwork(**config.coupling_network_config)
+            flow.ops.Conv2D_1x1(**config.conv1x1_config),
+            flow.ops.AffineCoupling(
+                flow.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.ops.Conv1x1(**config.conv1x1_config),
-            nf.ops.AffineCoupling(
-                nf.ops.CouplingNetwork(**config.coupling_network_config)
+            flow.ops.Conv2D_1x1(**config.conv1x1_config),
+            flow.ops.AffineCoupling(
+                flow.ops.CouplingNetwork(**config.coupling_network_config)
             ),
-            nf.ops.Conv1x1(**config.conv1x1_config),
+            flow.ops.Conv2D_1x1(**config.conv1x1_config),
         ]
     )
 
@@ -46,7 +47,7 @@ def load_model_and_optimizer(
 
 
 def train_model(
-    model: nf.ops.FlowTransform,
+    model: flow.ops.FlowTransform,
     epoch: int,
     config: Config,
     optim: torch.optim.Optimizer,
@@ -55,15 +56,14 @@ def train_model(
 
     # initialize loop
     model.train()
-    size = len(config.train_loader.dataset)
+    data_loader = config.train_loader
+    size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
 
     # training
     set_requires_grad(model, True)
     with torch.enable_grad():
-        iterable = tqdm(
-            config.train_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args
-        )
+        iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
         x: torch.Tensor
         y: torch.Tensor
         y_true = []
@@ -79,8 +79,8 @@ def train_model(
             # forward pass
             xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
             z, fwd_log_det = model.forward(xp)
-            zu = nf.util.proj(z, manifold_dims=config.manifold_c)
-            z_pad = nf.util.pad(
+            zu = flow.util.proj(z, manifold_dims=config.manifold_c)
+            z_pad = flow.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )
@@ -123,7 +123,7 @@ def train_model(
 
 
 def test_model(
-    model: nf.ops.FlowTransform,
+    model: flow.ops.FlowTransform,
     epoch: int,
     config: Config,
     **kwargs,
@@ -131,15 +131,14 @@ def test_model(
 
     # initialize loop
     model.eval()
-    size = len(config.test_loader.dataset)
+    data_loader = config.test_loader
+    size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
 
     # testing
     set_requires_grad(model, False)
     with torch.no_grad():
-        iterable = tqdm(
-            config.test_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args
-        )
+        iterable = tqdm(data_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
         x: torch.Tensor
         y: torch.Tensor
         y_true = []
@@ -155,8 +154,8 @@ def test_model(
             # forward pass
             xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
             z, fwd_log_det = model.forward(xp)
-            zu = nf.util.proj(z, manifold_dims=config.manifold_c)
-            z_pad = nf.util.pad(
+            zu = flow.util.proj(z, manifold_dims=config.manifold_c)
+            z_pad = flow.util.pad(
                 zu,
                 off_manifold_dims=(config.input_chw[0] - config.manifold_c),
             )

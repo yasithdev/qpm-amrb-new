@@ -1,6 +1,6 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
-import torch.nn
+import torch
 
 
 class FlowTransform(torch.nn.Module):
@@ -9,11 +9,10 @@ class FlowTransform(torch.nn.Module):
     It provides forward() and inverse() directives to implement bijections
     """
 
-    # --------------------------------------------------------------------------------------------------------------------------------------------------
-
     def forward(
         self,
         x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         transform a tensor towards latent space (forward mode)
@@ -24,11 +23,10 @@ class FlowTransform(torch.nn.Module):
         """
         raise NotImplementedError()
 
-    # --------------------------------------------------------------------------------------------------------------------------------------------------
-
     def inverse(
         self,
         z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         transform a tensor towards data space (inverse mode)
@@ -37,5 +35,3 @@ class FlowTransform(torch.nn.Module):
         :return: Tuple [Transformed Tensor, Determinant of Jacobian]
         """
         raise NotImplementedError()
-
-    # --------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import torch
 
-from .square_nf import SquareNormalizingFlow
+from .flows import SquareNormalizingFlow
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 

@@ -11,6 +11,9 @@ preview-%:
 # ------------------
 # TRAINING FUNCTIONS
 # ------------------
+train-flow-%:
+	@DATASET_NAME=$* MODEL_NAME=flow python -u 2_training.py
+
 train-resnet-%:
 	@DATASET_NAME=$* MODEL_NAME=resnet python -u 2_training.py
 

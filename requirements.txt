@@ -8,3 +8,6 @@ numpy~=1.23.4
 python-dotenv~=0.21.0
 umap-learn[plot]~=0.5.3
 wandb~=0.13.5
+nflows~=0.14
+geotorch~=0.3.0
+pytorch-fid~=0.2.1

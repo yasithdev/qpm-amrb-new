@@ -11,9 +11,8 @@ def get_model_optimizer_and_loops(
 
     # load requested module, if available
     input_size = (config.batch_size, *config.image_chw)
-    if config.model_name == "nf":
-        from .model_nf import load_model_and_optimizer, test_model, train_model
-
+    if config.model_name == "flow":
+        from .model_flow import load_model_and_optimizer, test_model, train_model
         input_size = (config.batch_size, *config.input_chw)
     elif config.model_name == "resnet":
         from .model_resnet import load_model_and_optimizer, test_model, train_model
