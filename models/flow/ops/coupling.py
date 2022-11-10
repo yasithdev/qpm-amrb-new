@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn
@@ -27,6 +27,7 @@ class AffineCoupling(FlowTransform):
     def forward(
         self,
         x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # coupling
@@ -44,6 +45,7 @@ class AffineCoupling(FlowTransform):
     def inverse(
         self,
         z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # inverse coupling
         z1, z2 = torch.chunk(z, 2, dim=1)
@@ -57,56 +59,57 @@ class AffineCoupling(FlowTransform):
 
 
 class CouplingNetwork(torch.nn.Module):
+
     def __init__(
         self,
         num_channels: int,
-        num_hidden_channels: int,
-        num_hidden_layers: int,
+        num_blocks: int,
         num_params: int = 2,
     ):
         """
 
-        :param num_channels: Channel size of input / output conv2d layers
-        :param num_hidden_channels: Channel size of hidden conv2d layers
-        :param num_hidden_layers: Number of hidden conv2d layers
+        :param num_channels: channel size of conv2d layers
+        :param num_blocks: Number of conv2d blocks
         :param num_params: Parameters to return (default: 2)
         """
         super().__init__()
 
+        assert num_blocks >= 1
+
         self.num_params = num_params
-        self.input = torch.nn.Conv2d(
-            in_channels=num_channels,
-            out_channels=num_hidden_channels,
-            kernel_size=3,
-            padding="same",
-        )
-        self.hidden = torch.nn.ModuleList(
-            [
-                torch.nn.Conv2d(
-                    num_hidden_channels,
-                    num_hidden_channels,
-                    kernel_size=3,
-                    padding="same",
-                )
-                for _ in range(num_hidden_layers)
-            ]
-        )
-        self.output = torch.nn.Conv2d(
-            num_hidden_channels,
-            num_channels * num_params,
-            kernel_size=3,
-            padding="same",
-        )
+        self.num_blocks = num_blocks
+        self.num_channels = num_channels
+
+        self.w = torch.nn.ParameterList()
+        self.b = torch.nn.ParameterList()
+
+        kH = kW = 3
+        c = num_channels
+        p = num_params
+
+        self.w.append(torch.randn(c*p, c, kH, kW))
+        self.b.append(torch.randn(c*p))
+
+        for _ in range(1, self.num_blocks):
+            self.w.append(torch.randn(c*p, c*p, kH, kW))
+            self.b.append(torch.randn(c*p))
 
     def forward(
         self,
         x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        st = self.input(x)
-        st = torch.nn.functional.leaky_relu(st)
-        for layer in self.hidden:
-            st = layer(st)
+
+        st = x
+        for i in range(self.num_blocks):
+            w, b = self.w[i], self.b[i]
+            st = torch.nn.functional.conv2d(
+                input=st,
+                weight=w,
+                bias=b,
+                padding=1,
+            )
             st = torch.nn.functional.leaky_relu(st)
-        st = self.output(st)
+        
         (s, t) = torch.chunk(st, self.num_params, dim=1)
         return s, torch.squeeze(t)

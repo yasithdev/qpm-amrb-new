@@ -5,9 +5,9 @@ import torch
 from . import FlowTransform
 
 
-class SquareNormalizingFlow(FlowTransform):
+class CompositeFlowTransform(FlowTransform):
     """
-    Normalizing flow that preserves dimensionality
+    Composition of Flow Transformations
 
     """
 

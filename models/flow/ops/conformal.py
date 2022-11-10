@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import einops
 import geotorch
@@ -156,17 +156,19 @@ class ConformalConv2D_KxK(FlowTransform):
     def __init__(
         self,
         x_channels: int,
-        kernel_size: int = 2,
+        kernel_size: Union[int, Tuple[int, int]],
     ) -> None:
 
         super().__init__()
-        self.kernel_size = kernel_size
+        k = kernel_size
+        k = k if isinstance(k, Tuple) else (k, k)
+        self.kH, self.kW = k
         self.x_channels = x_channels
-        self.z_channels = x_channels * kernel_size**2
+        self.z_channels = x_channels * self.kH * self.kW
         self.matrix_size = self.z_channels
 
         # identity matrix
-        self.i = torch.eye(self.matrix_size)
+        self.i = torch.nn.Parameter(torch.eye(self.matrix_size), requires_grad=False)
 
         # householder vector
         self.v = torch.nn.Parameter(torch.randn(self.matrix_size, 1))
@@ -179,10 +181,10 @@ class ConformalConv2D_KxK(FlowTransform):
         k = self.i - 2 * self.v @ self.v.T / torch.sum(self.v**2)
         return einops.rearrange(
             k,
-            "z (x kh kw) -> z x kh kw",
+            "z (x kH kW) -> z x kH kW",
             x=self.x_channels,
-            kh=self.kernel_size,
-            kw=self.kernel_size,
+            kH=self.kH,
+            kW=self.kW,
         )
 
     def forward(
@@ -191,13 +193,13 @@ class ConformalConv2D_KxK(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        assert x.size(-2) % self.kernel_size == 0
-        assert x.size(-1) % self.kernel_size == 0
+        assert x.size(2) % self.kH == 0
+        assert x.size(3) % self.kW == 0
 
         z = torch.nn.functional.conv2d(
             input=x,
             weight=self.filter,
-            stride=self.kernel_size,
+            stride=(self.kH, self.kW),
         )
 
         logabsdet = x.new_zeros(x.size(0))
@@ -213,7 +215,7 @@ class ConformalConv2D_KxK(FlowTransform):
         x = torch.nn.functional.conv_transpose2d(
             input=z,
             weight=self.filter,
-            stride=self.kernel_size,
+            stride=(self.kH, self.kW),
         )
 
         logabsdet = z.new_zeros(x.size(0))

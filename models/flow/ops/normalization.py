@@ -40,6 +40,7 @@ class ActNorm(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
+        print(x.size())
         assert x.dim() in [2, 4]
         view_shape = (1, -1, 1, 1) if x.dim() == 4 else (1, -1)
 

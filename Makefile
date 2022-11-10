@@ -133,3 +133,18 @@ hpc-train-mnist-leaveout:
 		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,DATASET_NAME=MNIST,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
 	done
 
+# ------------------
+# Interactive Jobs
+# ------------------
+
+srun-gpu-test-wahab:
+	srun --partition=timed-gpu --gres=gpu:1 --cpus-per-task=1 --pty bash
+
+srun-gpu-wahab:
+	srun --partition=gpu --gres=gpu:1 --cpus-per-task=1 --pty bash
+
+srun-gpu-test-fasrc:
+	srun --account=wadduwage_lab --partition=gpu_test --time=0-6 --gres=gpu:1 --mem=64G --pty bash
+
+srun-gpu-fasrc:
+	srun --account=wadduwage_lab --partition=gpu --time=0-6 --gres=gpu:1 --mem=64G --pty bash

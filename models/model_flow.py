@@ -6,44 +6,82 @@ from tqdm import tqdm
 from config import Config
 
 from . import flow
-from .common import (
-    gather_samples,
-    gen_epoch_acc,
-    gen_img_from_patches,
-    gen_patches_from_img,
-    set_requires_grad,
-)
+from .common import (gather_samples, gen_epoch_acc, gen_img_from_patches,
+                     gen_patches_from_img, set_requires_grad)
 
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+
+    # network configuration
+    k0, k1 = 2, 2
+    c0, h0, w0 = config.image_chw
+    c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
+    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
+    cm = config.manifold_c
+
     model = torch.nn.ModuleDict(
         {
-            "main": flow.SquareNormalizingFlow(
+            "x_flow": flow.CompositeFlowTransform(
+                transforms=[
+                    # MNIST: (1, 28, 28) -> (4, 14, 14) -> (16, 7, 7)
+                    flow.ops.ConformalConv2D_KxK(c0, k0), #*
+                    flow.ops.ConformalActNorm(c1, cm),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(c1 // 2, 3)
+                    ),
+                    flow.ops.ConformalActNorm(c1, cm),
+                    flow.ops.ConformalConv2D_1x1(c1),
+                    flow.ops.ConformalActNorm(c1, cm),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(c1 // 2, 3)
+                    ),
+                    flow.ops.ConformalActNorm(c1, cm),
+                    flow.ops.ConformalConv2D_KxK(c1, k1), #*
+                    flow.ops.ConformalActNorm(c2, cm),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(c2 // 2, 3)
+                    ),
+                    flow.ops.ConformalActNorm(c2, cm),
+                    flow.ops.ConformalConv2D_1x1(c2),
+                    flow.ops.ConformalActNorm(c2, cm),
+                    flow.ops.AffineCoupling(
+                        flow.ops.CouplingNetwork(c2 // 2, 3)
+                    ),
+                    flow.ops.ConformalActNorm(c2, cm),
+                ]
+            ),
+            "m_flow": flow.CompositeFlowTransform(
+                # MNIST: (cm, 7, 7) -> (cm, 7, 7)
                 transforms=[
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                        flow.ops.CouplingNetwork(cm // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
-                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ActNorm(cm),
+                    flow.ops.Conv2D_1x1(cm),
+                    flow.ops.ActNorm(cm),
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                        flow.ops.CouplingNetwork(cm // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
-                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ActNorm(cm),
+                    flow.ops.Conv2D_1x1(cm),
+                    flow.ops.ActNorm(cm),
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                        flow.ops.CouplingNetwork(cm // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
-                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ActNorm(cm),
+                    flow.ops.Conv2D_1x1(cm),
+                    flow.ops.ActNorm(cm),
                     flow.ops.AffineCoupling(
-                        flow.ops.CouplingNetwork(**config.coupling_network_config)
+                        flow.ops.CouplingNetwork(cm // 2, 3)
                     ),
-                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
-                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ActNorm(cm),
+                    flow.ops.ConformalConv2D_KxK(cm, (h2,w2)),
+                    flow.ops.ActNorm(cm),
                 ]
             )
+            # mnist - (m, 7, 7)
         }
     )
 
@@ -67,13 +105,15 @@ def train_model(
     data_loader = config.train_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
+    cm = config.manifold_c
 
     # training
     set_requires_grad(model, True)
     with torch.enable_grad():
 
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
-        main_flow: flow.FlowTransform = model["main"] # type: ignore
+        x_flow: flow.FlowTransform = model["x_flow"] # type: ignore
+        m_flow: flow.FlowTransform = model["m_flow"] # type: ignore
         
         x: torch.Tensor
         y: torch.Tensor
@@ -88,15 +128,17 @@ def train_model(
             y = y.float().to(config.device)
 
             # forward pass
-            xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
-            z, fwd_log_det = main_flow.forward(xp)
-            zu = flow.util.proj(z, manifold_dims=config.manifold_c)
-            z_pad = flow.util.pad(
-                zu,
-                off_manifold_dims=(config.input_chw[0] - config.manifold_c),
-            )
-            xp_r, inv_log_det = main_flow.inverse(z_pad)
-            x_r = gen_img_from_patches(xp_r, patch_hw=config.patch_hw)
+            # flow x -> u
+            u, xu_logabsdet = x_flow.forward(x)
+            cu = u.size(1)
+            # project u -> m
+            m = flow.util.proj(u, manifold_dims=cm)
+            # project m -> u'
+            u_r = flow.util.pad(m, cu - cm)
+            # flow u' -> x'
+            x_r, ux_logabsdet = x_flow.inverse(u_r)
+            # flow m -> z
+            z, mz_logabsdet  = m_flow.forward(m)
 
             # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
@@ -145,12 +187,14 @@ def test_model(
     data_loader = config.test_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
+    cm = config.manifold_c
 
     # testing
     set_requires_grad(model, False)
     with torch.no_grad():
         iterable = tqdm(data_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
-        main_flow: flow.FlowTransform = model["main"] # type: ignore
+        x_flow: flow.FlowTransform = model["x_flow"] # type: ignore
+        m_flow: flow.FlowTransform = model["m_flow"] # type: ignore
 
         x: torch.Tensor
         y: torch.Tensor
@@ -165,15 +209,17 @@ def test_model(
             y = y.float().to(config.device)
 
             # forward pass
-            xp = gen_patches_from_img(x, patch_hw=config.patch_hw)
-            z, fwd_log_det = main_flow.forward(xp)
-            zu = flow.util.proj(z, manifold_dims=config.manifold_c)
-            z_pad = flow.util.pad(
-                zu,
-                off_manifold_dims=(config.input_chw[0] - config.manifold_c),
-            )
-            xp_r, inv_log_det = main_flow.inverse(z_pad)
-            x_r = gen_img_from_patches(xp_r, patch_hw=config.patch_hw)
+            # flow x -> u
+            u, xu_logabsdet = x_flow.forward(x)
+            cu = u.size(1)
+            # project u -> m
+            m = flow.util.proj(u, manifold_dims=cm)
+            # project m -> u'
+            u_r = flow.util.pad(m, cu - cm)
+            # flow u' -> x'
+            x_r, ux_logabsdet = x_flow.inverse(u_r)
+            # flow m -> z
+            z, mz_logabsdet  = m_flow.forward(m)
 
             # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())

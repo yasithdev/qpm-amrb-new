@@ -10,10 +10,9 @@ def get_model_optimizer_and_loops(
 ) -> Tuple[torch.nn.Module, torch.optim.Optimizer, Callable, Callable]:
 
     # load requested module, if available
-    input_size = (config.batch_size, *config.image_chw)
+    B, C, H, W = (config.batch_size, *config.image_chw)
     if config.model_name == "flow":
         from .model_flow import load_model_and_optimizer, test_model, train_model
-        input_size = (config.batch_size, *config.input_chw)
     elif config.model_name == "resnet":
         from .model_resnet import load_model_and_optimizer, test_model, train_model
     elif config.model_name == "capsnet":
@@ -36,15 +35,19 @@ def get_model_optimizer_and_loops(
     model = model.float().to(config.device)
 
     # print model summary
+    input_size = (B, C, H, W)
 
     # normalizing flow model
     if config.model_name == "flow":
-        torchinfo.summary(model["main"], input_size=input_size, depth=5)
+        x_input_size = (B, C, H, W)
+        m_input_size = B, config.manifold_c, H // 4, W // 4
+        torchinfo.summary(model["x_flow"], input_size=x_input_size, depth=5)
+        torchinfo.summary(model["m_flow"], input_size=m_input_size, depth=5)
 
     # resnet model
     elif config.model_name == "resnet":
         C = 128
-        enc_out_size = (config.batch_size, C, 1, 1)
+        enc_out_size = (B, C, 1, 1)
         cls_in_size = enc_out_size
         dec_in_size = enc_out_size
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
@@ -54,9 +57,9 @@ def get_model_optimizer_and_loops(
     # capsnet model
     elif config.model_name == "capsnet":
         C, N = 16, config.dataset_info["num_train_labels"]
-        enc_out_size = (config.batch_size, C, N)
+        enc_out_size = (B, C, N)
         cls_in_size = enc_out_size
-        dec_in_size = (config.batch_size, C, 1, 1)
+        dec_in_size = (B, C, 1, 1)
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
         torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
         torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
@@ -64,9 +67,9 @@ def get_model_optimizer_and_loops(
     # efficientcaps model
     elif config.model_name == "efficientcaps":
         C, N = 16, config.dataset_info["num_train_labels"]
-        enc_out_size = (config.batch_size, C, N)
+        enc_out_size = (B, C, N)
         cls_in_size = enc_out_size
-        dec_in_size = (config.batch_size, C, 1, 1)
+        dec_in_size = (B, C, 1, 1)
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
         torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
         torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
@@ -74,9 +77,9 @@ def get_model_optimizer_and_loops(
     # dynamic routing caps model
     elif config.model_name == "drcaps":
         C, N = 16, config.dataset_info["num_train_labels"]
-        enc_out_size = (config.batch_size, C, N)
+        enc_out_size = (B, C, N)
         cls_in_size = enc_out_size
-        dec_in_size = (config.batch_size, C, 1, 1)
+        dec_in_size = (B, C, 1, 1)
         torchinfo.summary(model["encoder"], input_size=input_size, depth=5)
         torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
         torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)

@@ -56,18 +56,18 @@ def proj(
 
 
 def pad(
-    zu: torch.Tensor,
+    m: torch.Tensor,
     off_manifold_dims: int,
 ) -> torch.Tensor:
     """
     Project Density Tensor from Manifold Space into Ambient Space
 
-    :param zu: Density in Manifold Space
+    :param m: Density in Manifold Space
     :param off_manifold_dims: Dimensions of Off-Manifold Space
     :param chw: Tuple of [C, H, W]
     :return: Projection of Density from Manifold Space into Ambient Space
     """
-    z = torch.nn.functional.pad(zu, (0, 0, 0, 0, 0, off_manifold_dims))
+    z = torch.nn.functional.pad(m, (0, 0, 0, 0, 0, off_manifold_dims))
     return z
 
 
