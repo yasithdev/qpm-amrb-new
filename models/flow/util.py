@@ -1,6 +1,6 @@
 import torch
 
-from .flows import SquareNormalizingFlow
+from . import FlowTransform
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ def log_p_z(z: torch.Tensor, z_dist: torch.distributions.Distribution) -> torch.
 
 
 def log_p_x(
-    flow: SquareNormalizingFlow,
+    flow: FlowTransform,
     x: torch.Tensor,
     z_dist: torch.distributions.Distribution,
 ) -> torch.Tensor:

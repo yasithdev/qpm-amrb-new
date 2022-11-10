@@ -110,7 +110,7 @@ class ConformalConv2D_1x1(FlowTransform):
         w_size = (self.num_channels, self.num_channels)
 
         # orthogonal constrained kernel
-        self.weight = torch.nn.Parameter(torch.Tensor(w_size))
+        self.weight = torch.nn.Parameter(torch.Tensor(*w_size))
         geotorch.orthogonal(self, "weight")
 
     def forward(

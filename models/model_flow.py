@@ -25,19 +25,23 @@ def load_model_and_optimizer(
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(**config.coupling_network_config)
                     ),
-                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
+                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(**config.coupling_network_config)
                     ),
-                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
+                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(**config.coupling_network_config)
                     ),
-                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
+                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(**config.coupling_network_config)
                     ),
-                    flow.ops.Conv2D_1x1(**config.conv1x1_config),
+                    flow.ops.ConformalActNorm(config.input_chw[0], config.input_chw[0]),
+                    flow.ops.ConformalConv2D_1x1(**config.conv1x1_config),
                 ]
             )
         }
@@ -130,7 +134,7 @@ def train_model(
 
 
 def test_model(
-    model: flow.ops.FlowTransform,
+    model: flow.FlowTransform,
     epoch: int,
     config: Config,
     **kwargs,
