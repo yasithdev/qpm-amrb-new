@@ -38,8 +38,8 @@ def get_model_optimizer_and_loops(
     # print model summary
 
     # normalizing flow model
-    if config.model_name == "nf":
-        torchinfo.summary(model, input_size=input_size, depth=5)
+    if config.model_name == "flow":
+        torchinfo.summary(model["main"], input_size=input_size, depth=5)
 
     # resnet model
     elif config.model_name == "resnet":
