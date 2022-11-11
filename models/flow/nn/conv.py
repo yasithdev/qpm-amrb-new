@@ -38,10 +38,11 @@ class Conv2D_1x1(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # convolution
-        weight = self.weight.view(self.num_channels, self.num_channels, 1, 1)
+        shape = (self.num_channels, self.num_channels, 1, 1)
+        weight = self.weight.view(shape)
         z = torch.nn.functional.conv2d(x, weight)
 
-        logabsdet = torch.linalg.slogdet(self.weight)[1] * x.size(2) * x.size(3)
+        logabsdet = torch.slogdet(self.weight)[1] * x.size(2) * x.size(3)
 
         return z, logabsdet
 
@@ -52,9 +53,8 @@ class Conv2D_1x1(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # inverse convolution
-        weight = torch.linalg.inv(self.weight).view(
-            self.num_channels, self.num_channels, 1, 1
-        )
+        shape = (self.num_channels, self.num_channels, 1, 1)
+        weight = torch.inverse(self.weight.double()).float().view(shape)
         x = torch.nn.functional.conv2d(z, weight)
 
         logabsdet = torch.slogdet(self.weight)[1] * z.size(2) * z.size(3)

@@ -19,7 +19,7 @@ def load_model_and_optimizer(
     c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
     cm = config.manifold_c
     cms = cm // 2
-    blocks = 3
+    blocks = 2
 
     model = torch.nn.ModuleDict(
         {
@@ -45,17 +45,14 @@ def load_model_and_optimizer(
                 flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
-                flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
-                flow.nn.Conv2D_1x1(cm),
-                flow.nn.ActNorm(cm),
             ),
-            "dist": flow.distributions.StandardNormal(cm, h1, w1)
+            "dist": flow.distributions.StandardNormal(cm, h1, w1),
         }
     )
 
     # set up optimizer
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.Adam(**optim_config)
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, optim
 
@@ -82,7 +79,7 @@ def train_model(
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
         x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
         m_flow: flow.FlowTransform = model["m_flow"]  # type: ignore
-        dist: flow.distributions.Distribution = model["dist"] # type: ignore
+        dist: flow.distributions.Distribution = model["dist"]  # type: ignore
 
         x: torch.Tensor
         y: torch.Tensor
@@ -98,16 +95,17 @@ def train_model(
 
             # forward pass
             # flow x -> u
-            u, xu_logabsdet = x_flow.forward(x)
+            u, _ = x_flow.forward(x)
             cu = u.size(1)
             # project u -> m
             m = flow.util.proj(u, manifold_dims=cm)
             # flow m -> z
-            z, mz_logabsdet = m_flow.forward(m)
-
+            z, _ = m_flow.forward(m)
             # inverse pass
+            # flow z -> m
+            m_r, zm_logabsdet = m_flow.inverse(z)
             # project m -> u'
-            u_r = flow.util.pad(m, cu - cm)
+            u_r = flow.util.pad(m_r, cu - cm)
             # flow u' -> x'
             x_r, ux_logabsdet = x_flow.inverse(u_r)
 
@@ -117,12 +115,13 @@ def train_model(
             gather_samples(samples, x, y, x_r, y)
 
             # log likelihood
-            log_px = dist.log_prob(z) + mz_logabsdet + .5 * xu_logabsdet
+            log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
 
             # calculate loss
-            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255 ** 2)
+            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255**2)
             nll_loss = -torch.mean(log_px)
-            minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
+            # minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
+            minibatch_loss = nll_loss
 
             # backward pass
             optim.zero_grad()
@@ -171,7 +170,7 @@ def test_model(
         iterable = tqdm(data_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
         x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
         m_flow: flow.FlowTransform = model["m_flow"]  # type: ignore
-        dist: flow.distributions.Distribution = model["dist"] # type: ignore
+        dist: flow.distributions.Distribution = model["dist"]  # type: ignore
 
         x: torch.Tensor
         y: torch.Tensor
@@ -187,16 +186,17 @@ def test_model(
 
             # forward pass
             # flow x -> u
-            u, xu_logabsdet = x_flow.forward(x)
+            u, _ = x_flow.forward(x)
             cu = u.size(1)
             # project u -> m
             m = flow.util.proj(u, manifold_dims=cm)
             # flow m -> z
-            z, mz_logabsdet = m_flow.forward(m)
-
+            z, _ = m_flow.forward(m)
             # inverse pass
+            # flow z -> m
+            m_r, zm_logabsdet = m_flow.inverse(z)
             # project m -> u'
-            u_r = flow.util.pad(m, cu - cm)
+            u_r = flow.util.pad(m_r, cu - cm)
             # flow u' -> x'
             x_r, ux_logabsdet = x_flow.inverse(u_r)
 
@@ -206,12 +206,13 @@ def test_model(
             gather_samples(samples, x, y, x_r, y)
 
             # log likelihood
-            log_px = dist.log_prob(z) + mz_logabsdet - .5 * ux_logabsdet
+            log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
 
             # calculate loss
-            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255 ** 2)
+            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255**2)
             nll_loss = -torch.mean(log_px)
-            minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
+            # minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
+            minibatch_loss = nll_loss
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size

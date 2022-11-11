@@ -8,11 +8,11 @@ from . import FlowTransform
 
 class AffineCoupling(FlowTransform):
     """
-    (x1) ---------------(z1)
+    (p1) ---------------(p1)
              ↓     ↓
-            (s1) (t1)
+            (s)   (t)
              ↓     ↓
-    (x2) ---[x]---[+]---(z2)
+    (p2) ---[x]---[+]---(p2)
     """
 
     def __init__(
@@ -31,14 +31,12 @@ class AffineCoupling(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # coupling
-        x1, x2 = torch.chunk(x, 2, dim=1)
-        s1: torch.Tensor
-        t1: torch.Tensor
-        s1, t1 = self.coupling_network(x1)
-        z1 = x1
-        z2 = x2 * torch.exp(s1) + t1
-        z = torch.concat((z1, z2), dim=1)
-        logabsdet = s1.sum([1, 2, 3])
+        p1, p2 = torch.chunk(x, 2, dim=1)
+        st = self.coupling_network(p1)
+        s, t = torch.chunk(st, 2, dim=1)
+        p2 = p2 * torch.exp(s) + t
+        z = torch.concat((p1, p2), dim=1)
+        logabsdet = s.sum([1, 2, 3])
 
         return z, logabsdet
 
@@ -47,19 +45,19 @@ class AffineCoupling(FlowTransform):
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        # inverse coupling
-        z1, z2 = torch.chunk(z, 2, dim=1)
-        s1, t1 = self.coupling_network(z1)
-        x1 = z1
-        x2 = (z2 - t1) * torch.exp(-s1)
-        x = torch.cat((x1, x2), dim=1)
-        inv_logabsdet = s1.sum([1, 2, 3])
 
-        return x, -inv_logabsdet
+        # inverse coupling
+        p1, p2 = torch.chunk(z, 2, dim=1)
+        st = self.coupling_network(p1)
+        s, t = torch.chunk(st, 2, dim=1)
+        p2 = (p2 - t) * torch.exp(-s)
+        x = torch.cat((p1, p2), dim=1)
+        logabsdet = s.sum([1, 2, 3])
+
+        return x, -logabsdet
 
 
 class CouplingNetwork(torch.nn.Module):
-
     def __init__(
         self,
         num_channels: int,
@@ -87,18 +85,18 @@ class CouplingNetwork(torch.nn.Module):
         c = num_channels
         p = num_params
 
-        self.w.append(torch.randn(c*p, c, kH, kW))
-        self.b.append(torch.randn(c*p))
+        self.w.append(torch.nn.Parameter(torch.randn(c * p, c, kH, kW)))
+        self.b.append(torch.nn.Parameter(torch.randn(c * p)))
 
         for _ in range(1, self.num_blocks):
-            self.w.append(torch.randn(c*p, c*p, kH, kW))
-            self.b.append(torch.randn(c*p))
+            self.w.append(torch.nn.Parameter(torch.randn(c * p, c * p, kH, kW)))
+            self.b.append(torch.nn.Parameter(torch.randn(c * p)))
 
     def forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
 
         st = x
         for i in range(self.num_blocks):
@@ -109,7 +107,5 @@ class CouplingNetwork(torch.nn.Module):
                 bias=b,
                 padding=1,
             )
-            st = torch.sigmoid(st)
-        
-        (s, t) = torch.chunk(st, self.num_params, dim=1)
-        return s, t
+            st = torch.tanh(st)
+        return st

@@ -1,5 +1,5 @@
 import math
-from typing import Iterable, Optional
+from typing import Optional
 
 import einops
 import torch
@@ -24,7 +24,7 @@ class StandardNormal(Distribution):
         self._shape = torch.Size(shape)
         # TODO if needed change dtype to float64
         p = 0.5 * math.prod(shape) * math.log(2 * math.pi)
-        self.register_buffer("_log_z", torch.tensor(p, dtype=torch.float64), persistent=False)
+        self.register_buffer("_log_z", torch.tensor(p), persistent=False)
 
     def _log_prob(
         self,

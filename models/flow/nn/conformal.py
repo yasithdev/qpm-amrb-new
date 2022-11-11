@@ -5,10 +5,9 @@ import geotorch
 import torch
 
 from . import FlowTransform
-from .normalization import ActNorm
 
 
-class ConformalActNorm(ActNorm):
+class ConformalActNorm(FlowTransform):
 
     """
     Flow component of the type x |-> a*x + b, where a is a scalar.
@@ -21,11 +20,15 @@ class ConformalActNorm(ActNorm):
         features: int,
     ) -> None:
 
-        super().__init__(features)
+        super().__init__()
 
         self.register_buffer("initialized", torch.tensor(False, dtype=torch.bool))
         self.log_scale = torch.nn.Parameter(torch.tensor(0.0))
         self.shift = torch.nn.Parameter(torch.zeros(features))
+
+    @property
+    def scale(self) -> torch.Tensor:
+        return torch.exp(self.log_scale)
 
     def forward(
         self,
@@ -43,11 +46,11 @@ class ConformalActNorm(ActNorm):
         output = scale * x + shift
 
         if x.dim() == 4:
-            B, _, H, W = x.size()
-            logabsdet = H * W * self.log_scale.sum() * output.new_ones(B)
+            B, C, H, W = x.size()
+            logabsdet = C * H * W * self.log_scale.sum() * output.new_ones(B)
         else:
-            B, _ = x.size()
-            logabsdet = self.log_scale.sum() * output.new_ones(B)
+            B, C = x.size()
+            logabsdet = C * self.log_scale.sum() * output.new_ones(B)
 
         return output, logabsdet
 
@@ -62,13 +65,13 @@ class ConformalActNorm(ActNorm):
 
         scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
         output = (z - shift) / scale
-        
+
         if z.dim() == 4:
-            B, _, H, W = z.size()
-            logabsdet = H * W * self.log_scale.sum() * output.new_ones(B)
+            B, C, H, W = z.size()
+            logabsdet = C * H * W * self.log_scale.sum() * output.new_ones(B)
         else:
-            B, _ = z.size()
-            logabsdet = self.log_scale.sum() * output.new_ones(B)
+            B, C = z.size()
+            logabsdet = C * self.log_scale.sum() * output.new_ones(B)
 
         return output, -logabsdet
 
@@ -170,7 +173,7 @@ class ConformalConv2D_KxK(FlowTransform):
     ) -> None:
 
         super().__init__()
-        
+
         k = kernel_size
         k = k if isinstance(k, Tuple) else (k, k)
         self.kH, self.kW = k
