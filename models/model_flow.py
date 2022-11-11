@@ -14,25 +14,27 @@ def load_model_and_optimizer(
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     # network configuration
-    k0 = 4
+    k0 = 2
+    k1 = 2
     c0, h0, w0 = config.image_chw
     c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
+    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
     cm = config.manifold_c
     cms = cm // 2
     blocks = 2
 
     model = torch.nn.ModuleDict(
         {
-            # MNIST: (1, 28, 28) -> (16, 7, 7)
+            # MNIST: (1, 28, 28) -> (4, 14, 14) -> (16, 7, 7)
             "x_flow": flow.Compose(
                 flow.nn.ConformalConv2D_KxK(c0, k0),
                 flow.nn.ConformalActNorm(c1),
-                flow.nn.ConformalConv2D_1x1(c1),
-                flow.nn.ConformalActNorm(c1),
-                flow.nn.ConformalConv2D_1x1(c1),
-                flow.nn.ConformalActNorm(c1),
-                flow.nn.ConformalConv2D_1x1(c1),
-                flow.nn.ConformalActNorm(c1),
+                flow.nn.ConformalConv2D_KxK(c1, k1),
+                flow.nn.ConformalActNorm(c2),
+                flow.nn.ConformalConv2D_1x1(c2),
+                flow.nn.ConformalActNorm(c2),
+                flow.nn.ConformalConv2D_1x1(c2),
+                flow.nn.ConformalActNorm(c2),
             ),
             # MNIST: (cm, 7, 7) -> (cm, 7, 7)
             "m_flow": flow.Compose(
@@ -46,13 +48,13 @@ def load_model_and_optimizer(
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
             ),
-            "dist": flow.distributions.StandardNormal(cm, h1, w1),
+            "dist": flow.distributions.StandardNormal(cm, h2, w2),
         }
     )
 
     # set up optimizer
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.AdamW(**optim_config)
+    optim = torch.optim.Adam(**optim_config)
 
     return model, optim
 
@@ -118,9 +120,9 @@ def train_model(
             log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
 
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
-            nll_loss = -torch.mean(log_px)
-            w = 255 ** 2
-            minibatch_loss = torch.clamp(nll_loss, min=0) + w * reconstruction_loss
+            abs_nll_loss = torch.abs(-torch.mean(log_px))
+            w = 0.75
+            minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # backward pass
             optim.zero_grad()
@@ -209,9 +211,9 @@ def test_model(
 
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
-            nll_loss = -torch.mean(log_px)
-            w = 255 ** 2
-            minibatch_loss = torch.clamp(nll_loss, min=0) + w * reconstruction_loss
+            abs_nll_loss = torch.abs(-torch.mean(log_px))
+            w = 0.75
+            minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
