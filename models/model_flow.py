@@ -117,11 +117,10 @@ def train_model(
             # log likelihood
             log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
 
-            # calculate loss
-            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255**2)
+            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             nll_loss = -torch.mean(log_px)
-            # minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
-            minibatch_loss = nll_loss
+            w = 255 ** 2
+            minibatch_loss = torch.clamp(nll_loss, min=0) + w * reconstruction_loss
 
             # backward pass
             optim.zero_grad()
@@ -209,10 +208,10 @@ def test_model(
             log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
 
             # calculate loss
-            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x) * (255**2)
+            reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             nll_loss = -torch.mean(log_px)
-            # minibatch_loss = torch.clamp(nll_loss, min=0) + reconstruction_loss
-            minibatch_loss = nll_loss
+            w = 255 ** 2
+            minibatch_loss = torch.clamp(nll_loss, min=0) + w * reconstruction_loss
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
