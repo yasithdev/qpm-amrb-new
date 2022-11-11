@@ -117,13 +117,13 @@ def train_model(
             gather_samples(samples, x, y, x_r, y)
 
             # log likelihood
-            log_px = dist.log_prob(z) + mz_logabsdet - .5 * ux_logabsdet
+            log_px = dist.log_prob(z) + mz_logabsdet + .5 * xu_logabsdet
 
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             nll_loss = -torch.mean(log_px)
             w = 1e-2
-            minibatch_loss = w * nll_loss + (1-w) * reconstruction_loss
+            minibatch_loss = w * torch.clamp(nll_loss, min=0) + (1-w) * reconstruction_loss
 
             # backward pass
             optim.zero_grad()
