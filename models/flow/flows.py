@@ -33,9 +33,8 @@ class CompositeFlowTransform(FlowTransform):
         sum_abslogdet = torch.zeros(h.size(0), device=x.device)
 
         # iterate in order
-        transform: FlowTransform
-        for transform in self.transforms:  # type: ignore
-
+        for transform in self.transforms:
+            assert isinstance(transform, FlowTransform)
             # transform h and accumulate log_det
             h, abslogdet = transform.forward(h)
             sum_abslogdet += abslogdet
@@ -56,8 +55,8 @@ class CompositeFlowTransform(FlowTransform):
         sum_abslogdet = torch.zeros(h.size(0), device=z.device)
 
         # iterate in reverse
-        transform: FlowTransform
-        for transform in reversed(self.transforms):  # type: ignore
+        for transform in reversed(self.transforms):
+            assert isinstance(transform, FlowTransform)
 
             # transform h and accumulate log_det
             h, abslogdet = transform.inverse(h)

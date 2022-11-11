@@ -109,7 +109,7 @@ class CouplingNetwork(torch.nn.Module):
                 bias=b,
                 padding=1,
             )
-            st = torch.nn.functional.leaky_relu(st)
+            st = torch.sigmoid(st)
         
         (s, t) = torch.chunk(st, self.num_params, dim=1)
-        return s, torch.squeeze(t)
+        return s, t

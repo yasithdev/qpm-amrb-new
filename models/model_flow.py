@@ -6,8 +6,7 @@ from tqdm import tqdm
 from config import Config
 
 from . import flow
-from .common import (gather_samples, gen_epoch_acc, gen_img_from_patches,
-                     gen_patches_from_img, set_requires_grad)
+from .common import gather_samples, gen_epoch_acc, set_requires_grad
 
 
 def load_model_and_optimizer(
@@ -29,18 +28,22 @@ def load_model_and_optimizer(
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
+                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.ConformalConv2D_1x1(c1),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
+                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.ConformalConv2D_1x1(c1), #*
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
+                    flow.ops.ConformalActNorm(c1, cm),
                     flow.ops.ConformalConv2D_1x1(c1),
                     flow.ops.AffineCoupling(
                         flow.ops.CouplingNetwork(c1 // 2, 3)
                     ),
+                    flow.ops.ConformalActNorm(c1, cm),
                 ]
             ),
             "m_flow": flow.CompositeFlowTransform(
@@ -130,6 +133,10 @@ def train_model(
             x_r, ux_logabsdet = x_flow.inverse(u_r)
             # flow m -> z
             z, mz_logabsdet  = m_flow.forward(m)
+
+            # Compute log likelihood
+            # log_pu = m_flow.log_prob(m)
+            # log_likelihood = torch.mean(log_pu - log_conf_det)
 
             # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())

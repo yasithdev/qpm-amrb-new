@@ -160,6 +160,7 @@ class ConformalConv2D_KxK(FlowTransform):
     ) -> None:
 
         super().__init__()
+        
         k = kernel_size
         k = k if isinstance(k, Tuple) else (k, k)
         self.kH, self.kW = k
