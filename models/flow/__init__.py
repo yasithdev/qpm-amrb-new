@@ -1,3 +1,3 @@
 from .base import FlowTransform
-from .flows import CompositeFlowTransform
-from . import ops, util
+from .flows import Compose
+from . import nn, util, distributions

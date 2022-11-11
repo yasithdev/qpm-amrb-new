@@ -18,7 +18,7 @@ class FlowTransform(torch.nn.Module):
         transform a tensor towards latent space (forward mode)
 
         :param x: Tensor
-        :return: Tuple [Transformed Tensor, Determinant of Jacobian]
+        :return: Tuple [Transformed Tensor, Log Absolute Determinant of Jacobian]
 
         """
         raise NotImplementedError()
@@ -32,6 +32,6 @@ class FlowTransform(torch.nn.Module):
         transform a tensor towards data space (inverse mode)
 
         :param z: Tensor
-        :return: Tuple [Transformed Tensor, Determinant of Jacobian]
+        :return: Tuple [Transformed Tensor, Log Absolute Determinant of Jacobian]
         """
         raise NotImplementedError()

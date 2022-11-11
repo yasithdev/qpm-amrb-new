@@ -30,23 +30,13 @@ class Distribution(torch.nn.Module):
             context (torch.Tensor, optional): conditioning variables (one per input)
 
         Returns:
-            torch.Tensor: log-probability of inputs, or conditional log-probability if context is given
-        
+            torch.Tensor: log-prob of inputs, or conditional log-prob if context is given
+
         """
-        
-        inputs = torch.as_tensor(inputs)
+
         if context is not None:
-            context = torch.as_tensor(context)
-            assert inputs.shape[0] == context.shape[0]
+            assert inputs.size(0) == context.size(0)
         return self._log_prob(inputs, context)
-
-    def _log_prob(
-        self,
-        inputs: torch.Tensor,
-        context: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-
-        raise NotImplementedError()
 
     def sample(
         self,
@@ -60,26 +50,23 @@ class Distribution(torch.nn.Module):
         Samples can be generated in batches.
 
         Args:
-            num_samples (int): number of samples to generate.
+            num_samples (int): number of samples to generate
             context (torch.Tensor, optional): conditioning variables
-            batch_size (int, optional): if None (default), sample all in one batch. otherwise sample batch_size batches and accumulate.
+            batch_size (int, optional): if None (default), defaults to num_samples
 
         Returns:
-            torch.Tensor: samples, with shape [num_samples, ...] if context is None, or
-            [context_size, num_samples, ...] if context is given.
+            torch.Tensor: generated samples
+                context == None - (num_samples, ...)
+                context != None - (context_size, num_samples, ...)
 
         """
         assert num_samples > 0
-
-        if context is not None:
-            context = torch.as_tensor(context)
 
         if batch_size is None:
             return self._sample(num_samples, context)
 
         else:
             assert batch_size > 0
-
             num_batches = num_samples // batch_size
             num_leftover = num_samples % batch_size
             samples = [self._sample(batch_size, context) for _ in range(num_batches)]
@@ -87,40 +74,26 @@ class Distribution(torch.nn.Module):
                 samples.append(self._sample(num_leftover, context))
             return torch.cat(samples, dim=0)
 
-    def _sample(
+    def sample_and_log_prob(
         self,
         num_samples: int,
         context: Optional[torch.Tensor] = None,
-    ) -> torch.Tensor:
-
-        raise NotImplementedError()
-
-    def sample_and_log_prob(
-        self,
-        num_samples,
-        context=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         """
         Generates samples from the distribution together with their log probability.
 
         Args:
-            num_samples: int, number of samples to generate.
-            context: Tensor or None, conditioning variables. If None, the context is ignored.
+            num_samples (int): number of samples to generate
+            context (torch.Tensor, optional): conditioning variables
 
         Returns:
-            A tuple of:
-                * A Tensor containing the samples, with shape [num_samples, ...] if context is None,
-                  or [context_size, num_samples, ...] if context is given.
-                * A Tensor containing the log probabilities of the samples, with shape
-                  [num_samples, ...] if context is None, or [context_size, num_samples, ...] if
-                  context is given.
+            Tuple[torch.Tensor, torch.Tensor]: generated samples and their log-probs
+                context == None - (num_samples, ...)
+                context != None - (context_size, num_samples, ...)
 
         """
-        samples = self.sample(
-            num_samples,
-            context=context,
-        )
+        samples = self.sample(num_samples, context=context)
 
         # if context is not None:
         #     # Merge the context dimension with sample dimension in order to call log_prob.
@@ -139,14 +112,30 @@ class Distribution(torch.nn.Module):
 
     def mean(
         self,
-        context=None,
-    ):
-        if context is not None:
-            context = torch.as_tensor(context)
+        context: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+
         return self._mean(context)
+
+    def _log_prob(
+        self,
+        inputs: torch.Tensor,
+        context: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+
+        raise NotImplementedError()
+
+    def _sample(
+        self,
+        num_samples: int,
+        context: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+
+        raise NotImplementedError()
 
     def _mean(
         self,
-        context,
-    ):
-        raise Exception("No Mean")
+        context: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+
+        raise NotImplementedError()

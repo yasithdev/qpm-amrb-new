@@ -19,7 +19,6 @@ class ConformalActNorm(ActNorm):
     def __init__(
         self,
         features: int,
-        latent_dim: int,
     ) -> None:
 
         super().__init__(features)
@@ -27,7 +26,6 @@ class ConformalActNorm(ActNorm):
         self.register_buffer("initialized", torch.tensor(False, dtype=torch.bool))
         self.log_scale = torch.nn.Parameter(torch.tensor(0.0))
         self.shift = torch.nn.Parameter(torch.zeros(features))
-        self.latent_dim = latent_dim
 
     def forward(
         self,
@@ -42,10 +40,16 @@ class ConformalActNorm(ActNorm):
             self._initialize(x)
 
         scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        z = scale * x + shift
-        logabsdet = self.latent_dim * self.log_scale.sum() * z.new_ones(x.size(0))
+        output = scale * x + shift
 
-        return z, logabsdet
+        if x.dim() == 4:
+            B, _, H, W = x.size()
+            logabsdet = H * W * self.log_scale.sum() * output.new_ones(B)
+        else:
+            B, _ = x.size()
+            logabsdet = self.log_scale.sum() * output.new_ones(B)
+
+        return output, logabsdet
 
     def inverse(
         self,
@@ -57,10 +61,16 @@ class ConformalActNorm(ActNorm):
         view_shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        x = (z - shift) / scale
-        logabsdet = self.latent_dim * self.log_scale.sum() * x.new_ones(z.size(0))
+        output = (z - shift) / scale
+        
+        if z.dim() == 4:
+            B, _, H, W = z.size()
+            logabsdet = H * W * self.log_scale.sum() * output.new_ones(B)
+        else:
+            B, _ = z.size()
+            logabsdet = self.log_scale.sum() * output.new_ones(B)
 
-        return x, -logabsdet
+        return output, -logabsdet
 
     def _initialize(
         self,
