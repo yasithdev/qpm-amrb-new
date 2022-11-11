@@ -14,29 +14,38 @@ def load_model_and_optimizer(
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
     # network configuration
-    k0 = 2
-    k1 = 2
+    k0, k1, k2, k3 = 2, 2, 2, 2
     c0, h0, w0 = config.image_chw
     c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
     c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
+    c3, h3, w3 = c2 * k2 * k2, h2 // k2, w2 // k2
+    c4, h4, w4 = c3 * k3 * k3, h3 // k3, w3 // k3
     cm = config.manifold_c
     cms = cm // 2
     blocks = 2
 
     model = torch.nn.ModuleDict(
         {
-            # MNIST: (1, 28, 28) -> (4, 14, 14) -> (16, 7, 7)
+            # MNIST: (1, 32, 32) -> (4, 16, 16) -> (16, 8, 8) -> (64, 4, 4) -> (256, 2, 2)
             "x_flow": flow.Compose(
                 flow.nn.ConformalConv2D_KxK(c0, k0),
+                flow.nn.ConformalActNorm(c1),
+                flow.nn.ConformalConv2D_1x1(c1),
                 flow.nn.ConformalActNorm(c1),
                 flow.nn.ConformalConv2D_KxK(c1, k1),
                 flow.nn.ConformalActNorm(c2),
                 flow.nn.ConformalConv2D_1x1(c2),
                 flow.nn.ConformalActNorm(c2),
-                flow.nn.ConformalConv2D_1x1(c2),
-                flow.nn.ConformalActNorm(c2),
+                flow.nn.ConformalConv2D_KxK(c2, k2),
+                flow.nn.ConformalActNorm(c3),
+                flow.nn.ConformalConv2D_1x1(c3),
+                flow.nn.ConformalActNorm(c3),
+                flow.nn.ConformalConv2D_KxK(c3, k3),
+                flow.nn.ConformalActNorm(c4),
+                flow.nn.ConformalConv2D_1x1(c4),
+                flow.nn.ConformalActNorm(c4),
             ),
-            # MNIST: (cm, 7, 7) -> (cm, 7, 7)
+            # MNIST: (cm, 2, 2) -> (cm, 2, 2)
             "m_flow": flow.Compose(
                 flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
                 flow.nn.Conv2D_1x1(cm),
@@ -48,13 +57,13 @@ def load_model_and_optimizer(
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
             ),
-            "dist": flow.distributions.StandardNormal(cm, h2, w2),
+            "dist": flow.distributions.StandardNormal(cm, h4, w4),
         }
     )
 
     # set up optimizer
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.Adam(**optim_config)
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, optim
 
@@ -121,7 +130,7 @@ def train_model(
 
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             abs_nll_loss = torch.abs(-torch.mean(log_px))
-            w = 0.75
+            w = 0.8
             minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # backward pass
@@ -212,7 +221,7 @@ def test_model(
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             abs_nll_loss = torch.abs(-torch.mean(log_px))
-            w = 0.75
+            w = 0.8
             minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # accumulate sum loss

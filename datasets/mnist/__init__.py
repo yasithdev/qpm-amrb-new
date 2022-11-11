@@ -3,7 +3,7 @@ from typing import Literal, Tuple
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
 
-from ..transforms import AddGaussianNoise
+from ..transforms import AddGaussianNoise, ZeroPad2D
 from .mnist import MNISTDataset
 
 
@@ -21,6 +21,7 @@ def create_data_loaders(
     transform = Compose(
         [
             ToTensor(),
+            ZeroPad2D(h1=2,h2=2,w1=2,w2=2),
             AddGaussianNoise(mean=0.0, std=0.01),
         ]
     )

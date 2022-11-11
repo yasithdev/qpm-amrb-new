@@ -20,7 +20,7 @@ def get_dataset_loaders(dataset_name: str, **kwargs) -> Tuple[DataLoader, DataLo
 
 def get_dataset_chw(dataset_name: str) -> Tuple[int, int, int]:
     if dataset_name == "MNIST":
-        return (1, 28, 28)
+        return (1, 32, 32)
     elif dataset_name == "AMRB_1":
         return (1, 40, 40)
     elif dataset_name == "AMRB_2":
