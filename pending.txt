@@ -1,0 +1,10 @@
+qpm-amrb1_leave-out_type_resnet-* - SCHEDULED
+qpm-amrb1_leave-out_type_capsnet-* - SCHEDULED
+qpm-amrb1_leave-out_type_efficientcaps-* - SCHEDULED
+qpm-amrb1_leave-out_type_drcaps-* - SCHEDULED
+
+qpm-amrb2_leave-out_class_drcaps-18.log - SCHEDULED
+qpm-amrb2_leave-out_class_drcaps-19.log - SCHEDULED
+qpm-amrb2_leave-out_class_drcaps-20.log - SCHEDULED
+
+qpm-amrb2_leave-out_type_resnet-* - SCHEDULED
