@@ -109,3 +109,16 @@ class CouplingNetwork(torch.nn.Module):
             )
             st = torch.tanh(st)
         return st
+
+
+class RQSCoupling(FlowTransform):
+    def __init__(
+        self,
+        mask: torch.Tensor,
+        transform: torch.nn.Module,
+        num_bins: int,
+        tail_bound: float,
+        tails: str = "linear",
+    ) -> None:
+
+        super().__init__()

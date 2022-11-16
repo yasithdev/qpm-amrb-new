@@ -12,36 +12,36 @@ class Distribution(torch.nn.Module):
 
     def forward(
         self,
-        *args,
     ) -> None:
         raise RuntimeError("forward() does not apply to distributions.")
 
     def log_prob(
         self,
-        inputs: torch.Tensor,
-        context: Optional[torch.Tensor] = None,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         """
         Calculate log probability under the distribution.
 
         Args:
-            inputs (torch.Tensor): input tensor
-            context (torch.Tensor, optional): conditioning variables (one per input)
+            x (torch.Tensor): input tensor
+            c (torch.Tensor, optional): conditioning variables (one per input)
 
         Returns:
-            torch.Tensor: log-prob of inputs, or conditional log-prob if context is given
+            torch.Tensor: log-prob of x, or conditional log-prob if c is given
 
         """
 
-        if context is not None:
-            assert inputs.size(0) == context.size(0)
-        return self._log_prob(inputs, context)
+        if c is not None:
+            assert x.size(0) == c.size(0)
+
+        return self._log_prob(x, c)
 
     def sample(
         self,
-        num_samples: int,
-        context: Optional[torch.Tensor] = None,
+        n: int,
+        c: Optional[torch.Tensor] = None,
         batch_size: Optional[int] = None,
     ) -> torch.Tensor:
 
@@ -50,92 +50,65 @@ class Distribution(torch.nn.Module):
         Samples can be generated in batches.
 
         Args:
-            num_samples (int): number of samples to generate
-            context (torch.Tensor, optional): conditioning variables
-            batch_size (int, optional): if None (default), defaults to num_samples
+            n (int): number of samples to generate
+            c (torch.Tensor, optional): conditioning variables
+            batch_size (int, optional): batch size (default=n)
 
         Returns:
             torch.Tensor: generated samples
-                context == None - (num_samples, ...)
-                context != None - (context_size, num_samples, ...)
+                c == None - (n, ...)
+                c != None - (c_size, n, ...)
 
         """
-        assert num_samples > 0
+        assert n > 0
 
         if batch_size is None:
-            return self._sample(num_samples, context)
+            return self._sample(n, c)
 
-        else:
-            assert batch_size > 0
-            num_batches = num_samples // batch_size
-            num_leftover = num_samples % batch_size
-            samples = [self._sample(batch_size, context) for _ in range(num_batches)]
-            if num_leftover > 0:
-                samples.append(self._sample(num_leftover, context))
-            return torch.cat(samples, dim=0)
-
-    def sample_and_log_prob(
-        self,
-        num_samples: int,
-        context: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        """
-        Generates samples from the distribution together with their log probability.
-
-        Args:
-            num_samples (int): number of samples to generate
-            context (torch.Tensor, optional): conditioning variables
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: generated samples and their log-probs
-                context == None - (num_samples, ...)
-                context != None - (context_size, num_samples, ...)
-
-        """
-        samples = self.sample(num_samples, context=context)
-
-        # if context is not None:
-        #     # Merge the context dimension with sample dimension in order to call log_prob.
-        #     samples = torchutils.merge_leading_dims(samples, num_dims=2)
-        #     context = torchutils.repeat_rows(context, num_reps=num_samples)
-        #     assert samples.shape[0] == context.shape[0]
-
-        log_prob = self.log_prob(samples, context=context)
-
-        # if context is not None:
-        #     # Split the context dimension from sample dimension.
-        #     samples = torchutils.split_leading_dim(samples, shape=[-1, num_samples])
-        #     log_prob = torchutils.split_leading_dim(log_prob, shape=[-1, num_samples])
-
-        return samples, log_prob
+        assert batch_size > 0
+        num_batches = n // batch_size
+        num_leftover = n % batch_size
+        samples = [self._sample(batch_size, c) for _ in range(num_batches)]
+        if num_leftover > 0:
+            samples.append(self._sample(num_leftover, c))
+        return torch.cat(samples, dim=0)
 
     def mean(
         self,
-        context: Optional[torch.Tensor] = None,
+        c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
-        return self._mean(context)
+        """
+        Get the mean of the distribution
+
+        Args:
+            c (torch.Tensor, optional): conditioning variables
+
+        Returns:
+            torch.Tensor: mean of the distribution
+        """
+
+        return self._mean(c)
 
     def _log_prob(
         self,
-        inputs: torch.Tensor,
-        context: Optional[torch.Tensor] = None,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         raise NotImplementedError()
 
     def _sample(
         self,
-        num_samples: int,
-        context: Optional[torch.Tensor] = None,
+        n: int,
+        c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         raise NotImplementedError()
 
     def _mean(
         self,
-        context: Optional[torch.Tensor] = None,
+        c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         raise NotImplementedError()

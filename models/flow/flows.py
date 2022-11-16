@@ -2,180 +2,76 @@ from typing import Optional, Tuple
 
 import torch
 
-from . import FlowTransform
+from . import Distribution, FlowTransform
 
 
-class Compose(FlowTransform):
+class Flow(Distribution):
+
     """
-    Composition of Flow Transformations.
-    Each transformation operates on all the dims.
-
-    Example:
-    
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
-    A-B-C-D-E-> \n
+    Base class for all flows (Bijective, Injective, Surjective)
 
     """
 
     def __init__(
         self,
-        *transforms: FlowTransform,
+        base_dist: Distribution,
+        transform: FlowTransform,
     ) -> None:
+
+        """
+        Create a flow with a transform to/from a base distribution
+
+        Args:
+            base_dist (Distribution): base distribution
+            transform (FlowTransform): transformation to/from the base distribution
+        """
 
         super().__init__()
 
-        self.transforms = torch.nn.ModuleList(transforms)
+        self.base_dist = base_dist
+        self.transform = transform
 
-    def forward(
+    def _log_prob(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
 
-        # initialize h=x
-        h = x
+        """
+        Using the transform (F) to map the input (x) into a latent (z), then compute log p(x) using p(z).
 
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=x.device)
+        Unconditional:  log p(x)   = log p(z)   + log |∇[F](z)|
+        Conditional:    log p(x|c) = log p(z|c) + log |∇[F](z,c)|
 
-        # iterate in order
-        for transform in self.transforms:
-            assert isinstance(transform, FlowTransform)
+        Args:
+            x (torch.Tensor): input (x)
+            c (Optional[torch.Tensor], optional): optional context vector
 
-            # transform h and accumulate log_det
-            h, logabsdet = transform.forward(h)
-            sum_logabsdet += logabsdet
+        Returns:
+            torch.Tensor: log p(x)
 
-        z = h
-        return z, sum_logabsdet
+        """
 
-    def inverse(
+        z, logabsdet = self.transform(x)
+        log_p_z = self.base_dist.log_prob(z, c)
+        return log_p_z + logabsdet
+
+    def _sample(
         self,
-        z: torch.Tensor,
+        n: int,
         c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
+        """
 
-        # initialize h=z
-        h = z
+        Args:
+            n (int): number of samples
+            c (Optional[torch.Tensor], optional): conditioning variables
 
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=z.device)
+        Returns:
+            torch.Tensor: samples from p(x)
 
-        # iterate in reverse
-        for transform in reversed(self.transforms):
-            assert isinstance(transform, FlowTransform)
+        """
 
-            # transform h and accumulate log_det
-            h, logabsdet = transform.inverse(h)
-            sum_logabsdet += logabsdet
-        x = h
-        return x, sum_logabsdet
-
-
-class ComposeMultiScale(FlowTransform):
-    """
-    Composition of Multi-Scale Flow Transformations.
-    Each transformation operates on half the previous dims.
-
-    Example:
-
-    A-B-------> \n
-    A-B-------> \n
-    A-B-------> \n
-    A-B-------> \n
-    A-B-C-----> \n
-    A-B-C-----> \n
-    A-B-C-D---> \n
-    A-B-C-D-E-> \n
-
-    """
-
-    def __init__(
-        self,
-        *transforms: FlowTransform,
-    ) -> None:
-
-        super().__init__()
-
-        self.transforms = transforms
-        self.dim = 1
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        # initialize h=x
-        h = x
-
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=x.device)
-
-        # define initial slice lengths
-        total_length = h.size(self.dim)
-        slice_length = total_length
-
-        # iterate in order
-        for transform in self.transforms:
-            assert isinstance(transform, FlowTransform)
-
-            # split h for multi-scale transformation
-            h1 = torch.narrow(h, self.dim, 0, slice_length)
-            h2 = torch.narrow(h, self.dim, slice_length, total_length - slice_length)
-
-            # transform h and accumulate log_det
-            h1, logabsdet = transform.forward(h1)
-            h = torch.cat([h1, h2], self.dim)
-
-            # halve the slice length for next transform
-            slice_length //= 2
-
-            # accumulate logabsdet
-            sum_logabsdet += logabsdet
-
-        z = h
-        return z, sum_logabsdet
-
-    def inverse(
-        self,
-        z: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        # initialize h=z
-        h = z
-
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=z.device)
-
-        # define initial slice lengths
-        total_length = h.size(self.dim)
-        slice_length = total_length // 2 ** (len(self.transforms))
-
-        # iterate in reverse
-        for transform in reversed(self.transforms):
-            assert isinstance(transform, FlowTransform)
-
-            # split h for multi-scale transformation
-            h1 = torch.narrow(h, self.dim, 0, slice_length)
-            h2 = torch.narrow(h, self.dim, slice_length, total_length - slice_length)
-
-            # transform h and accumulate log_det
-            h1, logabsdet = transform.inverse(h1)
-            h = torch.cat([h1, h2], self.dim)
-
-            # halve the slice length for next transform
-            slice_length *= 2
-
-            # accumulate logabsdet
-            sum_logabsdet += logabsdet
-
-        x = h
-        return x, sum_logabsdet
+        z = self.base_dist.sample(n, c)
+        x, _ = self.transform.inverse(z, c)
+        return x

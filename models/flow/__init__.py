@@ -1,3 +1,4 @@
-from .base import FlowTransform
-from .flows import Compose, ComposeMultiScale
+from .base import FlowTransform, Compose, ComposeMultiScale
+from .distributions import Distribution
+from .flows import Flow
 from . import nn, util, distributions

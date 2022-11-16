@@ -6,14 +6,14 @@ from torch.nn import functional as F
 from torch.nn import init
 
 
-class ResidualBlock(nn.Module):
+class ResBlock(nn.Module):
     """A general-purpose residual block. Works only with 1-dim inputs."""
 
     def __init__(
         self,
         features: int,
         context_features: Optional[int],
-        activation: Callable = F.relu,
+        activation: Callable[[torch.Tensor], torch.Tensor] = F.relu,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
         zero_initialization: bool = True,
@@ -59,7 +59,7 @@ class ResidualBlock(nn.Module):
         return inputs + temps
 
 
-class ResidualNet(nn.Module):
+class ResNet(nn.Module):
     """A general-purpose residual network. Works only with 1-dim inputs."""
 
     def __init__(
@@ -69,7 +69,7 @@ class ResidualNet(nn.Module):
         hidden_features: int,
         context_features: Optional[int] = None,
         num_blocks: int = 2,
-        activation: Callable = F.relu,
+        activation: Callable[[torch.Tensor], torch.Tensor] = F.relu,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
     ) -> None:
@@ -86,7 +86,7 @@ class ResidualNet(nn.Module):
             self.initial_layer = nn.Linear(in_features, hidden_features)
         self.blocks = nn.ModuleList(
             [
-                ResidualBlock(
+                ResBlock(
                     features=hidden_features,
                     context_features=context_features,
                     activation=activation,
@@ -114,7 +114,7 @@ class ResidualNet(nn.Module):
         return outputs
 
 
-class ConvResidualBlock(nn.Module):
+class ConvResBlock(nn.Module):
     """"""
 
     def __init__(
@@ -172,7 +172,7 @@ class ConvResidualBlock(nn.Module):
         return inputs + temps
 
 
-class ConvResidualNet(nn.Module):
+class ConvResNet(nn.Module):
     """"""
 
     def __init__(
@@ -207,7 +207,7 @@ class ConvResidualNet(nn.Module):
             )
         self.blocks = nn.ModuleList(
             [
-                ConvResidualBlock(
+                ConvResBlock(
                     channels=hidden_channels,
                     context_channels=context_channels,
                     activation=activation,
@@ -226,7 +226,7 @@ class ConvResidualNet(nn.Module):
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-    
+
         if context is None:
             temps = self.initial_layer(inputs)
         else:
