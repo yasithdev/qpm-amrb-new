@@ -40,7 +40,7 @@ def get_model_optimizer_and_loops(
     # normalizing flow model
     if config.model_name == "flow":
         x_input_size = (B, C, H, W)
-        m_input_size = B, config.manifold_c, H // 4, W // 4
+        m_input_size = B, config.manifold_c, H // 16, W // 16
         torchinfo.summary(model["x_flow"], input_size=x_input_size, depth=5)
         torchinfo.summary(model["m_flow"], input_size=m_input_size, depth=5)
 

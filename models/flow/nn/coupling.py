@@ -1,12 +1,94 @@
 from typing import Optional, Tuple
 
+import einops
+import numpy as np
 import torch
-import torch.nn
+import torch.nn.functional as F
 
+from .. import nets as nets
 from . import FlowTransform
 
 
-class AffineCoupling(FlowTransform):
+class CouplingTransform(FlowTransform):
+    """
+    A base class for coupling layers. Supports 2D inputs (NxD), as well as 4D inputs for
+    images (NxCxHxW). Images are split on the channel dimension, using the provided 1D mask.
+
+    """
+
+    def __init__(
+        self,
+        i_channels: torch.Tensor,
+        t_channels: torch.Tensor,
+        coupling_net: torch.nn.Module,
+    ) -> None:
+
+        super().__init__()
+
+        self.i_channels = i_channels
+        self.t_channels = t_channels
+        self.coupling_net = coupling_net
+
+    def _cforward(
+        self,
+        xT: torch.Tensor,
+        params: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass of the coupling transform."""
+        raise NotImplementedError()
+
+    def _cinverse(
+        self,
+        zT: torch.Tensor,
+        params: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Inverse of the coupling transform."""
+        raise NotImplementedError()
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        assert x.dim() in [2, 4], "Inputs must be a 2D or a 4D tensor."
+
+        xI = x[:, self.i_channels, ...]
+        xT = x[:, self.t_channels, ...]
+
+        params = self.coupling_net(xI, c)
+        zI = xI
+        zT, logabsdet = self._cforward(xT, params)
+
+        z = torch.empty_like(x)
+        z[:, self.i_channels, ...] = zI
+        z[:, self.t_channels, ...] = zT
+
+        return z, logabsdet
+
+    def inverse(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        assert z.dim() in [2, 4], "Inputs must be a 2D or a 4D tensor."
+
+        zI = z[:, self.i_channels, ...]
+        zT = z[:, self.t_channels, ...]
+
+        xI = zI
+        params = self.coupling_net(xI, c)
+        xT, logabsdet = self._cinverse(zT, params)
+
+        x = torch.empty_like(z)
+        x[:, self.i_channels, ...] = xI
+        x[:, self.t_channels, ...] = xT
+
+        return x, logabsdet
+
+
+class AffineCoupling(CouplingTransform):
     """
     (p1) ---------------(p1)
              ↓     ↓
@@ -17,108 +99,340 @@ class AffineCoupling(FlowTransform):
 
     def __init__(
         self,
-        coupling_network: torch.nn.Module,
+        i_channels: torch.Tensor,
+        t_channels: torch.Tensor,
+        num_layers: int,
     ) -> None:
 
-        super().__init__()
+        nI = len(i_channels)
+        nT = len(t_channels)
+        assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
 
-        self.coupling_network = coupling_network
+        coupling_net = nets.Conv2DResNet(
+            num_layers=num_layers,
+            in_channels=nI,
+            out_channels=nT * 2,
+        )
 
-    def forward(
+        super().__init__(
+            i_channels=i_channels,
+            t_channels=t_channels,
+            coupling_net=coupling_net,
+        )
+
+        self.nI = nI
+        self.nT = nT
+
+    def _cforward(
         self,
-        x: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
+        xT: torch.Tensor,
+        params: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass of the coupling transform."""
 
-        # coupling
-        p1, p2 = torch.chunk(x, 2, dim=1)
-        st = self.coupling_network(p1)
-        s, t = torch.chunk(st, 2, dim=1)
-        p2 = p2 * torch.exp(s) + t
-        z = torch.concat((p1, p2), dim=1)
+        s, t = torch.chunk(params, 2, dim=1)
+        zT = xT * torch.exp(s) + t
         logabsdet = s.sum([1, 2, 3])
 
-        return z, logabsdet
+        return zT, logabsdet
 
-    def inverse(
+    def _cinverse(
         self,
-        z: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
+        zT: torch.Tensor,
+        params: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Inverse of the coupling transform."""
 
-        # inverse coupling
-        p1, p2 = torch.chunk(z, 2, dim=1)
-        st = self.coupling_network(p1)
-        s, t = torch.chunk(st, 2, dim=1)
-        p2 = (p2 - t) * torch.exp(-s)
-        x = torch.cat((p1, p2), dim=1)
-        logabsdet = s.sum([1, 2, 3])
+        s, t = torch.chunk(params, 2, dim=1)
+        xT = (zT - t) * torch.exp(-s)
+        logabsdet = -s.sum([1, 2, 3])
 
-        return x, -logabsdet
+        return xT, logabsdet
 
 
-class CouplingNetwork(torch.nn.Module):
+class RQSCoupling(CouplingTransform):
+    """
+    (p1) ---------------(p1)
+                ↓
+            ([w,h,d])        <- piecewise RQS functions
+                ↓
+    (p2) ------[x]------(p2)
+    """
+
     def __init__(
         self,
-        num_channels: int,
-        num_blocks: int,
-        num_params: int = 2,
-    ):
-        """
+        i_channels: torch.Tensor,
+        t_channels: torch.Tensor,
+        num_bins: int = 10,
+        bound: float = 1.0,
+        min_bin_width: float = 1e-3,
+        min_bin_height: float = 1e-3,
+        min_derivative: float = 1e-3,
+    ) -> None:
 
-        :param num_channels: channel size of conv2d layers
-        :param num_blocks: Number of conv2d blocks
-        :param num_params: Parameters to return (default: 2)
-        """
-        super().__init__()
+        nI = len(i_channels)
+        nT = len(t_channels)
+        assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
 
-        assert num_blocks >= 1
+        nW = num_bins
+        nH = num_bins
+        nD = num_bins - 1
 
-        self.num_params = num_params
-        self.num_blocks = num_blocks
-        self.num_channels = num_channels
+        coupling_net = nets.Conv2DResNet(
+            num_layers=1,
+            in_channels=nI,
+            out_channels=nT * (nW + nH + nD),
+        )
 
-        self.w = torch.nn.ParameterList()
-        self.b = torch.nn.ParameterList()
+        super().__init__(
+            i_channels=i_channels,
+            t_channels=t_channels,
+            coupling_net=coupling_net,
+        )
 
-        kH = kW = 3
-        c = num_channels
-        p = num_params
+        self.nI = nI
+        self.nT = nT
 
-        self.w.append(torch.nn.Parameter(torch.randn(c * p, c, kH, kW)))
-        self.b.append(torch.nn.Parameter(torch.randn(c * p)))
+        self.nW = nW
+        self.nH = nH
+        self.nD = nD
 
-        for _ in range(1, self.num_blocks):
-            self.w.append(torch.nn.Parameter(torch.randn(c * p, c * p, kH, kW)))
-            self.b.append(torch.nn.Parameter(torch.randn(c * p)))
+        self.num_bins = num_bins
+        self.bound = bound
+        self.min_bin_width = min_bin_width
+        self.min_bin_height = min_bin_height
+        self.min_derivative = min_derivative
 
-    def forward(
-        self,
-        x: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
+    @staticmethod
+    def searchsorted(
+        bin_locations: torch.Tensor,
+        inputs: torch.Tensor,
+        eps: float = 1e-6,
     ) -> torch.Tensor:
 
-        st = x
-        for i in range(self.num_blocks):
-            w, b = self.w[i], self.b[i]
-            st = torch.nn.functional.conv2d(
-                input=st,
-                weight=w,
-                bias=b,
-                padding=1,
-            )
-            st = torch.tanh(st)
-        return st
+        bin_locations[..., -1] += eps
+        return torch.sum(inputs[..., None] >= bin_locations, dim=1) - 1
 
-
-class RQSCoupling(FlowTransform):
-    def __init__(
+    def _cforward(
         self,
-        mask: torch.Tensor,
-        transform: torch.nn.Module,
-        num_bins: int,
-        tail_bound: float,
-        tails: str = "linear",
-    ) -> None:
+        xT: torch.Tensor,
+        params: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        super().__init__()
+        return self._spline(xT, params, inverse=False)
+
+    def _cinverse(
+        self,
+        zT: torch.Tensor,
+        params: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        return self._spline(zT, params, inverse=True)
+
+    def _spline(
+        self,
+        data: torch.Tensor,
+        params: torch.Tensor,
+        inverse: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        # rearrange params
+        params = einops.rearrange(
+            params,
+            "B (C P) H W -> B C H W P",
+            C=data.size(1),
+            P=self.nH + self.nW + self.nD,
+        )
+        assert (
+            data.size() == params.size()[:-1]
+        ), "incompatible shapes for data and params!"
+
+        unbound_h, unbound_w, unbound_d = einops.unpack(
+            tensor=params,
+            packed_shapes=[
+                [self.nH],
+                [self.nW],
+                [self.nD],
+            ],
+            pattern="B C H W *",
+        )
+
+        outputs, logabsdet = self._unbound_rqs(
+            data=data,
+            unbound_h=unbound_h,
+            unbound_w=unbound_w,
+            unbound_d=unbound_d,
+            inverse=inverse,
+        )
+        logabsdet = einops.reduce(logabsdet, "b ... -> b", reduction="sum")
+
+        assert (
+            data.size() == outputs.size()
+        ), "incompatible shapes for input and output!"
+
+        return outputs, logabsdet
+
+    def _unbound_rqs(
+        self,
+        data: torch.Tensor,
+        unbound_h: torch.Tensor,
+        unbound_w: torch.Tensor,
+        unbound_d: torch.Tensor,
+        inverse: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        bound = self.bound
+        within_bound = (data >= -bound) & (data <= bound)
+        out_of_bound = ~within_bound
+
+        outputs = torch.zeros_like(data)
+        logabsdet = torch.zeros_like(data)
+
+        # constant-pad the derivative for out-of-bound
+        const = np.log(np.exp(1 - self.min_derivative) - 1)
+        unbound_d = F.pad(unbound_d, pad=(1, 1), value=const)
+
+        # apply rqs for within_bound data
+        if torch.any(within_bound):
+            bound_data = data[within_bound]
+            bound_h = unbound_h[within_bound, :]
+            bound_w = unbound_w[within_bound, :]
+            bound_d = unbound_d[within_bound, :]
+            left, right, bottom, top = -bound, bound, -bound, bound
+            kwargs = {
+                "data": bound_data,
+                "h": bound_h,
+                "w": bound_w,
+                "d": bound_d,
+                "inverse": inverse,
+                "left": left,
+                "right": right,
+                "bottom": bottom,
+                "top": top,
+            }
+            outputs_within_bound, logabsdet_within_bound = self._bound_rqs(**kwargs)
+            outputs[within_bound] = outputs_within_bound
+            logabsdet[within_bound] = logabsdet_within_bound
+
+        # identity-map out_of_bound data
+        if torch.any(out_of_bound):
+            outputs[out_of_bound] = data[out_of_bound]
+            logabsdet[out_of_bound] = 0
+
+        return outputs, logabsdet
+
+    def _bound_rqs(
+        self,
+        data: torch.Tensor,
+        h: torch.Tensor,
+        w: torch.Tensor,
+        d: torch.Tensor,
+        inverse: bool = False,
+        left: float = 0.0,
+        right: float = 1.0,
+        bottom: float = 0.0,
+        top: float = 1.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        within_bound = data.min() >= left and data.max() <= right
+        assert within_bound, f"Inputs outside domain! [{left},{right}]"
+
+        num_bins = w.shape[-1]
+
+        if self.min_bin_width * num_bins > 1.0:
+            raise ValueError("min_bin_width too large for the number of bins")
+        if self.min_bin_height * num_bins > 1.0:
+            raise ValueError("min_bin_height too large for the number of bins")
+
+        # scale down the variance
+        h /= np.sqrt(self.nI)
+        w /= np.sqrt(self.nI)
+
+        heights = F.softmax(h, dim=1)
+        heights = self.min_bin_height + (1 - self.min_bin_height * num_bins) * heights
+        cumheights = torch.cumsum(heights, dim=1)
+        cumheights = F.pad(cumheights, pad=(1, 0), mode="constant", value=0.0)
+        cumheights = (top - bottom) * cumheights + bottom
+        cumheights[..., 0] = bottom
+        cumheights[..., -1] = top
+        heights = cumheights[..., 1:] - cumheights[..., :-1]
+
+        widths = F.softmax(w, dim=1)
+        widths = self.min_bin_width + (1 - self.min_bin_width * num_bins) * widths
+        cumwidths = torch.cumsum(widths, dim=1)
+        cumwidths = F.pad(cumwidths, pad=(1, 0), mode="constant", value=0.0)
+        cumwidths = (right - left) * cumwidths + left
+        cumwidths[..., 0] = left
+        cumwidths[..., -1] = right
+        widths = cumwidths[..., 1:] - cumwidths[..., :-1]
+
+        derivs = self.min_derivative + F.softplus(d)
+
+        if inverse:
+            bin_idx = self.searchsorted(cumheights, data)[..., None]
+        else:
+            bin_idx = self.searchsorted(cumwidths, data)[..., None]
+
+        input_cumwidths = cumwidths.gather(1, bin_idx)[..., 0]
+        input_bin_widths = widths.gather(1, bin_idx)[..., 0]
+
+        input_cumheights = cumheights.gather(1, bin_idx)[..., 0]
+        delta = heights / widths
+        input_delta = delta.gather(1, bin_idx)[..., 0]
+
+        input_derivs = derivs.gather(1, bin_idx)[..., 0]
+        input_derivs_plus_one = derivs[..., 1:].gather(1, bin_idx)[..., 0]
+
+        input_heights = heights.gather(1, bin_idx)[..., 0]
+
+        if inverse:
+            a = (data - input_cumheights) * (
+                input_derivs + input_derivs_plus_one - 2 * input_delta
+            ) + input_heights * (input_delta - input_derivs)
+            b = input_heights * input_derivs - (data - input_cumheights) * (
+                input_derivs + input_derivs_plus_one - 2 * input_delta
+            )
+            c = -input_delta * (data - input_cumheights)
+
+            discriminant = b.pow(2) - 4 * a * c
+            assert (discriminant >= 0).all()
+
+            root = (2 * c) / (-b - torch.sqrt(discriminant))
+            # root = (- b + torch.sqrt(discriminant)) / (2 * a)
+            outputs = root * input_bin_widths + input_cumwidths
+
+            theta_one_minus_theta = root * (1 - root)
+            denominator = input_delta + (
+                (input_derivs + input_derivs_plus_one - 2 * input_delta)
+                * theta_one_minus_theta
+            )
+            derivative_numerator = input_delta.pow(2) * (
+                input_derivs_plus_one * root.pow(2)
+                + 2 * input_delta * theta_one_minus_theta
+                + input_derivs * (1 - root).pow(2)
+            )
+            logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
+
+            return outputs, -logabsdet
+
+        else:
+            theta = (data - input_cumwidths) / input_bin_widths
+            theta_one_minus_theta = theta * (1 - theta)
+
+            numerator = input_heights * (
+                input_delta * theta.pow(2) + input_derivs * theta_one_minus_theta
+            )
+            denominator = input_delta + (
+                (input_derivs + input_derivs_plus_one - 2 * input_delta)
+                * theta_one_minus_theta
+            )
+            outputs = input_cumheights + numerator / denominator
+
+            derivative_numerator = input_delta.pow(2) * (
+                input_derivs_plus_one * theta.pow(2)
+                + 2 * input_delta * theta_one_minus_theta
+                + input_derivs * (1 - theta).pow(2)
+            )
+            logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
+
+            return outputs, logabsdet

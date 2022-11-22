@@ -235,3 +235,61 @@ class ConvResNet(nn.Module):
             temps = block(temps, context)
         outputs = self.final_layer(temps)
         return outputs
+
+
+class Conv2DResNet(nn.Module):
+    def __init__(
+        self,
+        num_layers: int,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 3,
+    ):
+        """
+
+        :param num_layers: number of conv2d layers
+        :param in_channels: number of input channels
+        :param out_channels: number of output channels
+        :param kernel_size: kernel height and width
+        """
+        super().__init__()
+
+        assert num_layers >= 1
+
+        self.num_layers = num_layers
+
+        self.w = nn.ParameterList()
+        self.b = nn.ParameterList()
+
+        kH = kW = kernel_size
+        c_in = in_channels
+        c_out = out_channels
+
+        self.w.append(nn.Parameter(torch.randn(c_out, c_in, kH, kW)))
+        self.b.append(nn.Parameter(torch.randn(c_out)))
+
+        for _ in range(1, self.num_layers):
+            self.w.append(nn.Parameter(torch.randn(c_out, c_out, kH, kW)))
+            self.b.append(nn.Parameter(torch.randn(c_out)))
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+
+        st = x
+        for i in range(self.num_layers):
+            w, b = self.w[i], self.b[i]
+            st_res = nn.functional.conv2d(
+                input=st,
+                weight=w,
+                bias=b,
+                padding="same",
+            )
+            if i == 0:
+                st = torch.tanh(st_res)
+            else:
+                st = torch.tanh(st_res + st)
+
+        return st

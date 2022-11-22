@@ -7,23 +7,50 @@ from config import Config
 
 from . import flow
 from .common import gather_samples, gen_epoch_acc, set_requires_grad
+from .flow.util import decode_mask
 
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
 
-    # network configuration
+    # ambient (x) flow configuration
     k0, k1, k2, k3 = 2, 2, 2, 2
     c0, h0, w0 = config.image_chw
     c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
     c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
     c3, h3, w3 = c2 * k2 * k2, h2 // k2, w2 // k2
     c4, h4, w4 = c3 * k3 * k3, h3 // k3, w3 // k3
-    cm = config.manifold_c
-    cms = cm // 2
-    blocks = 2
 
+    # manifold (m) flow configuration
+    cm = config.manifold_c
+    num_conv_layers = 2
+    num_bins = 10
+
+    channel_mask = torch.zeros(cm).bool()
+    channel_mask[::2] = True
+    i_channels, t_channels = decode_mask(channel_mask)
+
+    affine_coupling_args_A = {
+        "i_channels": i_channels,
+        "t_channels": t_channels,
+        "num_layers": num_conv_layers,
+    }
+    affine_coupling_args_B = {
+        "i_channels": t_channels,
+        "t_channels": i_channels,
+        "num_layers": num_conv_layers,
+    }
+    rqs_coupling_args_A = {
+        "i_channels": i_channels,
+        "t_channels": t_channels,
+        "num_bins": num_bins,
+    }
+    rqs_coupling_args_B = {
+        "i_channels": t_channels,
+        "t_channels": i_channels,
+        "num_bins": num_bins,
+    }
     model = torch.nn.ModuleDict(
         {
             # MNIST: (1, 32, 32) -> (4, 16, 16) -> (16, 8, 8) -> (64, 4, 4) -> (256, 2, 2)
@@ -46,14 +73,33 @@ def load_model_and_optimizer(
                 flow.nn.ConformalActNorm(c4),
             ),
             # MNIST: (cm, 2, 2) -> (cm, 2, 2)
+            # affine coupling flow
+            # "m_flow": flow.Compose(
+            #     flow.nn.AffineCoupling(**affine_coupling_args_A),
+            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ActNorm(cm),
+            #     flow.nn.AffineCoupling(**affine_coupling_args_B),
+            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ActNorm(cm),
+            #     flow.nn.AffineCoupling(**affine_coupling_args_A),
+            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ActNorm(cm),
+            #     flow.nn.AffineCoupling(**affine_coupling_args_B),
+            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ActNorm(cm),
+            # ),
+            # rqs coupling flow
             "m_flow": flow.Compose(
-                flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
+                flow.nn.RQSCoupling(**rqs_coupling_args_A),
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
-                flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
+                flow.nn.RQSCoupling(**rqs_coupling_args_B),
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
-                flow.nn.AffineCoupling(flow.nn.CouplingNetwork(cms, blocks)),
+                flow.nn.RQSCoupling(**rqs_coupling_args_A),
+                flow.nn.Conv2D_1x1(cm),
+                flow.nn.ActNorm(cm),
+                flow.nn.RQSCoupling(**rqs_coupling_args_B),
                 flow.nn.Conv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
             ),

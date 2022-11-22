@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 
 from . import FlowTransform
@@ -72,3 +74,18 @@ def pad(
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def decode_mask(
+    channel_mask: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    
+    assert channel_mask.dim() == 1, "Mask must be a 1D tensor."
+    assert channel_mask.numel() > 0, "Mask cannot be empty."
+
+    indices = torch.arange(len(channel_mask))
+    i_channels = indices[~channel_mask]
+    t_channels = indices[channel_mask]
+
+    return i_channels, t_channels
+
