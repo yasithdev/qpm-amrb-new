@@ -76,31 +76,31 @@ def load_model_and_optimizer(
             # affine coupling flow
             # "m_flow": flow.Compose(
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ConformalConv2D_1x1(cm),
             #     flow.nn.ActNorm(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ConformalConv2D_1x1(cm),
             #     flow.nn.ActNorm(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ConformalConv2D_1x1(cm),
             #     flow.nn.ActNorm(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            #     flow.nn.Conv2D_1x1(cm),
+            #     flow.nn.ConformalConv2D_1x1(cm),
             #     flow.nn.ActNorm(cm),
             # ),
             # rqs coupling flow
             "m_flow": flow.Compose(
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.Conv2D_1x1(cm),
+                flow.nn.ConformalConv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.Conv2D_1x1(cm),
+                flow.nn.ConformalConv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.Conv2D_1x1(cm),
+                flow.nn.ConformalConv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.Conv2D_1x1(cm),
+                flow.nn.ConformalConv2D_1x1(cm),
                 flow.nn.ActNorm(cm),
             ),
             "dist": flow.distributions.StandardNormal(cm, h4, w4),
@@ -176,7 +176,7 @@ def train_model(
 
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             abs_nll_loss = torch.abs(-torch.mean(log_px))
-            w = 0.8
+            w = 0.999
             minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # backward pass
@@ -267,7 +267,7 @@ def test_model(
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             abs_nll_loss = torch.abs(-torch.mean(log_px))
-            w = 0.8
+            w = 0.999
             minibatch_loss = w * reconstruction_loss + (1 - w) * abs_nll_loss
 
             # accumulate sum loss
