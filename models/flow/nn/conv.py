@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 from . import FlowTransform
 
@@ -26,10 +28,9 @@ class Conv2D_1x1(FlowTransform):
 
         super().__init__()
 
-        self.num_channels = num_channels
-        w_init = np.random.randn(self.num_channels, self.num_channels)
+        w_init = np.random.randn(num_channels, num_channels)
         w_init = np.linalg.qr(w_init)[0].astype(np.float32)
-        self.weight = torch.nn.Parameter(torch.from_numpy(w_init))
+        self.weight = nn.Parameter(torch.from_numpy(w_init))
 
     def forward(
         self,
@@ -37,12 +38,13 @@ class Conv2D_1x1(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        # convolution
-        shape = (self.num_channels, self.num_channels, 1, 1)
-        weight = self.weight.view(shape)
-        z = torch.nn.functional.conv2d(x, weight)
+        B, C, H, W = x.size()
 
-        logabsdet = torch.slogdet(self.weight)[1] * x.size(2) * x.size(3)
+        # convolution
+        shape = (C, C, 1, 1)
+        weight = self.weight
+        z = F.conv2d(x, weight.view(shape))
+        logabsdet = x.new_ones(B) * torch.slogdet(weight)[1] * H * W
 
         return z, logabsdet
 
@@ -52,11 +54,12 @@ class Conv2D_1x1(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
+        B, C, H, W = z.size()
+
         # inverse convolution
-        shape = (self.num_channels, self.num_channels, 1, 1)
-        weight = torch.inverse(self.weight.double()).float().view(shape)
-        x = torch.nn.functional.conv2d(z, weight)
+        shape = (C, C, 1, 1)
+        weight_inv = torch.inverse(self.weight.double()).float()
+        x = F.conv2d(z, weight_inv.view(shape))
+        logabsdet = z.new_ones(B) * torch.slogdet(weight_inv)[1] * H * W
 
-        logabsdet = torch.slogdet(self.weight)[1] * z.size(2) * z.size(3)
-
-        return x, -logabsdet
+        return x, logabsdet

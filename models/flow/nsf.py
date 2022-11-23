@@ -1,14 +1,13 @@
 """Implementations of Neural Spline Flows."""
 
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
-from torch.nn import functional as F
 
 from . import Compose, ComposeMultiScale, Flow
 from .distributions import Distribution, StandardNormal
-from .nets import ConvResNet, ResNet
-from .nn import Conv2D_1x1, LULinear, RQSCoupling, Squeeze
+from .nn import ConformalConv2D_1x1, RQSCoupling, Squeeze
+from .util import decode_mask
 
 
 class SimpleNSF2D(Flow):
@@ -21,28 +20,12 @@ class SimpleNSF2D(Flow):
     def __init__(
         self,
         input_shape: Tuple[int, ...],
-        hidden_features: int,
         num_layers: int,
-        num_blocks: int,
-        base_distribution: Optional[Distribution] = None,
+        base_dist: Optional[Distribution] = None,
         include_linear: bool = True,
-        num_bins: int = 11,
-        tail_bound: int = 10,
-        activation: Callable = F.relu,
-        dropout_probability: float = 0.0,
-        batch_norm_within_layers: bool = False,
+        num_bins: int = 10,
+        bound: int = 2,
     ) -> None:
-
-        if base_distribution is None:
-            base_distribution = StandardNormal(*input_shape)
-
-        kwargs = {
-            "hidden_features": hidden_features,
-            "num_blocks": num_blocks,
-            "activation": activation,
-            "dropout_probability": dropout_probability,
-            "use_batch_norm": batch_norm_within_layers,
-        }
 
         transforms = []
         C, H, W = input_shape
@@ -50,27 +33,30 @@ class SimpleNSF2D(Flow):
         transforms.append(Squeeze(factor=2))
         C, H, W = C * 4, H // 2, W // 2
 
-        mask = torch.ones(input_shape)
-        mask[::2] = -1
+        mask = torch.zeros(C).bool()
+        mask[::2] = True
 
         for _ in range(num_layers):
 
+            i_channels, t_channels = decode_mask(mask)
             transforms.append(
                 RQSCoupling(
-                    mask=mask,
-                    transform=ResNet(in_features=C, out_features=C, **kwargs),
+                    i_channels=i_channels,
+                    t_channels=t_channels,
                     num_bins=num_bins,
-                    tail_bound=tail_bound,
-                    tails="linear",
+                    bound=bound,
                 )
             )
-            mask *= -1
+            mask = ~mask
 
             if include_linear:
-                transforms.append(LULinear(C))
+                transforms.append(ConformalConv2D_1x1(C))
+
+        if base_dist is None:
+            base_dist = StandardNormal(C, H, W)
 
         super().__init__(
-            base_dist=base_distribution,
+            base_dist=base_dist,
             transform=Compose(*transforms),
         )
 
@@ -85,32 +71,16 @@ class MultiScaleNSF2D(Flow):
     def __init__(
         self,
         num_levels: int,
-        # common
         input_shape: Tuple[int, ...],
-        hidden_features: int,
         num_layers: int,
-        num_blocks: int,
-        base_distribution: Optional[Distribution] = None,
+        base_dist: Optional[Distribution] = None,
+        # common
         include_linear: bool = True,
-        num_bins: int = 11,
-        tail_bound: float = 10,
-        activation: Callable = F.relu,
-        dropout_probability: float = 0.0,
-        batch_norm_within_layers: bool = False,
+        num_bins: int = 10,
+        bound: float = 2,
     ) -> None:
 
         assert num_levels > 0, "You need at least one level!"
-
-        if base_distribution is None:
-            base_distribution = StandardNormal(*input_shape)
-
-        kwargs = {
-            "hidden_channels": hidden_features,
-            "num_blocks": num_blocks,
-            "activation": activation,
-            "dropout_probability": dropout_probability,
-            "use_batch_norm": batch_norm_within_layers,
-        }
 
         transforms = []
         C, H, W = input_shape
@@ -122,29 +92,31 @@ class MultiScaleNSF2D(Flow):
             level_transforms.append(Squeeze(factor=2))
             C, H, W = C * 4, H // 2, W // 2
 
-            mask = torch.ones(C)
-            mask[::2] = -1
+            mask = torch.zeros(C).bool()
+            mask[::2] = True
 
             for _ in range(num_layers):
 
+                i_channels, t_channels = decode_mask(mask)
                 level_transforms.append(
                     RQSCoupling(
-                        mask=mask,
-                        transform=ConvResNet(in_channels=C, out_channels=C, **kwargs),
+                        i_channels=i_channels,
+                        t_channels=t_channels,
                         num_bins=num_bins,
-                        tail_bound=tail_bound,
-                        tails="linear",
+                        bound=bound,
                     )
                 )
-                mask *= -1
+                mask = ~mask
 
                 if include_linear:
-                    linear_transform = Conv2D_1x1(C)
-                    level_transforms.append(linear_transform)
+                    level_transforms.append(ConformalConv2D_1x1(C))
 
             transforms.append(Compose(*level_transforms))
 
+        if base_dist is None:
+            base_dist = StandardNormal(C, H, W)
+
         super().__init__(
-            base_dist=base_distribution,
+            base_dist=base_dist,
             transform=ComposeMultiScale(*transforms),
         )

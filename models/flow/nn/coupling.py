@@ -1,8 +1,10 @@
+from abc import abstractmethod
 from typing import Optional, Tuple
 
 import einops
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 from .. import nets as nets
@@ -20,7 +22,7 @@ class CouplingTransform(FlowTransform):
         self,
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
-        coupling_net: torch.nn.Module,
+        coupling_net: nn.Module,
     ) -> None:
 
         super().__init__()
@@ -29,6 +31,7 @@ class CouplingTransform(FlowTransform):
         self.t_channels = t_channels
         self.coupling_net = coupling_net
 
+    @abstractmethod
     def _cforward(
         self,
         xT: torch.Tensor,
@@ -37,6 +40,7 @@ class CouplingTransform(FlowTransform):
         """Forward pass of the coupling transform."""
         raise NotImplementedError()
 
+    @abstractmethod
     def _cinverse(
         self,
         zT: torch.Tensor,
@@ -131,7 +135,7 @@ class AffineCoupling(CouplingTransform):
         """Forward pass of the coupling transform."""
 
         s, t = torch.chunk(params, 2, dim=1)
-        zT = xT * torch.exp(s) + t
+        zT = s.exp() * xT + t
         logabsdet = s.sum([1, 2, 3])
 
         return zT, logabsdet
@@ -144,7 +148,7 @@ class AffineCoupling(CouplingTransform):
         """Inverse of the coupling transform."""
 
         s, t = torch.chunk(params, 2, dim=1)
-        xT = (zT - t) * torch.exp(-s)
+        xT = (zT - t) / s.exp()
         logabsdet = -s.sum([1, 2, 3])
 
         return xT, logabsdet
@@ -164,7 +168,7 @@ class RQSCoupling(CouplingTransform):
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_bins: int = 10,
-        bound: float = 1.0,
+        bound: float = 2.0,
         min_bin_width: float = 1e-3,
         min_bin_height: float = 1e-3,
         min_derivative: float = 1e-3,
@@ -281,8 +285,9 @@ class RQSCoupling(CouplingTransform):
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        bound = self.bound
-        within_bound = (data >= -bound) & (data <= bound)
+        lo = -self.bound
+        hi = self.bound
+        within_bound = (data >= lo) & (data <= hi)
         out_of_bound = ~within_bound
 
         outputs = torch.zeros_like(data)
@@ -298,26 +303,18 @@ class RQSCoupling(CouplingTransform):
             bound_h = unbound_h[within_bound, :]
             bound_w = unbound_w[within_bound, :]
             bound_d = unbound_d[within_bound, :]
-            left, right, bottom, top = -bound, bound, -bound, bound
             kwargs = {
                 "data": bound_data,
                 "h": bound_h,
                 "w": bound_w,
                 "d": bound_d,
                 "inverse": inverse,
-                "left": left,
-                "right": right,
-                "bottom": bottom,
-                "top": top,
             }
-            outputs_within_bound, logabsdet_within_bound = self._bound_rqs(**kwargs)
-            outputs[within_bound] = outputs_within_bound
-            logabsdet[within_bound] = logabsdet_within_bound
+            outputs[within_bound], logabsdet[within_bound] = self._bound_rqs(**kwargs)
 
         # identity-map out_of_bound data
         if torch.any(out_of_bound):
             outputs[out_of_bound] = data[out_of_bound]
-            logabsdet[out_of_bound] = 0
 
         return outputs, logabsdet
 
@@ -328,20 +325,22 @@ class RQSCoupling(CouplingTransform):
         w: torch.Tensor,
         d: torch.Tensor,
         inverse: bool = False,
-        left: float = 0.0,
-        right: float = 1.0,
-        bottom: float = 0.0,
-        top: float = 1.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        within_bound = data.min() >= left and data.max() <= right
-        assert within_bound, f"Inputs outside domain! [{left},{right}]"
+        assert w.shape[-1] == self.num_bins
 
-        num_bins = w.shape[-1]
+        lo = -self.bound
+        hi = self.bound
 
-        if self.min_bin_width * num_bins > 1.0:
+        within_bound = data.min() >= lo and data.max() <= hi
+        assert within_bound, f"Inputs outside domain! [{lo},{hi}]"
+
+        left = bottom = lo
+        right = top = hi
+
+        if self.min_bin_width * self.num_bins > 1.0:
             raise ValueError("min_bin_width too large for the number of bins")
-        if self.min_bin_height * num_bins > 1.0:
+        if self.min_bin_height * self.num_bins > 1.0:
             raise ValueError("min_bin_height too large for the number of bins")
 
         # scale down the variance
@@ -349,19 +348,21 @@ class RQSCoupling(CouplingTransform):
         w /= np.sqrt(self.nI)
 
         heights = F.softmax(h, dim=1)
-        heights = self.min_bin_height + (1 - self.min_bin_height * num_bins) * heights
+        heights = self.min_bin_height + (1 - self.min_bin_height * self.num_bins) * heights
         cumheights = torch.cumsum(heights, dim=1)
         cumheights = F.pad(cumheights, pad=(1, 0), mode="constant", value=0.0)
         cumheights = (top - bottom) * cumheights + bottom
+        # rounding to prevent errors
         cumheights[..., 0] = bottom
         cumheights[..., -1] = top
         heights = cumheights[..., 1:] - cumheights[..., :-1]
 
         widths = F.softmax(w, dim=1)
-        widths = self.min_bin_width + (1 - self.min_bin_width * num_bins) * widths
+        widths = self.min_bin_width + (1 - self.min_bin_width * self.num_bins) * widths
         cumwidths = torch.cumsum(widths, dim=1)
         cumwidths = F.pad(cumwidths, pad=(1, 0), mode="constant", value=0.0)
         cumwidths = (right - left) * cumwidths + left
+        # rounding to prevent errors
         cumwidths[..., 0] = left
         cumwidths[..., -1] = right
         widths = cumwidths[..., 1:] - cumwidths[..., :-1]

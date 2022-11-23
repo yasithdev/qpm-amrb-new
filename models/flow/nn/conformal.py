@@ -3,6 +3,8 @@ from typing import Optional, Tuple, Union
 import einops
 import geotorch
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 from . import FlowTransform
 
@@ -10,7 +12,7 @@ from . import FlowTransform
 class ConformalActNorm(FlowTransform):
 
     """
-    Flow component of the type x |-> a*x + b, where a is a scalar.
+    Flow component of the type $x |-> a*x + b$, where a is a *scalar*.
     This is a conformal version of ActNorm, wherein a can be a vector.
 
     """
@@ -23,12 +25,8 @@ class ConformalActNorm(FlowTransform):
         super().__init__()
 
         self.register_buffer("initialized", torch.tensor(False, dtype=torch.bool))
-        self.log_scale = torch.nn.Parameter(torch.tensor(0.0))
-        self.shift = torch.nn.Parameter(torch.zeros(features))
-
-    @property
-    def scale(self) -> torch.Tensor:
-        return torch.exp(self.log_scale)
+        self.log_scale = nn.Parameter(torch.tensor(0.0))
+        self.shift = nn.Parameter(torch.zeros(features))
 
     def forward(
         self,
@@ -42,17 +40,19 @@ class ConformalActNorm(FlowTransform):
         if self.training and not self.initialized:
             self._initialize(x)
 
-        scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        output = scale * x + shift
+        scale, shift = self.log_scale.exp().view(view_shape), self.shift.view(
+            view_shape
+        )
+        z = scale * x + shift
 
         if x.dim() == 4:
             B, C, H, W = x.size()
-            logabsdet = C * H * W * self.log_scale.sum() * output.new_ones(B)
+            logabsdet = x.new_ones(B) * self.log_scale.sum() * C * H * W
         else:
             B, C = x.size()
-            logabsdet = C * self.log_scale.sum() * output.new_ones(B)
+            logabsdet = x.new_ones(B) * self.log_scale.sum() * C
 
-        return output, logabsdet
+        return z, logabsdet
 
     def inverse(
         self,
@@ -63,17 +63,19 @@ class ConformalActNorm(FlowTransform):
         assert z.dim() in [2, 4]
         view_shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
-        scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        output = (z - shift) / scale
+        scale, shift = self.log_scale.exp().view(view_shape), self.shift.view(
+            view_shape
+        )
+        x = (z - shift) / scale
 
         if z.dim() == 4:
             B, C, H, W = z.size()
-            logabsdet = C * H * W * self.log_scale.sum() * output.new_ones(B)
+            logabsdet = z.new_ones(B) * -self.log_scale.sum() * C * H * W
         else:
             B, C = z.size()
-            logabsdet = C * self.log_scale.sum() * output.new_ones(B)
+            logabsdet = z.new_ones(B) * -self.log_scale.sum() * C
 
-        return output, -logabsdet
+        return x, logabsdet
 
     def _initialize(
         self,
@@ -90,8 +92,8 @@ class ConformalActNorm(FlowTransform):
             inputs = einops.rearrange(inputs, "b c h w -> (b h w) c")
 
         with torch.no_grad():
-            std = inputs.std(dim=0).mean()
-            mu = (inputs / std).mean(dim=0)
+            std = inputs.std(dim=0).mean()  # scalar
+            mu = (inputs / std).mean(dim=0)  # vactor
             self.log_scale.data = -torch.log(std)
             self.shift.data = -mu
             self.initialized.data = torch.tensor(True, dtype=torch.bool)
@@ -123,8 +125,12 @@ class ConformalConv2D_1x1(FlowTransform):
         w_size = (self.num_channels, self.num_channels)
 
         # orthogonal constrained kernel
-        self.weight = torch.nn.Parameter(torch.Tensor(*w_size))
-        geotorch.orthogonal(self, "weight")
+        self._weight = nn.Parameter(torch.Tensor(*w_size))
+        geotorch.orthogonal(self, "_weight")
+
+    @property
+    def weight(self) -> torch.Tensor:
+        return einops.rearrange(self._weight, "cO cI -> cO cI 1 1")
 
     def forward(
         self,
@@ -133,11 +139,9 @@ class ConformalConv2D_1x1(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # convolution
-        z = torch.nn.functional.conv2d(
-            input=x, weight=einops.rearrange(self.weight, "cO cI -> cO cI 1 1")
-        )
-
-        logabsdet = x.new_zeros(x.size(0))
+        B = x.size(0)
+        z = F.conv2d(input=x, weight=self.weight)
+        logabsdet = x.new_zeros(B)
 
         return z, logabsdet
 
@@ -148,19 +152,18 @@ class ConformalConv2D_1x1(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # transpose convolution
-        x = torch.nn.functional.conv_transpose2d(
-            input=z, weight=einops.rearrange(self.weight, "cO cI -> cO cI 1 1")
-        )
+        B = z.size(0)
+        x = F.conv_transpose2d(input=z, weight=self.weight)
+        logabsdet = -z.new_zeros(B)
 
-        logabsdet = z.new_zeros(z.size(0))
-
-        return x, -logabsdet
+        return x, logabsdet
 
 
 class ConformalConv2D_KxK(FlowTransform):
 
     """
-    KxK convolution with a householder matrix kernel (orthogonal, symmetric, involutory)
+    KxK convolution with a householder matrix kernel
+    (orthogonal & symmetric, hence involutory)
 
     (*CHW) <-> [conv] <-> (z)
 
@@ -175,17 +178,16 @@ class ConformalConv2D_KxK(FlowTransform):
         super().__init__()
 
         k = kernel_size
-        k = k if isinstance(k, Tuple) else (k, k)
-        self.kH, self.kW = k
+        self.stride = k if isinstance(k, Tuple) else (k, k)
+        self.kH, self.kW = self.stride
         self.x_channels = x_channels
         self.z_channels = x_channels * self.kH * self.kW
-        self.matrix_size = self.z_channels
 
         # identity matrix
-        self.i = torch.nn.Parameter(torch.eye(self.matrix_size), requires_grad=False)
+        self.register_buffer("i", torch.eye(self.z_channels))
 
         # householder vector
-        self.v = torch.nn.Parameter(torch.randn(self.matrix_size, 1))
+        self.v = nn.Parameter(torch.randn(self.z_channels, 1))
 
     @property
     def filter(
@@ -207,16 +209,12 @@ class ConformalConv2D_KxK(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        assert x.size(2) % self.kH == 0
-        assert x.size(3) % self.kW == 0
+        B, C, H, W = x.size()
+        assert H % self.kH == 0
+        assert W % self.kW == 0
 
-        z = torch.nn.functional.conv2d(
-            input=x,
-            weight=self.filter,
-            stride=(self.kH, self.kW),
-        )
-
-        logabsdet = x.new_zeros(x.size(0))
+        z = F.conv2d(input=x, weight=self.filter, stride=self.stride)
+        logabsdet = x.new_zeros(B)
 
         return z, logabsdet
 
@@ -226,12 +224,9 @@ class ConformalConv2D_KxK(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        x = torch.nn.functional.conv_transpose2d(
-            input=z,
-            weight=self.filter,
-            stride=(self.kH, self.kW),
-        )
+        B, C, H, W = z.size()
 
-        logabsdet = z.new_zeros(x.size(0))
+        x = F.conv_transpose2d(input=z, weight=self.filter, stride=self.stride)
+        logabsdet = -z.new_zeros(B)
 
-        return x, -logabsdet
+        return x, logabsdet

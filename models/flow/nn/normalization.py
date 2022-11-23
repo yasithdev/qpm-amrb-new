@@ -47,16 +47,16 @@ class ActNorm(FlowTransform):
             self._initialize(x)
 
         scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        outputs = scale * x + shift
+        z = scale * x + shift
 
         if x.dim() == 4:
             B, _, H, W = x.size()
-            logabsdet = H * W * self.log_scale.sum() * outputs.new_ones(B)
+            logabsdet = x.new_ones(B) * self.log_scale.sum() * H * W
         else:
             B, _ = x.size()
-            logabsdet = self.log_scale.sum() * outputs.new_ones(B)
+            logabsdet = x.new_ones(B) * self.log_scale.sum()
 
-        return outputs, logabsdet
+        return z, logabsdet
 
     def inverse(
         self,
@@ -68,16 +68,16 @@ class ActNorm(FlowTransform):
         view_shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
-        outputs = (z - shift) / scale
+        x = (z - shift) / scale
 
         if z.dim() == 4:
             B, _, H, W = z.size()
-            logabsdet = H * W * self.log_scale.sum() * outputs.new_ones(B)
+            logabsdet = z.new_ones(B) * -self.log_scale.sum() * H * W
         else:
             B, _ = z.size()
-            logabsdet = self.log_scale.sum() * outputs.new_ones(B)
+            logabsdet = z.new_ones(B) * -self.log_scale.sum()
 
-        return outputs, -logabsdet
+        return x, logabsdet
 
     def _initialize(
         self,
@@ -94,8 +94,8 @@ class ActNorm(FlowTransform):
             inputs = einops.rearrange(inputs, "b c h w -> (b h w) c")
 
         with torch.no_grad():
-            std = inputs.std(dim=0)
-            mu = (inputs / std).mean(dim=0)
+            std = inputs.std(dim=0) # vector
+            mu = (inputs / std).mean(dim=0) # vector
             self.log_scale.data = -torch.log(std)
             self.shift.data = -mu
             self.initialized.data = torch.tensor(True, dtype=torch.bool)
