@@ -136,7 +136,7 @@ class AffineCoupling(CouplingTransform):
 
         s, t = torch.chunk(params, 2, dim=1)
         zT = s.exp() * xT + t
-        logabsdet = s.sum([1, 2, 3])
+        logabsdet = einops.reduce(s, 'B ... -> B', reduction='sum')
 
         return zT, logabsdet
 
@@ -149,7 +149,7 @@ class AffineCoupling(CouplingTransform):
 
         s, t = torch.chunk(params, 2, dim=1)
         xT = (zT - t) / s.exp()
-        logabsdet = -s.sum([1, 2, 3])
+        logabsdet = -einops.reduce(s, 'B ... -> B', reduction='sum')
 
         return xT, logabsdet
 

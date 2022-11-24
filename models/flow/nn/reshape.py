@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 import einops
 import torch
+import torch.nn.functional as F
 
 from . import FlowTransform
 
@@ -65,27 +66,43 @@ class Squeeze(FlowTransform):
 
         return x, logabsdet
 
-    def forward_shape(
+
+class Projection(FlowTransform):
+    def __init__(
         self,
-        *chw: int,
-    ) -> Tuple[int, ...]:
+        ambient_dims: int,
+        manifold_dims: int,
+    ) -> None:
 
-        C, H, W = chw
-        F = self.factor
+        super().__init__()
+        self.ambient_dims = ambient_dims
+        self.manifold_dims = manifold_dims
 
-        assert H % F == 0, f"H ({H}) not divisible by factor ({F})"
-        assert W % F == 0, f"W ({W}) not divisible by factor ({F})"
-
-        return (C * F * F, H // F, W // F)
-
-    def inverse_shape(
+    def forward(
         self,
-        *chw: int,
-    ) -> Tuple[int, ...]:
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        C, H, W = chw
-        F = self.factor
+        B = x.size(0)
 
-        assert C % (F**2) == 0, f"C ({C}) not divisible by factor^2 ({F**2})"
+        z = x.narrow(1, 0, self.manifold_dims)
+        logabsdet = x.new_zeros(B)
 
-        return (C // F // F, H * F, W * F)
+        return z, logabsdet
+
+    def inverse(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B = z.size(0)
+
+        padding_dims = self.ambient_dims - self.manifold_dims
+        padding_shape = (0, 0) * (z.dim() - 2) + (0, padding_dims)
+
+        x = F.pad(z, padding_shape)
+        logabsdet = z.new_zeros(B)
+
+        return x, logabsdet

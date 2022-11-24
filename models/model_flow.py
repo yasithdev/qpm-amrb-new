@@ -1,6 +1,7 @@
 from typing import Tuple
 
 import torch
+import torch.distributions as D
 from tqdm import tqdm
 
 from config import Config
@@ -55,53 +56,54 @@ def load_model_and_optimizer(
         {
             # MNIST: (1, 32, 32) -> (4, 16, 16) -> (16, 8, 8) -> (64, 4, 4) -> (256, 2, 2)
             "x_flow": flow.Compose(
-                flow.nn.ConformalConv2D_KxK(c0, k0),
+                flow.nn.ConformalActNorm(c0),
+                flow.nn.ConformalConv2D(c0, k0),
                 flow.nn.ConformalActNorm(c1),
-                flow.nn.ConformalConv2D_1x1(c1),
+                flow.nn.ConformalConv2D(c1, 1),
                 flow.nn.ConformalActNorm(c1),
-                flow.nn.ConformalConv2D_KxK(c1, k1),
+                flow.nn.ConformalConv2D(c1, k1),
                 flow.nn.ConformalActNorm(c2),
-                flow.nn.ConformalConv2D_1x1(c2),
+                flow.nn.ConformalConv2D(c2, 1),
                 flow.nn.ConformalActNorm(c2),
-                flow.nn.ConformalConv2D_KxK(c2, k2),
+                flow.nn.ConformalConv2D(c2, k2),
                 flow.nn.ConformalActNorm(c3),
-                flow.nn.ConformalConv2D_1x1(c3),
+                flow.nn.ConformalConv2D(c3, 1),
                 flow.nn.ConformalActNorm(c3),
-                flow.nn.ConformalConv2D_KxK(c3, k3),
+                flow.nn.ConformalConv2D(c3, k3),
                 flow.nn.ConformalActNorm(c4),
-                flow.nn.ConformalConv2D_1x1(c4),
-                flow.nn.ConformalActNorm(c4),
+                flow.nn.ConformalConv2D(c4, 1),
+                flow.nn.Projection(c4, cm),
             ),
             # MNIST: (cm, 2, 2) -> (cm, 2, 2)
             # affine coupling flow
             # "m_flow": flow.Compose(
+            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.ConformalConv2D_1x1(cm),
-            #     flow.nn.ActNorm(cm),
+            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            #     flow.nn.ConformalConv2D_1x1(cm),
-            #     flow.nn.ActNorm(cm),
+            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.ConformalConv2D_1x1(cm),
-            #     flow.nn.ActNorm(cm),
+            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            #     flow.nn.ConformalConv2D_1x1(cm),
-            #     flow.nn.ActNorm(cm),
             # ),
             # rqs coupling flow
             "m_flow": flow.Compose(
+                flow.nn.ConformalActNorm(cm),
+                flow.nn.ConformalConv2D(cm, 1),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ConformalConv2D_1x1(cm),
-                flow.nn.ActNorm(cm),
+                flow.nn.ConformalActNorm(cm),
+                flow.nn.ConformalConv2D(cm, 1),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.ConformalConv2D_1x1(cm),
-                flow.nn.ActNorm(cm),
+                flow.nn.ConformalActNorm(cm),
+                flow.nn.ConformalConv2D(cm, 1),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ConformalConv2D_1x1(cm),
-                flow.nn.ActNorm(cm),
+                flow.nn.ConformalActNorm(cm),
+                flow.nn.ConformalConv2D(cm, 1),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.ConformalConv2D_1x1(cm),
-                flow.nn.ActNorm(cm),
             ),
             "dist": flow.distributions.StandardNormal(cm, h4, w4),
         }
@@ -127,7 +129,6 @@ def train_model(
     data_loader = config.train_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
-    cm = config.manifold_c
 
     # training
     set_requires_grad(model, True)
@@ -150,21 +151,15 @@ def train_model(
             x = x.float().to(config.device)
             y = y.float().to(config.device)
 
-            # forward pass
-            # flow x -> u
-            u, _ = x_flow.forward(x)
-            cu = u.size(1)
-            # project u -> m
-            m = flow.util.proj(u, manifold_dims=cm)
-            # flow m -> z
+            # forward/backward pass
+            # x |-> m
+            m, _ = x_flow.forward(x)
+            # m |-> z
             z, _ = m_flow.forward(m)
-            # inverse pass
-            # flow z -> m
+            # m <-| z
             m_r, zm_logabsdet = m_flow.inverse(z)
-            # project m -> u'
-            u_r = flow.util.pad(m_r, cu - cm)
-            # flow u' -> x'
-            x_r, ux_logabsdet = x_flow.inverse(u_r)
+            # x <-| m
+            x_r, mx_logabsdet = x_flow.inverse(m_r)
 
             # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
@@ -172,12 +167,12 @@ def train_model(
             gather_samples(samples, x, y, x_r, y)
 
             # log likelihood
-            log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
+            log_px = dist.log_prob(z) + mx_logabsdet + zm_logabsdet
 
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             nll_loss = -torch.mean(log_px)
-            nll_loss = torch.abs(nll_loss)
-            w = 1e-0
+            nll_loss = torch.clamp(nll_loss, min=0)
+            w = 1e-1
             minibatch_loss = w * nll_loss + (1 - w) * reconstruction_loss
 
             # backward pass
@@ -219,7 +214,6 @@ def test_model(
     data_loader = config.test_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
-    cm = config.manifold_c
 
     # testing
     set_requires_grad(model, False)
@@ -241,21 +235,15 @@ def test_model(
             x = x.float().to(config.device)
             y = y.float().to(config.device)
 
-            # forward pass
-            # flow x -> u
-            u, _ = x_flow.forward(x)
-            cu = u.size(1)
-            # project u -> m
-            m = flow.util.proj(u, manifold_dims=cm)
-            # flow m -> z
+            # forward/backward pass
+            # x |-> m
+            m, _ = x_flow.forward(x)
+            # m |-> z
             z, _ = m_flow.forward(m)
-            # inverse pass
-            # flow z -> m
+            # m <-| z
             m_r, zm_logabsdet = m_flow.inverse(z)
-            # project m -> u'
-            u_r = flow.util.pad(m_r, cu - cm)
-            # flow u' -> x'
-            x_r, ux_logabsdet = x_flow.inverse(u_r)
+            # x <-| m
+            x_r, mx_logabsdet = x_flow.inverse(m_r)
 
             # accumulate predictions TODO fix this
             y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
@@ -263,13 +251,13 @@ def test_model(
             gather_samples(samples, x, y, x_r, y)
 
             # log likelihood
-            log_px = dist.log_prob(z) - zm_logabsdet - ux_logabsdet
+            log_px = dist.log_prob(z) + mx_logabsdet + zm_logabsdet
 
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(x_r, x)
             nll_loss = -torch.mean(log_px)
-            nll_loss = torch.abs(nll_loss)
-            w = 1e-0
+            nll_loss = torch.clamp(nll_loss, min=0)
+            w = 1e-1
             minibatch_loss = w * nll_loss + (1 - w) * reconstruction_loss
 
             # accumulate sum loss

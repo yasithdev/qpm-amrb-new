@@ -102,7 +102,7 @@ class LULinear(FlowTransform):
 
         z = F.linear(x, self.weight)
         z = z + self.bias
-        logabsdet = x.new_ones(B) * self.logabsdet
+        logabsdet = x.new_zeros(B) + self.logabsdet
 
         return z, logabsdet
 
@@ -115,6 +115,6 @@ class LULinear(FlowTransform):
 
         z = z - self.bias
         x = F.linear(z, self.weight_inverse)
-        logabsdet = z.new_ones(B) * -self.logabsdet
+        logabsdet = z.new_zeros(B) - self.logabsdet
 
         return x, logabsdet

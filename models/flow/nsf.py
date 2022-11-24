@@ -6,7 +6,7 @@ import torch
 
 from . import Compose, ComposeMultiScale, Flow
 from .distributions import Distribution, StandardNormal
-from .nn import ConformalConv2D_1x1, RQSCoupling, Squeeze
+from .nn import ConformalConv2D, RQSCoupling, Squeeze
 from .util import decode_mask
 
 
@@ -50,14 +50,14 @@ class SimpleNSF2D(Flow):
             mask = ~mask
 
             if include_linear:
-                transforms.append(ConformalConv2D_1x1(C))
+                transforms.append(ConformalConv2D(C, 1))
 
         if base_dist is None:
             base_dist = StandardNormal(C, H, W)
 
         super().__init__(
-            base_dist=base_dist,
             transform=Compose(*transforms),
+            base_dist=base_dist,
         )
 
 
@@ -109,7 +109,7 @@ class MultiScaleNSF2D(Flow):
                 mask = ~mask
 
                 if include_linear:
-                    level_transforms.append(ConformalConv2D_1x1(C))
+                    level_transforms.append(ConformalConv2D(C, 1))
 
             transforms.append(Compose(*level_transforms))
 
@@ -117,6 +117,6 @@ class MultiScaleNSF2D(Flow):
             base_dist = StandardNormal(C, H, W)
 
         super().__init__(
-            base_dist=base_dist,
             transform=ComposeMultiScale(*transforms),
+            base_dist=base_dist,
         )

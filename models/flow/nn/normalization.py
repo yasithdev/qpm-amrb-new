@@ -30,10 +30,6 @@ class ActNorm(FlowTransform):
         self.log_scale = torch.nn.Parameter(torch.zeros(num_features))
         self.shift = torch.nn.Parameter(torch.zeros(num_features))
 
-    @property
-    def scale(self) -> torch.Tensor:
-        return torch.exp(self.log_scale)
-
     def forward(
         self,
         x: torch.Tensor,
@@ -41,20 +37,20 @@ class ActNorm(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         assert x.dim() in [2, 4]
-        view_shape = (1, -1, 1, 1) if x.dim() == 4 else (1, -1)
+        shape = (1, -1, 1, 1) if x.dim() == 4 else (1, -1)
 
         if self.training and not self.initialized:
             self._initialize(x)
 
-        scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
+        scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
         z = scale * x + shift
 
         if x.dim() == 4:
             B, _, H, W = x.size()
-            logabsdet = x.new_ones(B) * self.log_scale.sum() * H * W
+            logabsdet = x.new_zeros(B) + self.log_scale.sum() * H * W
         else:
             B, _ = x.size()
-            logabsdet = x.new_ones(B) * self.log_scale.sum()
+            logabsdet = x.new_zeros(B) + self.log_scale.sum()
 
         return z, logabsdet
 
@@ -65,17 +61,17 @@ class ActNorm(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         assert z.dim() in [2, 4]
-        view_shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
+        shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
-        scale, shift = self.scale.view(view_shape), self.shift.view(view_shape)
+        scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
         x = (z - shift) / scale
 
         if z.dim() == 4:
             B, _, H, W = z.size()
-            logabsdet = z.new_ones(B) * -self.log_scale.sum() * H * W
+            logabsdet = z.new_zeros(B) - self.log_scale.sum() * H * W
         else:
             B, _ = z.size()
-            logabsdet = z.new_ones(B) * -self.log_scale.sum()
+            logabsdet = z.new_zeros(B) - self.log_scale.sum()
 
         return x, logabsdet
 
@@ -83,19 +79,19 @@ class ActNorm(FlowTransform):
         self,
         inputs,
     ):
-    
+
         """
         Data-dependent initialization, s.t. post-actnorm activations have
         zero mean and unitvariance.
-        
+
         """
-        
+
         if inputs.dim() == 4:
             inputs = einops.rearrange(inputs, "b c h w -> (b h w) c")
 
         with torch.no_grad():
-            std = inputs.std(dim=0) # vector
-            mu = (inputs / std).mean(dim=0) # vector
+            std = inputs.std(dim=0)  # vector
+            mu = (inputs / std).mean(dim=0)  # vector
             self.log_scale.data = -torch.log(std)
             self.shift.data = -mu
             self.initialized.data = torch.tensor(True, dtype=torch.bool)

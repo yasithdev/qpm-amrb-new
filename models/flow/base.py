@@ -70,11 +70,13 @@ class Compose(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
+        B = x.size(0)
+
         # initialize h=x
         h = x
 
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=x.device)
+        # total logabsdet (initially 0)
+        sum_logabsdet = x.new_zeros(B)
 
         # iterate in order
         for transform in self.transforms:
@@ -82,7 +84,7 @@ class Compose(FlowTransform):
 
             # transform h and accumulate log_det
             h, logabsdet = transform.forward(h)
-            sum_logabsdet += logabsdet
+            sum_logabsdet = sum_logabsdet + logabsdet
 
         z = h
         return z, sum_logabsdet
@@ -93,11 +95,13 @@ class Compose(FlowTransform):
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        # initialize h=z
+        B = z.size(0)
+
+        # initialize h=x
         h = z
 
-        # initialize det=1 => log_det=0
-        sum_logabsdet = torch.zeros(h.size(0), device=z.device)
+        # total logabsdet (initially 0)
+        sum_logabsdet = z.new_zeros(B)
 
         # iterate in reverse
         for transform in reversed(self.transforms):
@@ -105,7 +109,7 @@ class Compose(FlowTransform):
 
             # transform h and accumulate log_det
             h, logabsdet = transform.inverse(h)
-            sum_logabsdet += logabsdet
+            sum_logabsdet = sum_logabsdet + logabsdet
         x = h
         return x, sum_logabsdet
 
@@ -135,7 +139,7 @@ class ComposeMultiScale(FlowTransform):
 
         super().__init__()
 
-        self.transforms = transforms
+        self.transforms = torch.nn.ModuleList(transforms)
         self.dim = 1
 
     def forward(
@@ -170,7 +174,7 @@ class ComposeMultiScale(FlowTransform):
             slice_length //= 2
 
             # accumulate logabsdet
-            sum_logabsdet += logabsdet
+            sum_logabsdet = sum_logabsdet + logabsdet
 
         z = h
         return z, sum_logabsdet
@@ -207,7 +211,7 @@ class ComposeMultiScale(FlowTransform):
             slice_length *= 2
 
             # accumulate logabsdet
-            sum_logabsdet += logabsdet
+            sum_logabsdet = sum_logabsdet + logabsdet
 
         x = h
         return x, sum_logabsdet

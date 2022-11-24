@@ -39,10 +39,6 @@ def main(config: Config):
         shutil.rmtree(experiment_path, ignore_errors=True)
         os.makedirs(experiment_path, exist_ok=True)
 
-    z_dist = torch.distributions.MultivariateNormal(
-        torch.zeros(config.manifold_c), torch.eye(config.manifold_c)
-    )
-
     model, optim, train_model, test_model = get_model_optimizer_and_loops(config)
 
     # load saved model and optimizer, if present
@@ -70,7 +66,6 @@ def main(config: Config):
                 epoch=epoch,
                 config=config,
                 optim=optim,
-                z_dist=z_dist,
             )
             wandb.log(stats_to_wandb_log(stats, labels, prefix="train"), step=epoch)
 
@@ -79,7 +74,6 @@ def main(config: Config):
             model=model,
             epoch=epoch,
             config=config,
-            z_dist=z_dist,
         )
         wandb.log(stats_to_wandb_log(stats, labels, prefix="test"), step=epoch)
 
@@ -121,6 +115,7 @@ if __name__ == "__main__":
         name_tags.insert(1, config.label_type)
 
     import wandb
+    import wandb.plot
 
     wandb.init(
         project="qpm-amrb",

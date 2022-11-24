@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import torch
 
@@ -14,8 +14,8 @@ class Flow(Distribution):
 
     def __init__(
         self,
-        base_dist: Distribution,
         transform: FlowTransform,
+        base_dist: Distribution,
     ) -> None:
 
         """
@@ -28,8 +28,8 @@ class Flow(Distribution):
 
         super().__init__()
 
-        self.base_dist = base_dist
         self.transform = transform
+        self.base_dist = base_dist
 
     def _log_prob(
         self,
@@ -52,7 +52,7 @@ class Flow(Distribution):
 
         """
 
-        z, logabsdet = self.transform(x)
+        z, logabsdet = self.transform.forward(x)
         log_p_z = self.base_dist.log_prob(z, c)
         return log_p_z + logabsdet
 
