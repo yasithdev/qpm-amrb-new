@@ -24,7 +24,7 @@ def get_dataset_chw(dataset_name: str) -> Tuple[int, int, int]:
     if dataset_name == "MNIST":
         return (1, 32, 32)
     elif dataset_name == "CIFAR10":
-        return (1, 32, 32)
+        return (3, 32, 32)
     elif dataset_name == "AMRB_1":
         return (1, 40, 40)
     elif dataset_name == "AMRB_2":
