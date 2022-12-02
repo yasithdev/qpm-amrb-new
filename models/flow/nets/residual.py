@@ -207,7 +207,7 @@ class Conv2DResNet(nn.Module):
             )
         self.blocks = nn.ModuleList(
             [
-                ConvResBlock(
+                Conv2DResBlock(
                     channels=hidden_channels,
                     context_channels=context_channels,
                     activation=activation,
