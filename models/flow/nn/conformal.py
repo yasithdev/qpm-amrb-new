@@ -97,7 +97,7 @@ class ConformalActNorm(FlowTransform):
 class ConformalConv2D(FlowTransform):
 
     """
-    KxK convolution with a householder matrix kernel
+    1x1 convolution with a householder matrix kernel
     (orthogonal & symmetric, hence involutory)
 
     (*CHW) <-> [conv] <-> (z)
@@ -106,41 +106,26 @@ class ConformalConv2D(FlowTransform):
 
     def __init__(
         self,
-        x_channels: int,
-        kernel_size: Union[int, Tuple[int, int]],
+        num_channels: int,
     ) -> None:
 
         super().__init__()
 
-        k = kernel_size
-        k = k if isinstance(k, Tuple) else (k, k)
-        self.stride = k
-        self.kH, self.kW = k
-        self.x_channels = x_channels
-        self.z_channels = x_channels * self.kH * self.kW
-
+        # channel count
+        self.num_channels = num_channels
         # identity matrix
-        self.register_buffer("i", torch.eye(self.z_channels))
-
+        self.register_buffer("i", torch.eye(self.num_channels))
         # householder vector
-        self.v = nn.Parameter(torch.randn(self.z_channels, 1))
-
+        self.v = nn.Parameter(torch.randn(self.num_channels, 1))
         # bias term
-        self.b = nn.Parameter(torch.zeros(self.z_channels))
+        self.b = nn.Parameter(torch.zeros(self.num_channels))
 
     @property
     def filter(
         self,
     ) -> torch.Tensor:
-
         k = self.i - 2 * self.v @ self.v.T / torch.sum(self.v**2)
-        return einops.rearrange(
-            k,
-            "z (x kH kW) -> z x kH kW",
-            x=self.x_channels,
-            kH=self.kH,
-            kW=self.kW,
-        )
+        return einops.rearrange(k, 'C c -> C c 1 1')
 
     def forward(
         self,
@@ -149,12 +134,11 @@ class ConformalConv2D(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         B, C, H, W = x.size()
-        assert H % self.kH == 0
-        assert W % self.kW == 0
+        assert C == self.num_channels
         assert x.dim() == 4
         shape = (1, -1, 1, 1)
 
-        z = F.conv2d(input=x, weight=self.filter, stride=self.stride)
+        z = F.conv2d(input=x, weight=self.filter)
         z = z + self.b.view(shape)
         logabsdet = x.new_zeros(B)
 
@@ -167,11 +151,74 @@ class ConformalConv2D(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         B, C, H, W = z.size()
+        assert C == self.num_channels
         assert z.dim() == 4
         shape = (1, -1, 1, 1)
 
         z = z - self.b.view(shape)
-        x = F.conv_transpose2d(input=z, weight=self.filter, stride=self.stride)
+        x = F.conv_transpose2d(input=z, weight=self.filter)
         logabsdet = -z.new_zeros(B)
 
         return x, logabsdet
+
+
+class PiecewiseConformalConv2D(FlowTransform):
+    """
+    Flow component of the type z = ||x|| >= 1? conv1(x): conv2(x)
+    Both convs here are orthogonal and hence norm-preserving.
+    """
+
+    def __init__(
+        self,
+        num_channels: int,
+    ) -> None:
+
+        super().__init__()
+
+        self.num_channels = num_channels
+        self.conv1 = ConformalConv2D(num_channels)
+        self.conv2 = ConformalConv2D(num_channels)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B, C, H, W = x.size()
+        assert C == self.num_channels
+
+        # compute norm
+        norm = einops.reduce(x**2, "B C H W -> B 1 H W", reduction="sum")
+        # compute condition
+        cond = einops.repeat(norm >= 1, 'B 1 H W -> B (C 1) H W', C=C)
+        # compute output
+        z1 = self.conv1.forward(x)[0]
+        z2 = self.conv2.forward(x)[0]
+        outputs = torch.where(cond, z1, z2)
+
+        logabsdet = x.new_zeros(B)
+
+        return outputs, logabsdet
+
+    def inverse(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B, C, H, W = z.size()
+        assert C == self.num_channels
+
+        # compute norm
+        norm = einops.reduce(z**2, "B C H W -> B 1 H W", reduction="sum")
+        # compute condition
+        cond = einops.repeat(norm >= 1, 'B 1 H W -> B (C 1) H W', C=C)
+        # compute output
+        x1 = self.conv1.inverse(z)[0]
+        x2 = self.conv2.inverse(z)[0]
+        outputs = torch.where(cond, x1, x2)
+
+        logabsdet = z.new_zeros(B)
+
+        return outputs, logabsdet

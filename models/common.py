@@ -248,8 +248,8 @@ def gather_samples(
     predictions: List,
     x: torch.Tensor,
     y: torch.Tensor,
-    x_z: torch.Tensor,
-    y_z: torch.Tensor,
+    m: torch.Tensor,
+    y_x: torch.Tensor,
     num_predictions: int = 5,
 ) -> None:
     if len(predictions) < num_predictions:
@@ -257,7 +257,7 @@ def gather_samples(
             (
                 x[0].cpu().numpy(),
                 y[0].argmax(dim=0).cpu().numpy(),
-                x_z[0].detach().cpu().numpy(),
-                y_z[0].detach().argmax(dim=0).cpu().numpy(),
+                m[0].detach().cpu().numpy(),
+                y_x[0].detach().argmax(dim=0).cpu().numpy(),
             )
         )

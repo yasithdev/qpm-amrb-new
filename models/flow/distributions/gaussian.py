@@ -1,4 +1,4 @@
-import math
+from math import log, pi, prod
 from typing import Optional
 
 import einops
@@ -22,18 +22,23 @@ class StandardNormal(Distribution):
         super().__init__()
 
         self.shape = torch.Size(shape)
-        self.log_z = 0.5 * math.prod(shape) * math.log(2 * math.pi)
+        k = prod(shape)
+        # -1/2.k.log(2π)
+        self.neg_log_pz = torch.as_tensor(-0.5 * k * log(2 * pi))
 
     def _log_prob(
         self,
-        x: torch.Tensor,
+        z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
         # Note: c is ignored
-        assert self.shape == x.shape[1:], f"{self.shape} != {x.shape[1:]}"
-        neg_energy = -0.5 * einops.reduce(x**2, "b ... -> b", reduction="sum")
-        return neg_energy - self.log_z
+        assert self.shape == z.shape[1:], f"{self.shape} != {z.shape[1:]}"
+        # -1/2.log(xTx)
+        log_exp = -0.5 * einops.reduce(z**2, "b ... -> b", reduction="sum")
+        # -1/2.k.log(2π) + -1/2.log(xTx)
+        log_prob = self.neg_log_pz + log_exp
+        return log_prob
 
     def _sample(
         self,
@@ -41,28 +46,17 @@ class StandardNormal(Distribution):
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
+        # Note: c is ignored
         shape = [n, *self.shape]
-        device = torch.as_tensor(self.log_z).device
-
-        # The value of the c is ignored, only its size and device are used
-        if c is not None:
-            shape = [c.shape[0], *shape]
-            device = c.device
-
-        samples = torch.randn(size=shape, device=device)
-        return samples
+        device = self.neg_log_pz.device
+        sample = torch.randn(size=shape, device=device)
+        return sample
 
     def _mean(
         self,
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
-        shape = self.shape
-        device = torch.as_tensor(self.log_z).device
-
-        # The value of the c is ignored, only its size and device are used
-        if c is not None:
-            shape = [c.shape[0], *shape]
-            device = c.device
-
-        return torch.zeros(size=shape, device=device)
+        # Note: c is ignored
+        mean = self.neg_log_pz.new_zeros(self.shape)
+        return mean
