@@ -39,10 +39,10 @@ def get_model_optimizer_and_loops(
 
     # normalizing flow model
     if config.model_name == "flow":
-        x_input_size = (B, C, H, W)
-        m_input_size = B, config.manifold_c, H // 16, W // 16
-        torchinfo.summary(model["x_flow"], input_size=x_input_size, depth=5)
-        torchinfo.summary(model["m_flow"], input_size=m_input_size, depth=5)
+        x_size = (B, C, H, W)
+        u_size = B, config.manifold_c, H // 16, W // 16
+        torchinfo.summary(model["x_flow"], input_size=x_size, depth=5)
+        torchinfo.summary(model["u_flow"], input_size=u_size, depth=5)
 
     # resnet model
     elif config.model_name == "resnet":

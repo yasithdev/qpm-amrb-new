@@ -94,7 +94,7 @@ def load_model_and_optimizer(
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
             # ]),
             # rqs coupling flow
-            "m_flow": flow.Compose([
+            "u_flow": flow.Compose([
                 flow.nn.ActNorm(cm),
                 flow.nn.PiecewiseConformalConv2D(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
@@ -139,7 +139,7 @@ def train_model(
 
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
         x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
-        m_flow: flow.FlowTransform = model["m_flow"]  # type: ignore
+        u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
 
         x: torch.Tensor
@@ -160,7 +160,7 @@ def train_model(
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
-            z, logabsdet_mz = m_flow(u)
+            z, logabsdet_uz = u_flow(u)
 
             # TODO fix this
             y_x = y
@@ -171,7 +171,7 @@ def train_model(
             gather_samples(samples, x, y, m, y_x)
 
             # log likelihood
-            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_mz
+            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
 
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
             nll_loss = -torch.mean(log_px)
@@ -224,7 +224,7 @@ def test_model(
     with torch.no_grad():
         iterable = tqdm(data_loader, desc=f"[TST] Epoch {epoch}", **config.tqdm_args)
         x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
-        m_flow: flow.FlowTransform = model["m_flow"]  # type: ignore
+        u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
 
         x: torch.Tensor
@@ -245,7 +245,7 @@ def test_model(
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
-            z, logabsdet_mz = m_flow(u)
+            z, logabsdet_uz = u_flow(u)
 
             # TODO fix this
             y_x = y
@@ -258,7 +258,7 @@ def test_model(
             # log likelihood
 
             # calculate loss
-            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_mz
+            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
             nll_loss = -torch.mean(log_px)
             nll_loss = torch.clamp(nll_loss, min=0)
