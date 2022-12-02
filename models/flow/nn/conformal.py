@@ -193,8 +193,8 @@ class PiecewiseConformalConv2D(FlowTransform):
         # compute condition
         cond = einops.repeat(norm >= 1, 'B 1 H W -> B (C 1) H W', C=C)
         # compute output
-        z1 = self.conv1.forward(x)[0]
-        z2 = self.conv2.forward(x)[0]
+        z1 = self.conv1(x)[0]
+        z2 = self.conv2(x)[0]
         outputs = torch.where(cond, z1, z2)
 
         logabsdet = x.new_zeros(B)

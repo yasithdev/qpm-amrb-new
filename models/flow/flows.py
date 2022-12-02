@@ -52,7 +52,7 @@ class Flow(Distribution):
 
         """
 
-        z, logabsdet = self.transform.forward(x)
+        z, logabsdet = self.transform(x)
         log_p_z = self.base_dist.log_prob(z, c)
         return log_p_z + logabsdet
 

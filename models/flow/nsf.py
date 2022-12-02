@@ -56,7 +56,7 @@ class SimpleNSF2D(Flow):
             base_dist = StandardNormal(C, H, W)
 
         super().__init__(
-            transform=Compose(*transforms),
+            transform=Compose(transforms),
             base_dist=base_dist,
         )
 
@@ -111,12 +111,12 @@ class MultiScaleNSF2D(Flow):
                 if include_linear:
                     level_transforms.append(ConformalConv2D(C, 1))
 
-            transforms.append(Compose(*level_transforms))
+            transforms.append(Compose(level_transforms))
 
         if base_dist is None:
             base_dist = StandardNormal(C, H, W)
 
         super().__init__(
-            transform=ComposeMultiScale(*transforms),
+            transform=ComposeMultiScale(transforms),
             base_dist=base_dist,
         )

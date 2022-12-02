@@ -25,7 +25,7 @@ def load_model_and_optimizer(
     # manifold (m) flow configuration
     cm = config.manifold_c
     num_conv_layers = 2
-    num_bins = 10
+    num_bins = 5
 
     channel_mask = torch.zeros(cm).bool()
     channel_mask[::2] = True
@@ -54,60 +54,60 @@ def load_model_and_optimizer(
     model = torch.nn.ModuleDict(
         {
             # MNIST: (1, 32, 32) -> (4, 16, 16) -> (16, 8, 8) -> (64, 4, 4) -> (256, 2, 2)
-            "x_flow": flow.Compose(
-                flow.nn.ConformalActNorm(c0),
+            "x_flow": flow.Compose([
+                flow.nn.ActNorm(c0),
                 flow.nn.Squeeze(factor=k0),
                 flow.nn.PiecewiseConformalConv2D(c1),
-                flow.nn.ConformalActNorm(c1),
+                flow.nn.ActNorm(c1),
                 flow.nn.PiecewiseConformalConv2D(c1),
-                flow.nn.ConformalActNorm(c1),
+                flow.nn.ActNorm(c1),
                 flow.nn.Squeeze(factor=k1),
                 flow.nn.PiecewiseConformalConv2D(c2),
-                flow.nn.ConformalActNorm(c2),
+                flow.nn.ActNorm(c2),
                 flow.nn.PiecewiseConformalConv2D(c2),
-                flow.nn.ConformalActNorm(c2),
+                flow.nn.ActNorm(c2),
                 flow.nn.Squeeze(factor=k2),
                 flow.nn.PiecewiseConformalConv2D(c3),
-                flow.nn.ConformalActNorm(c3),
+                flow.nn.ActNorm(c3),
                 flow.nn.PiecewiseConformalConv2D(c3),
-                flow.nn.ConformalActNorm(c3),
+                flow.nn.ActNorm(c3),
                 flow.nn.Squeeze(factor=k3),
                 flow.nn.PiecewiseConformalConv2D(c4),
-                flow.nn.ConformalActNorm(c4),
+                flow.nn.ActNorm(c4),
                 flow.nn.PiecewiseConformalConv2D(c4),
                 flow.nn.Projection(c4, cm),
-            ),
+            ]),
             # MNIST: (cm, 2, 2) -> (cm, 2, 2)
             # affine coupling flow
-            # "m_flow": flow.Compose(
-            #     flow.nn.ConformalActNorm(cm),
+            # "m_flow": flow.Compose([
+            #     flow.nn.ActNorm(cm),
             #     flow.nn.PiecewiseConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ActNorm(cm),
             #     flow.nn.PiecewiseConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ActNorm(cm),
             #     flow.nn.PiecewiseConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_A),
-            #     flow.nn.ConformalActNorm(cm),
+            #     flow.nn.ActNorm(cm),
             #     flow.nn.PiecewiseConformalConv2D(cm),
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
-            # ),
+            # ]),
             # rqs coupling flow
-            "m_flow": flow.Compose(
-                flow.nn.ConformalActNorm(cm),
+            "m_flow": flow.Compose([
+                flow.nn.ActNorm(cm),
                 flow.nn.PiecewiseConformalConv2D(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ConformalActNorm(cm),
+                flow.nn.ActNorm(cm),
                 flow.nn.PiecewiseConformalConv2D(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.ConformalActNorm(cm),
+                flow.nn.ActNorm(cm),
                 flow.nn.PiecewiseConformalConv2D(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ConformalActNorm(cm),
+                flow.nn.ActNorm(cm),
                 flow.nn.PiecewiseConformalConv2D(cm),
                 flow.nn.RQSCoupling(**rqs_coupling_args_B),
-            ),
+            ]),
             "dist": flow.distributions.StandardNormal(cm, h4, w4),
         }
     )
@@ -156,11 +156,11 @@ def train_model(
 
             # forward/backward pass
             # x |-> u
-            u, logabsdet_xu = x_flow.forward(x)
+            u, logabsdet_xu = x_flow(x)
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
-            z, logabsdet_mz = m_flow.forward(u)
+            z, logabsdet_mz = m_flow(u)
 
             # TODO fix this
             y_x = y
@@ -241,11 +241,11 @@ def test_model(
 
             # forward/backward pass
             # x |-> u
-            u, logabsdet_xu = x_flow.forward(x)
+            u, logabsdet_xu = x_flow(x)
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
-            z, logabsdet_mz = m_flow.forward(u)
+            z, logabsdet_mz = m_flow(u)
 
             # TODO fix this
             y_x = y

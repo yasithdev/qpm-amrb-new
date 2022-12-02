@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import torch
 
@@ -57,7 +57,7 @@ class Compose(FlowTransform):
 
     def __init__(
         self,
-        *transforms: FlowTransform,
+        transforms: List[FlowTransform],
     ) -> None:
 
         super().__init__()
@@ -83,7 +83,7 @@ class Compose(FlowTransform):
             assert isinstance(transform, FlowTransform)
 
             # transform h and accumulate log_det
-            h, logabsdet = transform.forward(h)
+            h, logabsdet = transform(h)
             sum_logabsdet = sum_logabsdet + logabsdet
 
         z = h
@@ -134,7 +134,7 @@ class ComposeMultiScale(FlowTransform):
 
     def __init__(
         self,
-        *transforms: FlowTransform,
+        transforms: List[FlowTransform],
     ) -> None:
 
         super().__init__()
@@ -167,7 +167,7 @@ class ComposeMultiScale(FlowTransform):
             h2 = torch.narrow(h, self.dim, slice_length, total_length - slice_length)
 
             # transform h and accumulate log_det
-            h1, logabsdet = transform.forward(h1)
+            h1, logabsdet = transform(h1)
             h = torch.cat([h1, h2], self.dim)
 
             # halve the slice length for next transform

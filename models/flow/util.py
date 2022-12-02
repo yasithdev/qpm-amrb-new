@@ -32,7 +32,7 @@ def log_p_x(
     :param z_dist: base distribution
     :return: log probability of the data-space point, given the flow
     """
-    z, log_det = flow.forward(x)
+    z, log_det = flow(x)
     return log_p_z(z, z_dist) + log_det
 
 
