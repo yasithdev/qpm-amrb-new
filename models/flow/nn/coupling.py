@@ -113,9 +113,9 @@ class AffineCoupling(CouplingTransform):
         assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
 
         coupling_net = nets.Conv2DResNet(
-            num_layers=num_layers,
             in_channels=nI,
             out_channels=nT * 2,
+            hidden_channels=nI,
         )
 
         super().__init__(
@@ -183,9 +183,9 @@ class RQSCoupling(CouplingTransform):
         nD = num_bins - 1
 
         coupling_net = nets.Conv2DResNet(
-            num_layers=1,
             in_channels=nI,
             out_channels=nT * (nW + nH + nD),
+            hidden_channels=nI,
         )
 
         super().__init__(
