@@ -1,13 +1,10 @@
 #!/bin/bash
 
+#SBATCH --account=wadduwage_lab
 #SBATCH --partition=gpu
+#SBATCH --time=1-0
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=1
-#SBATCH --output=logs/%x-%a.log
-
-# load required modules (not needed for pytorch)
-# module load cuda/10.1.186
-# module load cudnn/10.1.7.5
+#SBATCH --mem=64G
 
 # project name
 export PROJECT_NAME=qpm-amrb-new
