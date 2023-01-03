@@ -252,12 +252,13 @@ def gather_samples(
     y_x: torch.Tensor,
     num_predictions: int = 5,
 ) -> None:
+    pattern = "c h w -> h w c"
     if len(predictions) < num_predictions:
         predictions.append(
             (
-                x[0].cpu().numpy(),
+                rearrange(x[0].cpu(), pattern).numpy(),
                 y[0].argmax(dim=0).cpu().numpy(),
-                m[0].detach().cpu().numpy(),
+                rearrange(m[0].detach().cpu(), pattern).numpy(),
                 y_x[0].detach().argmax(dim=0).cpu().numpy(),
             )
         )

@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from time import time
-from typing import Callable, Dict, Literal, Optional
+from typing import Callable, Dict, Literal, Optional, List, Tuple
 
 import einops
 import numpy as np
@@ -47,30 +47,41 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         src_info_path = os.path.join(ds_path, "info.json")
         logging.info(f"Dataset info: {src_info_path}")
         with open(src_info_path, "r") as f:
-            src_info: Dict[str, Dict[str, str]] = json.load(f)["data"]
+            src_info: Dict[str, Dict[str, str]] = json.load(f)["strains"]
 
         # ----------------------------------------------------------------- #
-        # select tlabels for task                                            #
+        # load genetic similarity                                           #
         # ----------------------------------------------------------------- #
-        slabels = sorted(src_info)
+        gensim_path = os.path.join(ds_path, "gensim_strain.csv")
+        gensim = np.genfromtxt(gensim_path, delimiter=",", dtype=str)
+        gensim_labels = [*map(str, gensim[0])]
+
+        # sort gensim labels and values
+        gensim_slabels = sorted(gensim_labels)
+        perm = [*map(gensim_labels.index, gensim_slabels)]
+        gensim_y = gensim[1:].astype(np.float32)[perm, :][:, perm]
+
+        # ----------------------------------------------------------------- #
+        # select gensim_labels for task (ignore the rest)                   #
+        # ----------------------------------------------------------------- #
+        slabels = gensim_slabels
         if label_type == "class":
             tlabels = slabels
         else:
             tlabels = [src_info[x][label_type] for x in slabels]
+        full_label_map = list(zip(slabels, tlabels))
         uniq_tlabels = sorted(set(tlabels))
 
         if cv_mode == "leave-out":
             assert cv_folds == len(uniq_tlabels)
-            # select the k-th tlabel
-            tlabel_k = uniq_tlabels[cv_k]
-            # select all tlabels where train  == (tlabel != tlabel_k)
-            cond: Callable[[str], bool] = lambda t: train == (t != tlabel_k)
+            # select all tlabels where train  == (tlabel != kth label)
+            cond: Callable[[str], bool] = lambda t: train == (t != uniq_tlabels[cv_k])
             self.labels = list(filter(lambda t: cond(t), uniq_tlabels))
-            label_map = list(filter(lambda s_t : cond(s_t[1]), list(zip(slabels, tlabels))))
+            cv_label_map = list(filter(lambda s_t: cond(s_t[1]), full_label_map))
         else:
             # select all tlabels
             self.labels = uniq_tlabels
-            label_map = list(zip(slabels, tlabels))
+            cv_label_map = full_label_map
         logging.info(
             f"[preparation] selected labels for {cv_mode} crossval: {self.labels}"
         )
@@ -86,7 +97,7 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         # ----------------------------------------------------------------- #
         data_dict: Dict[str, np.ndarray] = {}
 
-        for slabel, tlabel in label_map:
+        for slabel, tlabel in cv_label_map:
 
             src_x = self.filter_outliers(src_data[slabel])
 
@@ -149,10 +160,12 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
                     reps=(data_x.shape[0] // N, 1),
                 )
             else:
-                # TODO use the correct genetic probability here
-                data_y = np.zeros(
-                    shape=(data_x.shape[0], N),
-                    dtype=np.float32,
+                # using the gensim of left-out labels to compute metrics
+                gensim_vec = self.gensim(full_label_map, uniq_tlabels, cv_k, gensim_y, N)
+                logging.info(f"Gensim Vector: {gensim_vec}")
+                data_y = np.tile(
+                    A=gensim_vec,
+                    reps=(data_x.shape[0], 1),
                 )
         logging.info("[preparation] generated data_y")
 
@@ -187,6 +200,46 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
 
         num_data = len(self.data_x)
         return num_data
+
+    def gensim(
+        self,
+        full_label_map: List[Tuple[str, str]],
+        uniq_tlabels: List[str],
+        cv_k: int,
+        gensim_y: np.ndarray,
+        N: int,
+    ) -> np.ndarray:
+
+        # split the two gensim measures into two symmetric matrices
+        s1 = np.triu(gensim_y) + np.triu(gensim_y, 1).T
+        s2 = np.tril(gensim_y) + np.tril(gensim_y, -1).T
+
+        # compute the group indices
+        group_idxs: Dict[str,List[int]] = {}
+        for i, (_, tlabel) in enumerate(full_label_map):
+            if tlabel in group_idxs:
+                group_idxs[tlabel].append(i)
+            else:
+                group_idxs[tlabel] = [i]
+
+        assert N == len(group_idxs) - 1, "mismatch in label counts!"
+
+        # target probability vector
+        pvec = np.zeros((1,N), dtype=np.float32)
+        
+        # generate similarity matrix
+        tlabel_k = uniq_tlabels[cv_k]
+        for tlabel in group_idxs:
+            if tlabel != tlabel_k:
+                k = uniq_tlabels.index(tlabel)
+                n = 0
+                for i in group_idxs[tlabel_k]:
+                    for j in group_idxs[tlabel]:
+                        pvec[k] += gensim_y[i,j]
+                        n += 1
+                pvec[k] /= n
+            
+        return pvec
 
     def augment(
         self,
