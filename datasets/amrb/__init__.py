@@ -79,13 +79,16 @@ def get_info(
     src_info_path = os.path.join(data_root, f"AMRB_{version}", "info.json")
     logging.info(f"Dataset info: {src_info_path}")
     with open(src_info_path, "r") as f:
-        src_info: dict = json.load(f)["data"]
+        src_info: dict = json.load(f)["strains"]
 
-    class_labels = sorted(src_info)
-    if label_type == "class":
-        target_labels = class_labels
+    # ignore non-sequenced strains
+    strain_labels = [x for x in src_info if src_info[x]["sequenced"] == True]
+
+    # select the target labels
+    if label_type == "strain":
+        target_labels = strain_labels
     else:
-        target_labels = [src_info[clabel][label_type] for clabel in class_labels]
+        target_labels = [src_info[slabel][label_type] for slabel in strain_labels]
 
     num_labels = len(set(target_labels))
 

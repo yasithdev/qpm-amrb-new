@@ -86,8 +86,8 @@ hpc-train-amrb2-kfold-gram:
 # ------------------
 hpc-train-amrb1-leaveout-strain:
 	for MODEL_NAME in "resnet" "drcaps"; do \
-		sbatch -J qpm-amrb1_leave-out_strain_$${MODEL_NAME} --array=0-2 \
-		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,CV_FOLDS=3,LABEL_TYPE=strain,DATASET_NAME=AMRB_1,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
+		sbatch -J qpm-amrb1_leave-out_strain_$${MODEL_NAME} --array=0-4 \
+		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,CV_FOLDS=5,LABEL_TYPE=strain,DATASET_NAME=AMRB_1,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
 	done
 
 hpc-train-amrb1-leaveout-species:
@@ -101,8 +101,8 @@ hpc-train-amrb1-leaveout-species:
 # ------------------
 hpc-train-amrb2-leaveout-strain:
 	for MODEL_NAME in "resnet" "drcaps"; do \
-		sbatch -J qpm-amrb2_leave-out_strain_$${MODEL_NAME} --array=0-15 \
-		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,CV_FOLDS=16,LABEL_TYPE=strain,DATASET_NAME=AMRB_2,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
+		sbatch -J qpm-amrb2_leave-out_strain_$${MODEL_NAME} --array=0-18 \
+		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,CV_FOLDS=19,LABEL_TYPE=strain,DATASET_NAME=AMRB_2,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
 	done
 
 hpc-train-amrb2-leaveout-species:

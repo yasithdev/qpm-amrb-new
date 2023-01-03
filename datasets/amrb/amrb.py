@@ -49,12 +49,16 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         with open(src_info_path, "r") as f:
             src_info: Dict[str, Dict[str, str]] = json.load(f)["strains"]
 
+        # ignore non-sequenced strains
+        strain_labels = [x for x in src_info if src_info[x]["sequenced"] == True]
+
         # ----------------------------------------------------------------- #
         # load genetic similarity                                           #
         # ----------------------------------------------------------------- #
         gensim_path = os.path.join(ds_path, "gensim_strain.csv")
         gensim = np.genfromtxt(gensim_path, delimiter=",", dtype=str)
         gensim_labels = [*map(str, gensim[0])]
+        assert set(gensim_labels) == set(strain_labels)
 
         # sort gensim labels and values
         gensim_slabels = sorted(gensim_labels)
@@ -65,7 +69,7 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         # select gensim_labels for task (ignore the rest)                   #
         # ----------------------------------------------------------------- #
         slabels = gensim_slabels
-        if label_type == "class":
+        if label_type == "strain":
             tlabels = slabels
         else:
             tlabels = [src_info[x][label_type] for x in slabels]
@@ -161,7 +165,9 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
                 )
             else:
                 # using the gensim of left-out labels to compute metrics
-                gensim_vec = self.gensim(full_label_map, uniq_tlabels, cv_k, gensim_y, N)
+                gensim_vec = self.gensim(
+                    full_label_map, uniq_tlabels, cv_k, gensim_y, N
+                )
                 logging.info(f"Gensim Vector: {gensim_vec}")
                 data_y = np.tile(
                     A=gensim_vec,
@@ -208,14 +214,17 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         cv_k: int,
         gensim_y: np.ndarray,
         N: int,
+        mode: Literal[1, 2] = 1,
     ) -> np.ndarray:
 
         # split the two gensim measures into two symmetric matrices
         s1 = np.triu(gensim_y) + np.triu(gensim_y, 1).T
         s2 = np.tril(gensim_y) + np.tril(gensim_y, -1).T
+        sim = (s1 + s2) / 2
+        logging.info(f"Gensim Matrix: {sim.shape}")
 
         # compute the group indices
-        group_idxs: Dict[str,List[int]] = {}
+        group_idxs: Dict[str, List[int]] = {}
         for i, (_, tlabel) in enumerate(full_label_map):
             if tlabel in group_idxs:
                 group_idxs[tlabel].append(i)
@@ -225,21 +234,23 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         assert N == len(group_idxs) - 1, "mismatch in label counts!"
 
         # target probability vector
-        pvec = np.zeros((1,N), dtype=np.float32)
-        
+        pvec = np.zeros((1, N), dtype=np.float32)
+
         # generate similarity matrix
         tlabel_k = uniq_tlabels[cv_k]
         for tlabel in group_idxs:
             if tlabel != tlabel_k:
                 k = uniq_tlabels.index(tlabel)
+                if k > uniq_tlabels.index(tlabel_k):
+                    k -= 1
                 n = 0
                 for i in group_idxs[tlabel_k]:
                     for j in group_idxs[tlabel]:
-                        pvec[k] += gensim_y[i,j]
+                        pvec[0, k] += sim[i, j]
                         n += 1
-                pvec[k] /= n
-            
-        return pvec
+                pvec[0, k] /= n
+
+        return pvec / pvec.sum()
 
     def augment(
         self,
