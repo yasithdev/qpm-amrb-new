@@ -20,13 +20,13 @@ def stats_to_wandb_log(
 
     loss = stats["loss"]
     acc1, acc2, acc3 = stats["acc"]
-    
+
     y_true = np.array(stats["y_true"])
     y_pred = np.array(stats["y_pred"])
 
     # in leave-out mode, add column for left-out class
     if mode == "leave-out":
-        y_pred = np.stack([y_pred, np.zeros(y_pred.shape[0])], axis=-1)
+        y_pred = np.pad(y_pred, ((0, 0), (0, 1)), constant_values=0)
 
     samples = stats["samples"]
     estimates = [wandb.Image(xz, caption=labels[yz]) for _, _, xz, yz in samples]
@@ -39,8 +39,8 @@ def stats_to_wandb_log(
         targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
 
     cm = wandb.plot.confusion_matrix(
-        y_true=y_true.tolist(),
-        probs=y_pred.tolist(),
+        y_true=y_true,  # type: ignore
+        probs=y_pred,  # type: ignore
         class_names=labels,
         title=f"Confusion Matrix ({prefix})",
     )
