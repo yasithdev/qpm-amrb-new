@@ -1,6 +1,7 @@
 import logging
 from functools import partial
 from typing import Tuple
+import numpy as np
 
 import torch
 import torch.utils.data
@@ -154,8 +155,8 @@ def train_model(
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -167,7 +168,7 @@ def train_model(
             # backward pass
             optim.zero_grad()
             minibatch_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
             optim.step()
 
             # accumulate sum loss
@@ -186,8 +187,8 @@ def train_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }
 
@@ -239,8 +240,8 @@ def test_model(
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -265,7 +266,7 @@ def test_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }

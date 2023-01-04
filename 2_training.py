@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 
+from typing import Literal
 import numpy as np
 import torch
 
@@ -13,23 +14,45 @@ from models.common import load_saved_state, save_state
 def stats_to_wandb_log(
     stats: dict,
     labels: list,
-    prefix: str,
+    prefix: Literal["train", "test"],
+    mode: str,
 ) -> dict:
+
+    loss = stats["loss"]
+    acc1, acc2, acc3 = stats["acc"]
+    
+    y_true = np.array(stats["y_true"])
+    y_pred = np.array(stats["y_pred"])
+
+    # in leave-out mode, add column for left-out class
+    if mode == "leave-out":
+        y_pred = np.stack([y_pred, np.zeros(y_pred.shape[0])], axis=-1)
+
+    samples = stats["samples"]
+    estimates = [wandb.Image(xz, caption=labels[yz]) for _, _, xz, yz in samples]
+
+    if mode == "leave-out" and prefix == "test":
+        n = len(labels) - 1
+        y_true = np.full(y_true.shape[0], n)
+        targets = [wandb.Image(x, caption=labels[n]) for x, _, _, _ in samples]
+    else:
+        targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
+
+    cm = wandb.plot.confusion_matrix(
+        y_true=y_true.tolist(),
+        probs=y_pred.tolist(),
+        class_names=labels,
+        title=f"Confusion Matrix ({prefix})",
+    )
+
     return {
-        f"{prefix}_loss": stats["loss"],
-        f"{prefix}_accuracy": stats["acc"],
-        f"{prefix}_targets": [
-            wandb.Image(x, caption=labels[y]) for x, y, _, _ in stats["samples"]
-        ],
-        f"{prefix}_estimates": [
-            wandb.Image(x_z, caption=labels[y_z]) for _, _, x_z, y_z in stats["samples"]
-        ],
-        f"{prefix}_cm": wandb.plot.confusion_matrix(
-            y_true=stats["y_true"],
-            preds=stats["y_pred"],
-            class_names=labels,
-            title=f"Confusion Matrix ({prefix})",
-        ),
+        f"{prefix}_loss": loss,
+        f"{prefix}_accuracy": acc1,
+        f"{prefix}_top2accuracy": acc2,
+        f"{prefix}_top3accuracy": acc3,
+        f"{prefix}_targets": targets,
+        f"{prefix}_estimates": estimates,
+        f"{prefix}_cm": cm,
     }
 
 
@@ -55,7 +78,11 @@ def main(config: Config):
 
     # run train / test loops
     logging.info("Started Train/Test")
-    labels = config.train_loader.dataset.labels
+    train_labels = list(config.train_loader.dataset.labels)
+    test_labels = list(config.test_loader.dataset.labels)
+    labels = (
+        [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
+    )
 
     for epoch in range(config.train_epochs + 1):
 
@@ -67,7 +94,10 @@ def main(config: Config):
                 config=config,
                 optim=optim,
             )
-            wandb.log(stats_to_wandb_log(stats, labels, prefix="train"), step=epoch)
+            wandb.log(
+                stats_to_wandb_log(stats, labels, prefix="train", mode=config.cv_mode),
+                step=epoch,
+            )
 
         # testing loop
         stats = test_model(
@@ -75,7 +105,10 @@ def main(config: Config):
             epoch=epoch,
             config=config,
         )
-        wandb.log(stats_to_wandb_log(stats, labels, prefix="test"), step=epoch)
+        wandb.log(
+            stats_to_wandb_log(stats, labels, prefix="test", mode=config.cv_mode),
+            step=epoch,
+        )
 
         # save model/optimizer states
         if not config.exc_dry_run:
@@ -109,7 +142,12 @@ if __name__ == "__main__":
         f"{config.dataset_name}-{config.model_name}",
         f"{config.label_type}-{config.cv_k}",
     )
-    name_tags = [config.dataset_name, config.model_name, config.cv_mode, str(config.cv_k)]
+    name_tags = [
+        config.dataset_name,
+        config.model_name,
+        config.cv_mode,
+        str(config.cv_k),
+    ]
     run_config = {
         "cv_folds": config.cv_folds,
         "cv_k": config.cv_k,

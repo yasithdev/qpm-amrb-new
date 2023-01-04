@@ -7,7 +7,7 @@ import torch
 from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score
+from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score, top_k_accuracy_score
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -199,9 +199,11 @@ def get_convt_out_shape(
 def gen_epoch_acc(
     y_pred: list,
     y_true: list,
-) -> float:
-    acc_score = accuracy_score(y_true, y_pred)
-    return acc_score
+) -> Tuple[float, float, float]:
+    top_1_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=1))
+    top_2_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=2))
+    top_3_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=3))
+    return top_1_acc_score, top_2_acc_score, top_3_acc_score
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -252,13 +254,14 @@ def gather_samples(
     y_x: torch.Tensor,
     num_predictions: int = 5,
 ) -> None:
+
     pattern = "c h w -> h w c"
+
     if len(predictions) < num_predictions:
-        predictions.append(
-            (
-                rearrange(x[0].cpu(), pattern).numpy(),
-                y[0].argmax(dim=0).cpu().numpy(),
-                rearrange(m[0].detach().cpu(), pattern).numpy(),
-                y_x[0].detach().argmax(dim=0).cpu().numpy(),
-            )
-        )
+
+        val_x = rearrange(x[0].cpu(), pattern).numpy()
+        val_y = y[0].argmax().cpu().numpy()
+        val_x_z = rearrange(m[0].detach().cpu(), pattern).numpy()
+        val_y_x = y_x[0].detach().argmax().cpu().numpy()
+
+        predictions.append((val_x, val_y, val_x_z, val_y_x))

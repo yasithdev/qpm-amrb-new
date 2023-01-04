@@ -9,6 +9,8 @@ from . import flow
 from .common import gather_samples, gen_epoch_acc, set_requires_grad
 from .flow.util import decode_mask
 
+import numpy as np
+
 
 def load_model_and_optimizer(
     config: Config,
@@ -166,13 +168,14 @@ def train_model(
             y_x = y
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_x, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, m, y_x)
 
             # log likelihood
             log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
 
+            # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
             nll_loss = -torch.mean(log_px)
             nll_loss = torch.clamp(nll_loss, min=0)
@@ -200,8 +203,8 @@ def train_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }
 
@@ -251,14 +254,14 @@ def test_model(
             y_x = y
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_x, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, m, y_x)
 
             # log likelihood
+            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
 
             # calculate loss
-            log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
             nll_loss = -torch.mean(log_px)
             nll_loss = torch.clamp(nll_loss, min=0)
@@ -281,7 +284,7 @@ def test_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }

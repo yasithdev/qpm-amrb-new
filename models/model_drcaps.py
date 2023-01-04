@@ -6,6 +6,7 @@ import torch
 import torch.utils.data
 from config import Config
 from tqdm import tqdm
+import numpy as np
 
 from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
@@ -155,8 +156,8 @@ def train_model(
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -186,8 +187,8 @@ def train_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }
 
@@ -239,8 +240,8 @@ def test_model(
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -265,7 +266,7 @@ def test_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }

@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from .common import gather_samples, gen_epoch_acc, get_classifier, set_requires_grad
 from .resnet import get_decoder, get_encoder
+import numpy as np
 
 
 def load_model_and_optimizer(
@@ -91,8 +92,8 @@ def train_model(
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -122,8 +123,8 @@ def train_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }
 
@@ -164,14 +165,14 @@ def test_model(
 
             # forward pass
             z_x: torch.Tensor = encoder(x)
+            y_z: torch.Tensor = classifier(z_x)
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
             x_z: torch.Tensor = decoder(z_x)
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
-            y_z: torch.Tensor = classifier(z_x)
 
             # accumulate predictions
-            y_true.extend(torch.argmax(y, dim=1).cpu().numpy())
-            y_pred.extend(torch.argmax(y_z, dim=1).cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
@@ -196,7 +197,7 @@ def test_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
-        "y_true": y_true,
-        "y_pred": y_pred,
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
         "samples": samples,
     }
