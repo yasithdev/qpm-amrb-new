@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --account=wadduwage_lab
+#SBATCH --output=logs/%x-%a.log
 #SBATCH --partition=gpu
 #SBATCH --time=1-0
 #SBATCH --gres=gpu:1

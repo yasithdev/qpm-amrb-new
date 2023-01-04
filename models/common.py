@@ -7,7 +7,7 @@ import torch
 from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score, top_k_accuracy_score
+from sklearn.metrics import ConfusionMatrixDisplay, top_k_accuracy_score as topk_acc
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -197,13 +197,15 @@ def get_convt_out_shape(
 
 
 def gen_epoch_acc(
-    y_pred: list,
-    y_true: list,
+    y_pred: np.ndarray,
+    y_true: np.ndarray,
 ) -> Tuple[float, float, float]:
-    top_1_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=1))
-    top_2_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=2))
-    top_3_acc_score = float(top_k_accuracy_score(y_true=y_true, y_score=y_pred, k=3))
-    return top_1_acc_score, top_2_acc_score, top_3_acc_score
+
+    labels = np.arange(y_pred.shape[-1])
+    top1_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=1))
+    top2_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=2))
+    top3_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=3))
+    return top1_acc, top2_acc, top3_acc
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
