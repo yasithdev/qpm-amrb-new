@@ -18,5 +18,5 @@ export DATASET_NAME=$DATASET_NAME.$SLURM_ARRAY_TASK_ID
 # cd to project directory
 cd ~/projects/$PROJECT_NAME
 
-python -u $SCRIPT_NAME.py
+srun --unbuffered python -u $SCRIPT_NAME.py
 

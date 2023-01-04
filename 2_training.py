@@ -86,8 +86,7 @@ def main(config: Config):
                 epoch=epoch,
             )
 
-        model_savename = f"{config.model_name}-{config.label_type}-{config.cv_k}"
-        artifact = wandb.Artifact(model_savename, type="model")
+        artifact = wandb.Artifact(run_name, type="model")
         artifact.add_file(os.path.join(experiment_path, f"model_e{epoch}.pth"))
         artifact.add_file(os.path.join(experiment_path, f"optim_e{epoch}.pth"))
         wandb.log_artifact(artifact)
@@ -111,22 +110,25 @@ if __name__ == "__main__":
         f"{config.label_type}-{config.cv_k}",
     )
     name_tags = [config.dataset_name, config.model_name, config.cv_mode, str(config.cv_k)]
+    run_config = {
+        "cv_folds": config.cv_folds,
+        "cv_k": config.cv_k,
+        "cv_mode": config.cv_mode,
+        "dataset": config.dataset_name,
+        "model": config.model_name,
+    }
     if config.dataset_name.startswith("AMRB"):
         name_tags.insert(1, config.label_type)
+        run_config["label_type"] = config.label_type
+    run_name = "-".join(name_tags)
 
     import wandb
     import wandb.plot
 
     wandb.init(
         project="qpm-amrb",
-        name="-".join(name_tags),
-        config={
-            "cv_folds": config.cv_folds,
-            "cv_k": config.cv_k,
-            "cv_mode": config.cv_mode,
-            "dataset": config.dataset_name,
-            "model": config.model_name,
-        },
+        name=run_name,
+        config=run_config,
     )
 
     main(config)

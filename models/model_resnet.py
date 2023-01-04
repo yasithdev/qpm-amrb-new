@@ -96,7 +96,7 @@ def train_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = torch.nn.functional.cross_entropy(y_z, y)
+            classification_loss = torch.nn.functional.cross_entropy(y_z, y, label_smoothing=0.1)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
@@ -175,7 +175,7 @@ def test_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = torch.nn.functional.cross_entropy(y_z, y)
+            classification_loss = torch.nn.functional.cross_entropy(y_z, y, label_smoothing=0.1)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss

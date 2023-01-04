@@ -15,18 +15,18 @@ def get_model_optimizer_and_loops(
         from .model_flow import load_model_and_optimizer, test_model, train_model
     elif config.model_name == "resnet":
         from .model_resnet import load_model_and_optimizer, test_model, train_model
-    elif config.model_name == "capsnet":
-        from .model_capsnet import load_model_and_optimizer, test_model, train_model
-    elif config.model_name == "efficientcaps":
-        from .model_efficientcaps import (
-            load_model_and_optimizer,
-            test_model,
-            train_model,
-        )
+    # elif config.model_name == "capsnet":
+    #     from .model_capsnet import load_model_and_optimizer, test_model, train_model
+    # elif config.model_name == "efficientcaps":
+    #     from .model_efficientcaps import (
+    #         load_model_and_optimizer,
+    #         test_model,
+    #         train_model,
+    #     )
     elif config.model_name == "drcaps":
         from .model_drcaps import load_model_and_optimizer, test_model, train_model
-    elif config.model_name == "bnn":
-        from .model_bnn import load_model_and_optimizer, test_model, train_model
+    # elif config.model_name == "bnn":
+    #     from .model_bnn import load_model_and_optimizer, test_model, train_model
     else:
         raise ImportError(f"Model not found: {config.model_name}")
 
