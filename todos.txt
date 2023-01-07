@@ -1,0 +1,19 @@
+BASELINE-AMRB
+* find best test epochs of every model [leave-out,k-fold for strain,species]
+* UMAP the latent space of each model [leave-out,k-fold for strain,species]
+* show some in methodology section, and the rest in supplementary [leave-out,k-fold for strain,species]
+* compute classification performance [leave-out,k-fold for strain,species]
+
+FLOW-AMRB
+* train all flow models [leave-out, k-fold for strain,species]
+* report off-manifold magnitude |V| and see if (E_lo_tst |V| > E_lo_trn |V|) and (E_kf_tst |V| > E_kf_trn |V|) holds.
+* train a ood classifier from |V| and report accuracy.
+* train a ood classifier from logits/(1+|V|) and report accuracy.
+
+FLOW-MNIST
+* train one flow flow models [leave-out, k-fold for strain,species]
+* report off-manifold magnitude |V| and see if (E_lo_tst |V| > E_lo_trn |V|) and (E_kf_tst |V| > E_kf_trn |V|) holds.
+
+FLOW-CIFAR10
+* train one flow flow models [leave-out, k-fold for strain,species]
+* report off-manifold magnitude |V| and see if (E_lo_tst |V| > E_lo_trn |V|) and (E_kf_tst |V| > E_kf_trn |V|) holds.
