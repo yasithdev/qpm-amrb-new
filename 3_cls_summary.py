@@ -10,12 +10,14 @@ if __name__ == "__main__":
 
     datasets = ["AMRB_2"]
     label_types = ["strain", "species"]
-    cv_modes = ["leave-out"]
+    cv_modes = ["leave-out", "k-fold"]
     models = ["resnet", "drcaps"]
 
-    agg_results = {}
+    summary_df = pd.DataFrame()
     
     combinations = itertools.product(datasets, label_types, models, cv_modes)
+
+    pd.set_option("expand_frame_repr", False)
 
     for (dataset, label_type, model, cv_mode) in combinations:
         runs: List[wandb.apis.public.Run] = api.runs(
@@ -29,8 +31,9 @@ if __name__ == "__main__":
         )
 
         for run in runs:
-            run_name = run.name
-            print(run_name)
+            
+            print(run.name)
+            cv_k = int(str(run.name).split("-")[-1])
 
             min_metrics = [
                 "train_loss",
@@ -52,8 +55,21 @@ if __name__ == "__main__":
             for metric in max_metrics:
                 locs.add(df[metric].argmax())
             
-            sub_df = df.loc[sorted(locs),[*min_metrics, *max_metrics]]
-            print(sub_df)
+            instance_df = df.loc[sorted(locs),[*min_metrics, *max_metrics]]
+            instance_df["dataset"] = dataset
+            instance_df["label_type"] = label_type
+            instance_df["model"] = model
+            instance_df["cv_mode"] = cv_mode
+            instance_df["cv_k"] = cv_k
+            instance_df.index.name = "step"
+            instance_df = instance_df.reset_index()
+            instance_df = instance_df.set_index(["dataset", "label_type", "model", "cv_mode", "cv_k", "step"])
+            instance_df = instance_df.dropna(axis=0)
 
-            agg_results[run_name] = sub_df
+            summary_df = pd.concat([summary_df, instance_df])
+    
+    print("writing CLS summary to CSV")
+    summary_df = summary_df.sort_index()
+    summary_df.to_csv("results/cls_summary.csv")
 
+    print("DONE")
