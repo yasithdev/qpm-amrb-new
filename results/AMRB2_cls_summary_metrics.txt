@@ -1,0 +1,72 @@
+AMRB2 K-Fold (Species)
+model                      drcaps    resnet
+train_loss         mean  0.094790  0.435860
+                   std   0.007387  0.029704
+test_loss          mean  0.209000  0.946850
+                   std   0.037611  0.158106
+train_accuracy     mean  0.822100  0.897510
+                   std   0.014855  0.024470
+test_accuracy      mean  0.627230  0.629150
+                   std   0.059637  0.064088
+train_top2accuracy mean  0.965490  0.985740
+                   std   0.007715  0.006700
+test_top2accuracy  mean  0.852350  0.849360
+                   std   0.051640  0.048429
+train_top3accuracy mean  0.996370  0.998660
+                   std   0.001229  0.000690
+test_top3accuracy  mean  0.963450  0.948910
+                   std   0.027785  0.029030
+AMRB2 K-Fold (Strain)
+model                      drcaps    resnet
+train_loss         mean  0.266640  1.236270
+                   std   0.002931  0.013623
+test_loss          mean  0.332610  1.562170
+                   std   0.006343  0.017888
+train_accuracy     mean  0.514810  0.586310
+                   std   0.007872  0.008510
+test_accuracy      mean  0.399060  0.446050
+                   std   0.008343  0.007424
+train_top2accuracy mean  0.711050  0.777790
+                   std   0.006678  0.006693
+test_top2accuracy  mean  0.615390  0.667030
+                   std   0.008159  0.005971
+train_top3accuracy mean  0.814340  0.870020
+                   std   0.004853  0.004815
+test_top3accuracy  mean  0.741000  0.787190
+                   std   0.007420  0.004269
+AMRB2 Leave-Out (Species)
+model                      drcaps    resnet
+train_loss         mean  0.068500  0.367775
+                   std   0.035616  0.069076
+test_loss          mean  0.294725  0.985400
+                   std   0.085533  0.203395
+train_accuracy     mean  0.871100  0.899425
+                   std   0.071911  0.054360
+test_accuracy      mean  0.446975  0.498550
+                   std   0.182438  0.039478
+train_top2accuracy mean  0.986000  0.991575
+                   std   0.015743  0.009051
+test_top2accuracy  mean  0.917500  0.895175
+                   std   0.075897  0.081122
+train_top3accuracy mean  1.000000  1.000000
+                   std   0.000000  0.000000
+test_top3accuracy  mean  1.000000  1.000000
+                   std   0.000000  0.000000
+AMRB2 Leave-Out (Strain)
+model                      drcaps    resnet
+train_loss         mean  0.274368  1.222505
+                   std   0.019292  0.064702
+test_loss          mean  0.574479  3.234537
+                   std   0.171164  0.802225
+train_accuracy     mean  0.493032  0.585995
+                   std   0.041818  0.037965
+test_accuracy      mean  0.181921  0.180421
+                   std   0.283424  0.270087
+train_top2accuracy mean  0.692547  0.778705
+                   std   0.042898  0.032410
+test_top2accuracy  mean  0.265105  0.275026
+                   std   0.299555  0.295919
+train_top3accuracy mean  0.801779  0.871263
+                   std   0.036011  0.023787
+test_top3accuracy  mean  0.338911  0.349263
+                   std   0.321359  0.322757
