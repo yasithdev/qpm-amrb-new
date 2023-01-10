@@ -113,18 +113,18 @@ hpc-train-amrb2-leaveout-species:
 
 
 # ------------------
-# MNIST
+# FLOW
 # ------------------
-hpc-train-mnist-kfold:
-	for MODEL_NAME in "resnet" "drcaps"; do \
-		sbatch -J qpm-mnist_k-fold_$${MODEL_NAME} --array=0-9 \
-		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=k-fold,DATASET_NAME=MNIST,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
+hpc-train-flow-mnist:
+	for CV_MODE in "k-fold" "leave-out"; do \
+		sbatch -J qpm-mnist_$${CV_MODE}_flow --array=0-9 \
+		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=$${CV_MODE},DATASET_NAME=MNIST,MODEL_NAME=flow jobscript.sh; \
 	done
 
-hpc-train-mnist-leaveout:
-	for MODEL_NAME in "resnet" "drcaps"; do \
-		sbatch -J qpm-mnist_leave-out_$${MODEL_NAME} --array=0-9 \
-		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=leave-out,DATASET_NAME=MNIST,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
+hpc-train-flow-cifar10:
+	for CV_MODE in "k-fold" "leave-out"; do \
+		sbatch -J qpm-cifar10_$${CV_MODE}_flow --array=0-9 \
+		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=$${CV_MODE},DATASET_NAME=CIFAR10,MODEL_NAME=flow jobscript.sh; \
 	done
 
 # ------------------
