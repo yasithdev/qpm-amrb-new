@@ -76,7 +76,7 @@ def get_info(
     **kwargs,
 ) -> dict:
 
-    src_info_path = os.path.join(data_root, f"AMRB_{version}", "info.json")
+    src_info_path = os.path.join(data_root, f"AMRB{version}", "info.json")
     logging.info(f"Dataset info: {src_info_path}")
     with open(src_info_path, "r") as f:
         src_info: dict = json.load(f)["strains"]

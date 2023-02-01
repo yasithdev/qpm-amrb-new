@@ -32,7 +32,7 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         # ----------------------------------------------------------------- #
         # base path for dataset files                                       #
         # ----------------------------------------------------------------- #
-        ds_path = os.path.join(data_root, f"AMRB_{version}")
+        ds_path = os.path.join(data_root, f"AMRB{version}")
 
         # ----------------------------------------------------------------- #
         # load dataset for sequential reading                               #

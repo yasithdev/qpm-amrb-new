@@ -8,7 +8,7 @@ if __name__ == "__main__":
 
     api = wandb.Api()
 
-    datasets = ["AMRB_2"]
+    datasets = ["AMRB2"]
     label_types = ["strain", "species"]
     cv_modes = ["leave-out", "k-fold"]
     models = ["resnet", "drcaps"]

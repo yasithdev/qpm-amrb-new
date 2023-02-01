@@ -119,10 +119,9 @@ def main(config: Config):
                 epoch=epoch,
             )
 
-        artifact = wandb.Artifact(run_name, type="model")
         artifact.add_file(os.path.join(experiment_path, f"model_e{epoch}.pth"))
         artifact.add_file(os.path.join(experiment_path, f"optim_e{epoch}.pth"))
-        wandb.log_artifact(artifact)
+        artifact.save()
 
 
 if __name__ == "__main__":
@@ -168,5 +167,6 @@ if __name__ == "__main__":
         name=run_name,
         config=run_config,
     )
+    artifact = wandb.Artifact(run_name, type="model")
 
     main(config)
