@@ -8,6 +8,8 @@ import torch
 from config import Config, load_config
 from vis import gen_umap, plot_samples
 
+from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+
 
 def main(config: Config):
 
@@ -92,8 +94,34 @@ def main(config: Config):
 
 
 if __name__ == "__main__":
+    
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.random.manual_seed(42)
+
     config = load_config()
+
+    # get dataset info
+    config.dataset_info = get_dataset_info(
+        dataset_name=config.dataset_name,
+        data_root=config.data_dir,
+        cv_mode=config.cv_mode,
+        label_type=config.label_type,
+    )
+    # get image dims
+    config.image_chw = get_dataset_chw(
+        dataset_name=config.dataset_name,
+    )
+    # initialize data loaders
+    config.train_loader, config.test_loader = get_dataset_loaders(
+        dataset_name=config.dataset_name,
+        batch_size_train=config.batch_size,
+        batch_size_test=config.batch_size,
+        data_root=config.data_dir,
+        cv_k=config.cv_k,
+        cv_folds=config.cv_folds,
+        cv_mode=config.cv_mode,
+        label_type=config.label_type,
+    )
+
     main(config)

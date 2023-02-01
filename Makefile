@@ -81,6 +81,20 @@ hpc-train-amrb2-kfold-gram:
 		--export=ALL,SCRIPT_NAME=2_training,CV_MODE=k-fold,LABEL_TYPE=gram,DATASET_NAME=AMRB2,MODEL_NAME=$${MODEL_NAME} jobscript.sh; \
 	done
 
+umap-amrb2-kfold-strain:
+	for MODEL_NAME in "resnet" "drcaps"; do \
+		for K in `seq 0 10`; do \
+			CV_MODE=k-fold CV_FOLDS=10 LABEL_TYPE=strain MODEL_NAME=$${MODEL_NAME} DATASET_NAME=AMRB2\.$${K} python -u 5_umap.py; \
+		done; \
+	done
+
+umap-amrb2-kfold-species:
+	for MODEL_NAME in "resnet" "drcaps"; do \
+		for K in `seq 0 10`; do \
+			CV_MODE=k-fold CV_FOLDS=10 LABEL_TYPE=species MODEL_NAME=$${MODEL_NAME} DATASET_NAME=AMRB2\.$${K} python -u 5_umap.py; \
+		done; \
+	done
+
 # ------------------
 # AMRB1 - LEAVE-OUT
 # ------------------
@@ -112,14 +126,17 @@ hpc-train-amrb2-leaveout-species:
 	done
 
 
-latent-vis-amrb2:
+umap-amrb2-leaveout-strain:
 	for MODEL_NAME in "resnet" "drcaps"; do \
-		for CV_MODE in "leave-out" "k-fold"; do \
-			for LABEL_TYPE in "species" "strain"; do \
-				for CV_K in {0...20}; do \
-					DATASET_NAME=AMRB2.$${CV_K} python -u 5_latent_vis.py; \
-				done; \
-			done; \
+		for K in `seq 0 18`; do \
+			CV_MODE=leave-out CV_FOLDS=19 LABEL_TYPE=strain MODEL_NAME=$${MODEL_NAME} DATASET_NAME=AMRB2\.$${K} python -u 5_umap.py; \
+		done; \
+	done
+
+umap-amrb2-leaveout-species:
+	for MODEL_NAME in "resnet" "drcaps"; do \
+		for K in `seq 0 3`; do \
+			CV_MODE=leave-out CV_FOLDS=4 LABEL_TYPE=species MODEL_NAME=$${MODEL_NAME} DATASET_NAME=AMRB2\.$${K} python -u 5_umap.py; \
 		done; \
 	done
 

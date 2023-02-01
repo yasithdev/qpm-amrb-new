@@ -10,6 +10,8 @@ from config import Config, load_config
 from models import get_model_optimizer_and_loops
 from models.common import load_saved_state, save_state
 
+from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+
 
 def stats_to_wandb_log(
     stats: dict,
@@ -132,6 +134,29 @@ if __name__ == "__main__":
     # torch.use_deterministic_algorithms(mode=True)
 
     config = load_config()
+
+    # get dataset info
+    config.dataset_info = get_dataset_info(
+        dataset_name=config.dataset_name,
+        data_root=config.data_dir,
+        cv_mode=config.cv_mode,
+        label_type=config.label_type,
+    )
+    # get image dims
+    config.image_chw = get_dataset_chw(
+        dataset_name=config.dataset_name,
+    )
+    # initialize data loaders
+    config.train_loader, config.test_loader = get_dataset_loaders(
+        dataset_name=config.dataset_name,
+        batch_size_train=config.batch_size,
+        batch_size_test=config.batch_size,
+        data_root=config.data_dir,
+        cv_k=config.cv_k,
+        cv_folds=config.cv_folds,
+        cv_mode=config.cv_mode,
+        label_type=config.label_type,
+    )
 
     # set experiment name and path
     experiment_name = "2_training"

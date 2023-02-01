@@ -1,13 +1,13 @@
 import logging
 import os
 import sys
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 
-from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+from datasets import get_dataset_chw
 
 
 def get_best_device():
@@ -35,7 +35,6 @@ class Config:
         dataset_name: str,
         model_name: str,
         experiment_dir: str,
-        image_chw: Tuple[int, int, int],
         manifold_c: int,
         batch_size: int,
         optim_lr: float,
@@ -43,9 +42,10 @@ class Config:
         train_epochs: int,
         exc_dry_run: bool,
         exc_resume: bool,
-        dataset_info: dict,
-        train_loader: DataLoader,
-        test_loader: DataLoader,
+        dataset_info: Optional[dict],
+        image_chw: Optional[Tuple[int, int, int]],
+        train_loader: Optional[DataLoader],
+        test_loader: Optional[DataLoader],
         device: str,
         tqdm_args: dict,
     ) -> None:
@@ -105,26 +105,6 @@ def load_config() -> Config:
     exc_resume = bool(int(getenv("EXC_RESUME")))
     label_type = getenv("LABEL_TYPE")
 
-    # image dims (get from the data loader)
-    image_chw = get_dataset_chw(dataset_name)
-
-    # data loader
-    train_loader, test_loader = get_dataset_loaders(
-        dataset_name,
-        batch_size_train=batch_size,
-        batch_size_test=batch_size,
-        data_root=data_dir,
-        cv_k=cv_k,
-        cv_folds=cv_folds,
-        cv_mode=cv_mode,
-        label_type=label_type,
-    )
-    dataset_info = get_dataset_info(
-        dataset_name,
-        data_root=data_dir,
-        cv_mode=cv_mode,
-        label_type=label_type,
-    )
     # runtime device
     device = get_best_device()
     logging.info(f"Using device: {device}")
@@ -146,7 +126,6 @@ def load_config() -> Config:
         dataset_name=dataset_name,
         model_name=model_name,
         experiment_dir=experiment_dir,
-        image_chw=image_chw,
         manifold_c=manifold_c,
         batch_size=batch_size,
         optim_lr=optim_lr,
@@ -155,9 +134,10 @@ def load_config() -> Config:
         exc_dry_run=exc_dry_run,
         exc_resume=exc_resume,
         # derived params
-        dataset_info=dataset_info,
-        train_loader=train_loader,
-        test_loader=test_loader,
+        dataset_info=None,
+        image_chw=None,
+        train_loader=None,
+        test_loader=None,
         device=device,
         # hardcoded params
         tqdm_args=tqdm_args,

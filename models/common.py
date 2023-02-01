@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Callable, Tuple
+from typing import List, Callable, Tuple, Optional
 
 import numpy as np
 import torch
@@ -45,9 +45,18 @@ def load_saved_state(
     optim: torch.optim.Optimizer,
     experiment_path: str,
     config: Config,
+    epoch: Optional[int] = None,
 ) -> None:
-    model_state_path = os.path.join(experiment_path, f"model.pth")
-    optim_state_path = os.path.join(experiment_path, f"optim.pth")
+    
+    if epoch is not None:
+        model_filename = f"model_e{epoch}.path"
+        optim_filename = f"optim_e{epoch}.path"
+    else:
+        model_filename = f"model.path"
+        optim_filename = f"optim.path"
+
+    model_state_path = os.path.join(experiment_path, model_filename)
+    optim_state_path = os.path.join(experiment_path, optim_filename)
 
     if os.path.exists(model_state_path):
         model.load_state_dict(torch.load(model_state_path, map_location=config.device))
@@ -56,7 +65,6 @@ def load_saved_state(
     if os.path.exists(optim_state_path):
         optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
         logging.info("Loaded saved optim state from:", optim_state_path)
-
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
