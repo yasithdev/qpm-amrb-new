@@ -257,21 +257,20 @@ def margin_loss(
 
 
 def gather_samples(
-    predictions: List,
+    samples: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
     x: torch.Tensor,
     y: torch.Tensor,
     m: torch.Tensor,
     y_x: torch.Tensor,
-    num_predictions: int = 5,
+    num_samples: int = 5,
 ) -> None:
 
     pattern = "c h w -> h w c"
 
-    if len(predictions) < num_predictions:
-
+    if len(samples) < num_samples:
         val_x = rearrange(x[0].cpu(), pattern).numpy()
         val_y = y[0].argmax().cpu().numpy()
         val_x_z = rearrange(m[0].detach().cpu(), pattern).numpy()
         val_y_x = y_x[0].detach().argmax().cpu().numpy()
 
-        predictions.append((val_x, val_y, val_x_z, val_y_x))
+        samples.append((val_x, val_y, val_x_z, val_y_x))

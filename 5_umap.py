@@ -4,10 +4,45 @@ import numpy as np
 import pandas as pd
 import torch
 
+from typing import Literal
+
 from config import Config, load_config
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 from models import get_model_optimizer_and_loops
 from models.common import load_saved_state
+from vis import gen_umap
+
+def log_stats(
+    stats: dict,
+    labels: list,
+    prefix: Literal["train", "test"],
+    mode: str,
+    plot_title: str,
+    plot_path: str,
+) -> None:
+
+    loss = stats["loss"]
+    acc1, acc2, acc3 = stats["acc"]
+
+    y_true = np.array(stats["y_true"])
+    y_pred = np.array(stats["y_pred"])
+    z_pred = np.array(stats["z_pred"])
+
+    # in leave-out mode, add column for left-out class
+    if mode == "leave-out":
+        y_pred = np.pad(y_pred, ((0, 0), (0, 1)), constant_values=0)
+
+    if mode == "leave-out" and prefix == "test":
+        n = len(labels) - 1
+        y_true = np.full(y_true.shape[0], n)
+
+    gen_umap(
+        x=z_pred,
+        y=y_true,
+        out_path=plot_path,
+        title=plot_title,
+        labels=labels,
+    )
 
 
 def main(
@@ -15,7 +50,7 @@ def main(
     config: Config,
 ) -> None:
 
-    model, optim, train_model, test_model = get_model_optimizer_and_loops(config)
+    model, optim, _, test_model = get_model_optimizer_and_loops(config)
 
     rows = df[
         (df.model == config.model_name) & (df.cv_k == config.cv_k)
@@ -23,31 +58,48 @@ def main(
     epochs = list(rows.step)
     print(f"Epochs: {epochs}")
 
-    # for each selected epoch, load saved model and optimizer parameters
+    train_labels = list(config.train_loader.dataset.labels)
+    test_labels = list(config.test_loader.dataset.labels)
+    labels = (
+        [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
+    )
+
+    # for each selected epoch, load saved parameters
     for epoch in epochs:
-        # load_saved_state(
-        #     model=model,
-        #     optim=optim,
-        #     experiment_path=experiment_path,
-        #     config=config,
-        #     epoch=epoch,
-        # )
-        # model = model.float().to(config.device)
 
-        # train_labels = list(config.train_loader.dataset.labels)
-        # test_labels = list(config.test_loader.dataset.labels)
-        # labels = (
-        #     [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
-        # )
+        print(f"[UMAP] Epoch {epoch}...")
 
-        input(f"Epoch {epoch}: DONE")
+        load_saved_state(
+            model=model,
+            optim=optim,
+            experiment_path=weights_path,
+            config=config,
+            epoch=epoch,
+        )
+        model = model.float().to(config.device)
 
-        # # testing loop
-        # stats = test_model(
-        #     model=model,
-        #     epoch=epoch,
-        #     config=config,
-        # )
+        # testing loop
+        stats = test_model(
+            model=model,
+            epoch=epoch,
+            config=config,
+        )
+        
+        plot_id = f"{config.dataset_name}-{config.label_type}-{config.model_name}-CV{config.cv_k}-E{epoch}"
+        plot_path = os.path.join(
+            config.experiment_dir,
+            "5_umap",
+            f"{plot_id}.png",
+        )
+
+        log_stats(
+            stats,
+            labels,
+            prefix="test",
+            mode=config.cv_mode,
+            plot_title=f"[UMAP] Z: {plot_id} (test)",
+            plot_path=plot_path,
+        )
 
 
 if __name__ == "__main__":
@@ -82,7 +134,7 @@ if __name__ == "__main__":
         label_type=config.label_type,
     )
 
-    experiment_path = os.path.join(
+    weights_path = os.path.join(
         config.experiment_dir,
         "2_training",
         f"{config.dataset_name}-{config.model_name}",

@@ -15,6 +15,9 @@ import numpy as np
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+    
+    assert config.dataset_info is not None
+    assert config.image_chw is not None
 
     # ambient (x) flow configuration
     k0, k1, k2, k3 = 2, 2, 2, 2
@@ -128,6 +131,8 @@ def train_model(
     optim: torch.optim.Optimizer,
     **kwargs,
 ) -> dict:
+    
+    assert config.train_loader is not None
 
     # initialize loop
     model.train()
@@ -138,7 +143,6 @@ def train_model(
     # training
     set_requires_grad(model, True)
     with torch.enable_grad():
-
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
         x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
         u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
@@ -148,6 +152,7 @@ def train_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        z_pred = []
         samples = []
 
         for x, y in iterable:
@@ -170,6 +175,7 @@ def train_model(
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
+            z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, m, y_x)
 
             # log likelihood
@@ -205,6 +211,7 @@ def train_model(
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "z_pred": np.array(z_pred),
         "samples": samples,
     }
 
@@ -215,6 +222,8 @@ def test_model(
     config: Config,
     **kwargs,
 ) -> dict:
+    
+    assert config.test_loader is not None
 
     # initialize loop
     model.eval()
@@ -234,6 +243,7 @@ def test_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        z_pred = []
         samples = []
 
         for x, y in iterable:
@@ -256,6 +266,7 @@ def test_model(
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
+            z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, m, y_x)
 
             # log likelihood
@@ -286,5 +297,6 @@ def test_model(
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "z_pred": np.array(z_pred),
         "samples": samples,
     }

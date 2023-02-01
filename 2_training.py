@@ -13,7 +13,7 @@ from models.common import load_saved_state, save_state
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 
 
-def stats_to_wandb_log(
+def log_stats(
     stats: dict,
     labels: list,
     prefix: Literal["train", "test"],
@@ -25,6 +25,7 @@ def stats_to_wandb_log(
 
     y_true = np.array(stats["y_true"])
     y_pred = np.array(stats["y_pred"])
+    z_pred = np.array(stats["z_pred"])
 
     # in leave-out mode, add column for left-out class
     if mode == "leave-out":
@@ -97,7 +98,7 @@ def main(config: Config):
                 optim=optim,
             )
             wandb.log(
-                stats_to_wandb_log(stats, labels, prefix="train", mode=config.cv_mode),
+                log_stats(stats, labels, prefix="train", mode=config.cv_mode),
                 step=epoch,
             )
 
@@ -108,7 +109,7 @@ def main(config: Config):
             config=config,
         )
         wandb.log(
-            stats_to_wandb_log(stats, labels, prefix="test", mode=config.cv_mode),
+            log_stats(stats, labels, prefix="test", mode=config.cv_mode),
             step=epoch,
         )
 
