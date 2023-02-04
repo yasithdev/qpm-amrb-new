@@ -85,7 +85,7 @@ def main(
             config=config,
         )
         
-        plot_id = f"{config.dataset_name}-{config.label_type}-{config.model_name}-CV{config.cv_k}-E{epoch}"
+        plot_id = f"{config.dataset_name}-{config.label_type}-{config.cv_mode}-{config.model_name}-CV{config.cv_k}-E{epoch}"
         plot_path = os.path.join(
             config.experiment_dir,
             "5_umap",
@@ -114,9 +114,9 @@ if __name__ == "__main__":
     # get dataset info
     config.dataset_info = get_dataset_info(
         dataset_name=config.dataset_name,
-        data_root=config.data_dir,
-        cv_mode=config.cv_mode,
         label_type=config.label_type,
+        cv_mode=config.cv_mode,
+        data_root=config.data_dir,
     )
     # get image dims
     config.image_chw = get_dataset_chw(
@@ -125,13 +125,13 @@ if __name__ == "__main__":
     # initialize data loaders
     config.train_loader, config.test_loader = get_dataset_loaders(
         dataset_name=config.dataset_name,
+        label_type=config.label_type,
+        cv_mode=config.cv_mode,
+        data_root=config.data_dir,
         batch_size_train=config.batch_size,
         batch_size_test=config.batch_size,
-        data_root=config.data_dir,
         cv_k=config.cv_k,
         cv_folds=config.cv_folds,
-        cv_mode=config.cv_mode,
-        label_type=config.label_type,
     )
 
     weights_path = os.path.join(
