@@ -67,7 +67,7 @@ class Squeeze(FlowTransform):
         return x, logabsdet
 
 
-class Projection(FlowTransform):
+class Partition(FlowTransform):
     def __init__(
         self,
         ambient_dims: int,
@@ -80,29 +80,30 @@ class Projection(FlowTransform):
 
     def forward(
         self,
-        x: torch.Tensor,
+        uv: torch.Tensor,
         c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[Tuple[torch.Tensor,torch.Tensor], torch.Tensor]:
 
-        B = x.size(0)
+        B = uv.size(0)
 
-        z = x.narrow(1, 0, self.manifold_dims)
-        logabsdet = x.new_zeros(B)
+        u = uv.narrow(1, 0, self.manifold_dims)
+        v = uv.narrow(1, self.manifold_dims, self.ambient_dims - self.manifold_dims)
+        logabsdet = uv.new_zeros(B)
 
-        return z, logabsdet
+        return (u,v), logabsdet
 
     def inverse(
         self,
-        z: torch.Tensor,
+        u: torch.Tensor,
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
-        B = z.size(0)
+        B = u.size(0)
 
         padding_dims = self.ambient_dims - self.manifold_dims
-        padding_shape = (0, 0) * (z.dim() - 2) + (0, padding_dims)
+        padding_shape = (0, 0) * (u.dim() - 2) + (0, padding_dims)
 
-        x = F.pad(z, padding_shape)
-        logabsdet = z.new_zeros(B)
+        u0 = F.pad(u, padding_shape)
+        logabsdet = u.new_zeros(B)
 
-        return x, logabsdet
+        return u0, logabsdet

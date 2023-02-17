@@ -105,7 +105,7 @@ def load_model_and_optimizer(
     )
 
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.Adam(**optim_config)
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, optim
 
@@ -140,6 +140,7 @@ def train_model(
         y_true = []
         y_pred = []
         z_pred = []
+        z_nll = []
         samples = []
 
         for x, y in iterable:
@@ -177,6 +178,10 @@ def train_model(
             minibatch_loss.backward()
             optim.step()
 
+            # save nll
+            nll = torch.nn.functional.nll_loss(y_z, y, reduction='none')
+            z_nll.extend(nll.detach().cpu().numpy())
+
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
 
@@ -196,6 +201,7 @@ def train_model(
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "z_pred": np.array(z_pred),
+        "z_nll": np.array(z_nll),
         "samples": samples,
     }
 
@@ -229,6 +235,7 @@ def test_model(
         y_true = []
         y_pred = []
         z_pred = []
+        z_nll = []
         samples = []
 
         for x, y in iterable:
@@ -261,6 +268,10 @@ def test_model(
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
+            # save nll
+            nll = torch.nn.functional.nll_loss(y_z, y, reduction='none')
+            z_nll.extend(nll.detach().cpu().numpy())
+
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
 
@@ -280,5 +291,6 @@ def test_model(
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "z_pred": np.array(z_pred),
+        "z_nll": np.array(z_nll),
         "samples": samples,
     }

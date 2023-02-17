@@ -15,7 +15,7 @@ import numpy as np
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
-    
+
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
@@ -59,29 +59,31 @@ def load_model_and_optimizer(
     model = torch.nn.ModuleDict(
         {
             # MNIST: (1, 32, 32) -> (4, 16, 16) -> (16, 8, 8) -> (64, 4, 4) -> (256, 2, 2)
-            "x_flow": flow.Compose([
-                flow.nn.ActNorm(c0),
-                flow.nn.Squeeze(factor=k0),
-                flow.nn.PiecewiseConformalConv2D(c1),
-                flow.nn.ActNorm(c1),
-                flow.nn.PiecewiseConformalConv2D(c1),
-                flow.nn.ActNorm(c1),
-                flow.nn.Squeeze(factor=k1),
-                flow.nn.PiecewiseConformalConv2D(c2),
-                flow.nn.ActNorm(c2),
-                flow.nn.PiecewiseConformalConv2D(c2),
-                flow.nn.ActNorm(c2),
-                flow.nn.Squeeze(factor=k2),
-                flow.nn.PiecewiseConformalConv2D(c3),
-                flow.nn.ActNorm(c3),
-                flow.nn.PiecewiseConformalConv2D(c3),
-                flow.nn.ActNorm(c3),
-                flow.nn.Squeeze(factor=k3),
-                flow.nn.PiecewiseConformalConv2D(c4),
-                flow.nn.ActNorm(c4),
-                flow.nn.PiecewiseConformalConv2D(c4),
-                flow.nn.Projection(c4, cm),
-            ]),
+            "x_flow": flow.Compose(
+                [
+                    flow.nn.ActNorm(c0),
+                    flow.nn.Squeeze(factor=k0),
+                    flow.nn.PiecewiseConformalConv2D(c1),
+                    flow.nn.ActNorm(c1),
+                    flow.nn.PiecewiseConformalConv2D(c1),
+                    flow.nn.ActNorm(c1),
+                    flow.nn.Squeeze(factor=k1),
+                    flow.nn.PiecewiseConformalConv2D(c2),
+                    flow.nn.ActNorm(c2),
+                    flow.nn.PiecewiseConformalConv2D(c2),
+                    flow.nn.ActNorm(c2),
+                    flow.nn.Squeeze(factor=k2),
+                    flow.nn.PiecewiseConformalConv2D(c3),
+                    flow.nn.ActNorm(c3),
+                    flow.nn.PiecewiseConformalConv2D(c3),
+                    flow.nn.ActNorm(c3),
+                    flow.nn.Squeeze(factor=k3),
+                    flow.nn.PiecewiseConformalConv2D(c4),
+                    flow.nn.ActNorm(c4),
+                    flow.nn.PiecewiseConformalConv2D(c4),
+                    flow.nn.Partition(c4, cm),
+                ]
+            ),
             # MNIST: (cm, 2, 2) -> (cm, 2, 2)
             # affine coupling flow
             # "m_flow": flow.Compose([
@@ -99,20 +101,22 @@ def load_model_and_optimizer(
             #     flow.nn.AffineCoupling(**affine_coupling_args_B),
             # ]),
             # rqs coupling flow
-            "u_flow": flow.Compose([
-                flow.nn.ActNorm(cm),
-                flow.nn.PiecewiseConformalConv2D(cm),
-                flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ActNorm(cm),
-                flow.nn.PiecewiseConformalConv2D(cm),
-                flow.nn.RQSCoupling(**rqs_coupling_args_B),
-                flow.nn.ActNorm(cm),
-                flow.nn.PiecewiseConformalConv2D(cm),
-                flow.nn.RQSCoupling(**rqs_coupling_args_A),
-                flow.nn.ActNorm(cm),
-                flow.nn.PiecewiseConformalConv2D(cm),
-                flow.nn.RQSCoupling(**rqs_coupling_args_B),
-            ]),
+            "u_flow": flow.Compose(
+                [
+                    flow.nn.ActNorm(cm),
+                    flow.nn.PiecewiseConformalConv2D(cm),
+                    flow.nn.RQSCoupling(**rqs_coupling_args_A),
+                    flow.nn.ActNorm(cm),
+                    flow.nn.PiecewiseConformalConv2D(cm),
+                    flow.nn.RQSCoupling(**rqs_coupling_args_B),
+                    flow.nn.ActNorm(cm),
+                    flow.nn.PiecewiseConformalConv2D(cm),
+                    flow.nn.RQSCoupling(**rqs_coupling_args_A),
+                    flow.nn.ActNorm(cm),
+                    flow.nn.PiecewiseConformalConv2D(cm),
+                    flow.nn.RQSCoupling(**rqs_coupling_args_B),
+                ]
+            ),
             "dist": flow.distributions.StandardNormal(cm, h4, w4),
         }
     )
@@ -131,7 +135,7 @@ def train_model(
     optim: torch.optim.Optimizer,
     **kwargs,
 ) -> dict:
-    
+
     assert config.train_loader is not None
 
     # initialize loop
@@ -152,7 +156,10 @@ def train_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        u_pred = []
+        v_pred = []
         z_pred = []
+        z_nll = []
         samples = []
 
         for x, y in iterable:
@@ -163,7 +170,9 @@ def train_model(
 
             # forward/backward pass
             # x |-> u
-            u, logabsdet_xu = x_flow(x)
+            (u, v), logabsdet_xu = x_flow(x)
+            u_pred.extend(u)
+            v_pred.extend(v)
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
@@ -180,6 +189,7 @@ def train_model(
 
             # log likelihood
             log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
+            z_nll.extend(-log_px.detach().cpu().numpy())
 
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
@@ -204,14 +214,19 @@ def train_model(
     avg_loss = sum_loss / size
     acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
-    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]")
+    tqdm.write(
+        f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
+    )
 
     return {
         "loss": avg_loss,
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "u_pred": np.array(u_pred),
+        "v_pred": np.array(v_pred),
         "z_pred": np.array(z_pred),
+        "z_nll": np.array(z_nll),
         "samples": samples,
     }
 
@@ -222,7 +237,7 @@ def test_model(
     config: Config,
     **kwargs,
 ) -> dict:
-    
+
     assert config.test_loader is not None
 
     # initialize loop
@@ -243,7 +258,10 @@ def test_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        u_pred = []
+        v_pred = []
         z_pred = []
+        z_nll = []
         samples = []
 
         for x, y in iterable:
@@ -254,7 +272,9 @@ def test_model(
 
             # forward/backward pass
             # x |-> u
-            u, logabsdet_xu = x_flow(x)
+            (u, v), logabsdet_xu = x_flow(x)
+            u_pred.extend(u)
+            v_pred.extend(v)
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
@@ -271,6 +291,7 @@ def test_model(
 
             # log likelihood
             log_px = dist.log_prob(z) + logabsdet_xu + logabsdet_uz
+            z_nll.extend(-log_px.detach().cpu().numpy())
 
             # calculate loss
             reconstruction_loss = torch.nn.functional.mse_loss(m, x)
@@ -290,13 +311,18 @@ def test_model(
     avg_loss = sum_loss / size
     acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
-    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]")
+    tqdm.write(
+        f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
+    )
 
     return {
         "loss": avg_loss,
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "u_pred": np.array(u_pred),
+        "v_pred": np.array(v_pred),
         "z_pred": np.array(z_pred),
+        "z_nll": np.array(z_nll),
         "samples": samples,
     }

@@ -50,7 +50,7 @@ class SimpleNSF2D(Flow):
             mask = ~mask
 
             if include_linear:
-                transforms.append(ConformalConv2D(C, 1))
+                transforms.append(ConformalConv2D(C))
 
         if base_dist is None:
             base_dist = StandardNormal(C, H, W)
@@ -109,7 +109,7 @@ class MultiScaleNSF2D(Flow):
                 mask = ~mask
 
                 if include_linear:
-                    level_transforms.append(ConformalConv2D(C, 1))
+                    level_transforms.append(ConformalConv2D(C))
 
             transforms.append(Compose(level_transforms))
 
