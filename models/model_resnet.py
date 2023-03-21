@@ -81,6 +81,7 @@ def train_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        y_nll = []
         z_pred = []
         samples = []
 
@@ -114,6 +115,10 @@ def train_model(
             minibatch_loss.backward()
             optim.step()
 
+            # save nll
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            y_nll.extend(nll.detach().cpu().numpy())
+
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
 
@@ -132,6 +137,7 @@ def train_model(
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "y_nll": np.array(y_nll),
         "z_pred": np.array(z_pred),
         "samples": samples,
     }
@@ -165,6 +171,7 @@ def test_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        y_nll = []
         z_pred = []
         samples = []
 
@@ -193,6 +200,10 @@ def test_model(
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
+            # save nll
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            y_nll.extend(nll.detach().cpu().numpy())
+
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
 
@@ -211,6 +222,7 @@ def test_model(
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
+        "y_nll": np.array(y_nll),
         "z_pred": np.array(z_pred),
         "samples": samples,
     }

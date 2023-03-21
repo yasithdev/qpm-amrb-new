@@ -9,7 +9,6 @@ import einops
 import torch
 
 from .caps import squash
-from .common import capsule_norm
 
 
 def softmax_3d(
@@ -134,7 +133,7 @@ class MaskCaps(torch.nn.Module):
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Compute logits (B, D)
-        logits = capsule_norm(x).squeeze()
+        logits = x.norm(p=2, dim=1)
         # Extract most-activated capsule output (B, C)
         (B, C, _) = x.size()
         extracted = x.gather(

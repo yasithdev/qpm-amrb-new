@@ -91,6 +91,9 @@ def load_config() -> Config:
 
     data_dir = getenv("DATA_DIR")
     dataset_name, cv_k = getenv("DATASET_NAME").rsplit(".", maxsplit=1)
+    label_type = "target"
+    if dataset_name.startswith("AMRB2"):
+        dataset_name, label_type = dataset_name.rsplit("_", maxsplit=1)
     cv_k = int(cv_k)
     cv_folds = int(getenv("CV_FOLDS"))
     cv_mode = getenv("CV_MODE")
@@ -103,7 +106,6 @@ def load_config() -> Config:
     train_epochs = int(getenv("TRAIN_EPOCHS"))
     exc_dry_run = bool(int(getenv("EXC_DRY_RUN")))
     exc_resume = bool(int(getenv("EXC_RESUME")))
-    label_type = getenv("LABEL_TYPE")
 
     # runtime device
     device = get_best_device()

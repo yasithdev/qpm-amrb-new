@@ -140,8 +140,8 @@ def train_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
+        y_nll = []
         z_pred = []
-        z_nll = []
         samples = []
 
         for x, y in iterable:
@@ -169,7 +169,7 @@ def train_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = margin_loss(y_z, y)
+            classification_loss = margin_loss(y_z.softmax(-1), y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
@@ -180,8 +180,8 @@ def train_model(
             optim.step()
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z, y, reduction='none')
-            z_nll.extend(nll.detach().cpu().numpy())
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
@@ -199,10 +199,10 @@ def train_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
+        "z_pred": np.array(z_pred),
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "z_pred": np.array(z_pred),
-        "z_nll": np.array(z_nll),
+        "y_nll": np.array(y_nll),
         "samples": samples,
     }
 
@@ -236,7 +236,7 @@ def test_model(
         y_true = []
         y_pred = []
         z_pred = []
-        z_nll = []
+        y_nll = []
         samples = []
 
         for x, y in iterable:
@@ -264,14 +264,14 @@ def test_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = margin_loss(y_z, y)
+            classification_loss = margin_loss(y_z.softmax(-1), y)
             reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
             l = 0.8
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z, y, reduction='none')
-            z_nll.extend(nll.detach().cpu().numpy())
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
@@ -289,9 +289,9 @@ def test_model(
     return {
         "loss": avg_loss,
         "acc": acc_score,
+        "z_pred": np.array(z_pred),
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "z_pred": np.array(z_pred),
-        "z_nll": np.array(z_nll),
+        "y_nll": np.array(y_nll),
         "samples": samples,
     }

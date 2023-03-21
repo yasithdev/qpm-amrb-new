@@ -171,8 +171,8 @@ def train_model(
             # forward/backward pass
             # x |-> u
             (u, v), logabsdet_xu = x_flow(x)
-            u_pred.extend(u)
-            v_pred.extend(v)
+            u_pred.extend(u.detach().cpu().numpy())
+            v_pred.extend(v.detach().cpu().numpy())
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
@@ -273,8 +273,8 @@ def test_model(
             # forward/backward pass
             # x |-> u
             (u, v), logabsdet_xu = x_flow(x)
-            u_pred.extend(u)
-            v_pred.extend(v)
+            u_pred.extend(u.detach().cpu().numpy())
+            v_pred.extend(v.detach().cpu().numpy())
             # m <-| u
             m, _ = x_flow.inverse(u)
             # u <-> z
@@ -294,11 +294,11 @@ def test_model(
             z_nll.extend(-log_px.detach().cpu().numpy())
 
             # calculate loss
-            reconstruction_loss = torch.nn.functional.mse_loss(m, x)
+            sparsity_loss = torch.flatten(v, 1).abs().sum(1).mean(0)
             nll_loss = -torch.mean(log_px)
             nll_loss = torch.clamp(nll_loss, min=0)
             w = 1e-1
-            minibatch_loss = w * nll_loss + (1 - w) * reconstruction_loss
+            minibatch_loss = w * nll_loss + (1 - w) * sparsity_loss
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size

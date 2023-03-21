@@ -250,7 +250,7 @@ def margin_loss(
     loss_hi = torch.clamp(m_hi - y_pred, min=0) ** 2
     loss_lo = torch.clamp(y_pred - m_lo, min=0) ** 2
     loss = y_true * loss_hi + (1 - y_true) * t * loss_lo
-    return loss.sum(dim=1).mean()
+    return loss.sum(dim=-1).mean()
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

@@ -19,20 +19,41 @@ def log_stats(
     prefix: Literal["train", "test"],
     mode: str,
 ) -> dict:
+    
+    data = {}
 
-    loss = stats["loss"]
+    # loss
+    data[f"{prefix}_loss"] = stats["loss"]
+
+    # top-k accuracies
     acc1, acc2, acc3 = stats["acc"]
+    data[f"{prefix}_accuracy"] = acc1
+    data[f"{prefix}_top2accuracy"] = acc2
+    data[f"{prefix}_top3accuracy"] = acc3
 
+    # optional parameters
+    if "u_pred" in stats:
+        data[f"{prefix}_u_pred"] = np.array(stats["u_pred"])
+    if "v_pred" in stats:
+        data[f"{prefix}_v_pred"] = np.array(stats["v_pred"])
+    if "z_pred" in stats:
+        data[f"{prefix}_z_pred"] = np.array(stats["z_pred"])
+    if "z_nll" in stats:
+        data[f"{prefix}_z_nll"] = np.array(stats["z_nll"])
+    if "y_nll" in stats:
+        data[f"{prefix}_y_nll"] = np.array(stats["y_nll"])
+
+    # compute confusion matrix
     y_true = np.array(stats["y_true"])
     y_pred = np.array(stats["y_pred"])
-    z_pred = np.array(stats["z_pred"])
+    samples = stats["samples"]
 
     # in leave-out mode, add column for left-out class
     if mode == "leave-out":
         y_pred = np.pad(y_pred, ((0, 0), (0, 1)), constant_values=0)
 
-    samples = stats["samples"]
     estimates = [wandb.Image(xz, caption=labels[yz]) for _, _, xz, yz in samples]
+    data[f"{prefix}_estimates"] = estimates
 
     if mode == "leave-out" and prefix == "test":
         n = len(labels) - 1
@@ -40,23 +61,16 @@ def log_stats(
         targets = [wandb.Image(x, caption=labels[n]) for x, _, _, _ in samples]
     else:
         targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
+    data[f"{prefix}_targets"] = targets
 
-    cm = wandb.plot.confusion_matrix(
+    data[f"{prefix}_cm"] = wandb.plot.confusion_matrix(
         y_true=y_true,  # type: ignore
         probs=y_pred,  # type: ignore
         class_names=labels,
         title=f"Confusion Matrix ({prefix})",
     )
 
-    return {
-        f"{prefix}_loss": loss,
-        f"{prefix}_accuracy": acc1,
-        f"{prefix}_top2accuracy": acc2,
-        f"{prefix}_top3accuracy": acc3,
-        f"{prefix}_targets": targets,
-        f"{prefix}_estimates": estimates,
-        f"{prefix}_cm": cm,
-    }
+    return data
 
 
 def main(config: Config):
@@ -124,7 +138,6 @@ def main(config: Config):
 
         artifact.add_file(os.path.join(experiment_path, f"model_e{epoch}.pth"))
         artifact.add_file(os.path.join(experiment_path, f"optim_e{epoch}.pth"))
-        artifact.save()
 
 
 if __name__ == "__main__":
@@ -189,10 +202,10 @@ if __name__ == "__main__":
     import wandb.plot
 
     wandb.init(
-        project="qpm-amrb",
+        project="qpm-amrb-v2",
         name=run_name,
         config=run_config,
     )
     artifact = wandb.Artifact(run_name, type="model")
-
     main(config)
+    artifact.save()

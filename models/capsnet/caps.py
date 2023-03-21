@@ -8,25 +8,28 @@ from typing import Tuple, Union
 import einops
 import torch
 
-from .common import capsule_norm
-
 
 def squash(
     x: torch.Tensor,
+    dim: int = 1,
 ) -> torch.Tensor:
     """
-    Activation function to normalize capsules into unit vectors
+    Activation function to squash vectors into magnitude [0,1]
 
     Args:
         x (torch.Tensor): input tensor (B, C, D, *)
+        dim (int): axis to squash
 
     Returns:
         torch.Tensor: output tensor (B, C, D, *)
     """
-    x_norm = capsule_norm(x)
-    a = (x_norm**2) / (1 + x_norm**2)
-    b = x / x_norm
-    return a * b
+    # nonlinear scaling (B, 1, D)
+    s = torch.linalg.vector_norm(x, ord=2, dim=dim, keepdim=True)
+    s = torch.tanh(s)
+    # unit vectorization (B, C, D)
+    u = torch.nn.functional.normalize(x, p=2, dim=dim)
+    # scaled unit vector
+    return s * u
 
 
 class ConvCaps2D(torch.nn.Module):
@@ -162,8 +165,8 @@ class LinearCapsDR(torch.nn.Module):
         self.routing_iters = routing_iters
         C, D = in_capsules
         c, d = out_capsules
-        # weights (d, D, c, C)
-        self.weight = torch.nn.Parameter(torch.randn(d, D, c, C))
+        # weights (c, d, C, D)
+        self.weight = torch.nn.Parameter(torch.randn(c, d, C, D))
         # log prior (1, d, D)
         self.prior = torch.nn.Parameter(torch.zeros(1, d, D))
 
@@ -171,24 +174,22 @@ class LinearCapsDR(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        # prediction tensor u_{j|i} (B, d, D, c)
-        u = torch.einsum("BCD,dDcC->BdDc", x, self.weight)
-        # dynamic routing
+        # prediction tensor u_{j|i} (B, c, d, D)
+        u = torch.einsum("BCD,cdCD->BcdD", x, self.weight)
+        # coupling logits
         b = self.prior
+        # initial capsule output (B, c, d)
+        s = torch.einsum("BdD,BcdD->Bcd", b.softmax(dim=1), u)
+        # dynamic routing
         for _ in range(self.routing_iters):
-            # coupling coefficients c_{ij} (softmax of b across dim=d)
-            c = torch.softmax(b, dim=2)
-            # current capsule output s_j (B, d, c)
-            s = torch.einsum("BdD,BdDc->Bdc", c, u)
-            # squashed capsule output s_j (B, d, c)
+            # squashed capsule output (B, c, d)
             v = squash(s)
-            # agreement a_{ij} (scalar product of u and v)
-            a = torch.einsum("BdDc,Bdc->BdD", u, v)
-            # update b
+            # agreement: dot product of v with each u (B, d, D)
+            a = torch.einsum("Bcd,BcdD->BdD", v, u)
+            # updated coupling logits
             b = b + a
-        # post-routing
-        c = torch.softmax(b, dim=2)
-        s = torch.einsum("BdD,BdDc->Bcd", c, u)
+            # updated capsule output
+            s = torch.einsum("BdD,BcdD->Bcd", b.softmax(dim=1), u)
         return s
 
 
@@ -225,7 +226,7 @@ class MaskCaps(torch.nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         # Compute logits via capsule norm (B, D)
-        logits = capsule_norm(x).squeeze()
+        logits = x.norm(p=2, dim=1)
 
         # Mask most-activated capsule output (B, C * D)
         (B, C, D) = x.size()

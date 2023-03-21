@@ -47,8 +47,8 @@ class ConvCapsDR(torch.nn.Module):
         C, D = in_capsules
         c, d = out_capsules
         # convolution weights and biases
-        self.conv_k = torch.nn.Parameter(torch.randn(d * c, C, *k))
-        self.conv_b = torch.nn.Parameter(torch.randn(d * c))
+        self.conv_k = torch.nn.Parameter(torch.randn(c * d, C, *k))
+        self.conv_b = torch.nn.Parameter(torch.randn(c * d))
         # log prior
         self.prior = torch.nn.Parameter(torch.zeros(1, d, D, 1, 1))
 
@@ -56,7 +56,7 @@ class ConvCapsDR(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        # prediction tensor (B, C, D, H, W) -> (B, d*c, D, h, w)
+        # prediction tensor (B, C, D, H, W) -> (B, c*d, D, h, w)
         u = torch.nn.functional.conv3d(
             input=x,
             weight=self.conv_k,
@@ -76,7 +76,7 @@ class ConvCapsDR(torch.nn.Module):
         b = self.prior
         for _ in range(self.routing_iters):
             # coupling coefficients c_{ij} (softmax of b across dim=d)
-            c = torch.softmax(b, dim=2)
+            c = torch.softmax(b, dim=1)
             # current capsule output s_j (B, c, d, h, w)
             s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
             # squashed capsule output s_j (B, c, d, h, w)
@@ -86,6 +86,6 @@ class ConvCapsDR(torch.nn.Module):
             # update b
             b = b + a
         # post-routing
-        c = torch.softmax(b, dim=2)
+        c = torch.softmax(b, dim=1)
         s = torch.einsum("BdDhw,BcdDhw->Bcdhw", c, u)
         return s

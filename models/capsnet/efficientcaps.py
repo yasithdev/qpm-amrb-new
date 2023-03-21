@@ -8,25 +8,28 @@ from typing import Tuple
 import einops
 import torch
 
-from .common import capsule_norm
-
 
 def squash(
     x: torch.Tensor,
+    dim: int = 1,
 ) -> torch.Tensor:
     """
-    Activation function to normalize capsules into unit vectors
+    Activation function to squash vectors into magnitude [0,1]
 
     Args:
         x (torch.Tensor): input tensor (B, C, D, *)
+        dim (int): axis to squash
 
     Returns:
         torch.Tensor: output tensor (B, C, D, *)
     """
-    x_norm = capsule_norm(x)
-    a = 1 - 1 / torch.exp(x_norm)
-    b = x / x_norm
-    return a * b
+    # nonlinear scaling (B, 1, D)
+    s = torch.linalg.vector_norm(x, ord=2, dim=dim, keepdim=True)
+    s = 1 - torch.exp(-s)
+    # unit vectorization (B, C, D)
+    u = torch.nn.functional.normalize(x, p=2, dim=dim)
+    # scaled unit vector
+    return s * u
 
 
 class LinearCapsAR(torch.nn.Module):
@@ -56,21 +59,19 @@ class LinearCapsAR(torch.nn.Module):
         self.nc = out_capsules[0] ** 0.5
         C, D = in_capsules
         c, d = out_capsules
-        # weights (d, D, c, C)
-        self.weight = torch.nn.Parameter(torch.randn(d, D, c, C))
+        # weights (c, d, C, D)
+        self.weight = torch.nn.Parameter(torch.randn(c, d, C, D))
         # log priors (1, d, D)
-        self.prior = torch.nn.Parameter(torch.randn(1, d, D))
+        self.prior = torch.nn.Parameter(torch.zeros(1, d, D))
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        x = einops.rearrange(x, "B C D -> B D C")
-        # prediction tensor u_{j|i} (B, d, D, c)
-        u = torch.einsum("BDC,dDcC->BdDc", x, self.weight)
-        # scaled dot product attention of u (B, d, D) over d
-        c = torch.einsum("BdDc,BdDc->BdD", u, u)
-        c = torch.softmax(c / self.nc + self.prior, dim=2)
-        # weighted capsule prediction (B, d, c)
-        s = torch.einsum("BdD,BdDc->Bdc", c, u)
-        return einops.rearrange(s, "B d c -> B c d")
+        # prediction tensor u_{j|i} (B, c, d, D)
+        u = torch.einsum("BCD,cdCD->BcdD", x, self.weight)
+        # agreement: prior + self-attention of u (B, d, D)
+        b = self.prior + (torch.einsum("BcdD,BcdD->BdD", u, u) / self.nc)
+        # weighted capsule prediction (B, c, d)
+        s = torch.einsum("BdD,BcdD->Bcd", b.softmax(dim=1), u)
+        return s
