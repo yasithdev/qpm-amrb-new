@@ -10,23 +10,27 @@ def get_model_optimizer_and_loops(
 ) -> Tuple[torch.nn.Module, torch.optim.Optimizer, Callable, Callable]:
 
     # load requested module, if available
+    assert config.image_chw is not None
     B, C, H, W = (config.batch_size, *config.image_chw)
+    
     if config.model_name == "flow":
         from .model_flow import load_model_and_optimizer, test_model, train_model
+    
     elif config.model_name == "resnet":
         from .model_resnet import load_model_and_optimizer, test_model, train_model
-    # elif config.model_name == "capsnet":
-    #     from .model_capsnet import load_model_and_optimizer, test_model, train_model
-    # elif config.model_name == "efficientcaps":
-    #     from .model_efficientcaps import (
-    #         load_model_and_optimizer,
-    #         test_model,
-    #         train_model,
-    #     )
+    
+    elif config.model_name == "capsnet":
+        from .model_capsnet import load_model_and_optimizer, test_model, train_model
+    
+    elif config.model_name == "efficientcaps":
+        from .model_efficientcaps import load_model_and_optimizer, test_model, train_model
+    
     elif config.model_name == "drcaps":
         from .model_drcaps import load_model_and_optimizer, test_model, train_model
-    # elif config.model_name == "bnn":
-    #     from .model_bnn import load_model_and_optimizer, test_model, train_model
+    
+    elif config.model_name == "bnn":
+        raise NotImplementedError("Model not implemented")
+    
     else:
         raise ImportError(f"Model not found: {config.model_name}")
 
@@ -37,7 +41,7 @@ def get_model_optimizer_and_loops(
     # print model summary
     input_size = (B, C, H, W)
 
-    # normalizing flow model
+    # flow model
     if config.model_name == "flow":
         x_size = (B, C, H, W)
         u_size = B, config.manifold_c, H // 16, W // 16
