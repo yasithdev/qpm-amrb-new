@@ -116,7 +116,7 @@ def train_model(
             optim.step()
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction='none')
             y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
@@ -201,7 +201,7 @@ def test_model(
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y, reduction='none')
+            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction='none')
             y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
