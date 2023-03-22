@@ -4,13 +4,11 @@ Implementation of 'Efficient-CapsNet: Capsule Network with Self-Attention Routin
 """
 
 from typing import Tuple
-
-import einops
 import torch
 
 
 def squash(
-    x: torch.Tensor,
+    s: torch.Tensor,
     dim: int = 1,
 ) -> torch.Tensor:
     """
@@ -23,13 +21,12 @@ def squash(
     Returns:
         torch.Tensor: output tensor (B, C, D, *)
     """
-    # nonlinear scaling (B, 1, D)
-    s = torch.linalg.vector_norm(x, ord=2, dim=dim, keepdim=True)
-    s = 1 - torch.exp(-s)
-    # unit vectorization (B, C, D)
-    u = torch.nn.functional.normalize(x, p=2, dim=dim)
-    # scaled unit vector
-    return s * u
+    # compute ||s|| and clamp it
+    ε = torch.finfo(s.dtype).eps
+    s_norm = torch.norm(s, p=2, dim=dim, keepdim=True)
+    s_norm = torch.clamp(s_norm, min=ε)
+    # return v = s * (1-e^-||s||)/||s||
+    return s * ((1 - torch.exp(-s_norm)) / s_norm)
 
 
 class LinearCapsAR(torch.nn.Module):
@@ -61,17 +58,21 @@ class LinearCapsAR(torch.nn.Module):
         c, d = out_capsules
         # weights (c, d, C, D)
         self.weight = torch.nn.Parameter(torch.randn(c, d, C, D))
-        # log priors (1, d, D)
-        self.prior = torch.nn.Parameter(torch.zeros(1, d, D))
+        # log priors (d, D)
+        self.prior = torch.nn.Parameter(torch.randn(d, D))
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
+        # parameters
+        B = x.size(0)
         # prediction tensor u_{j|i} (B, c, d, D)
-        u = torch.einsum("BCD,cdCD->BcdD", x, self.weight)
-        # agreement: prior + self-attention of u (B, d, D)
-        b = self.prior + (torch.einsum("BcdD,BcdD->BdD", u, u) / self.nc)
+        u = squash(torch.einsum("BCD,cdCD->BcdD", x, self.weight))
+        # prior routing weights (B, d, D)
+        b = self.prior.tile(B, 1, 1)
+        # updated routing weights (B, d, D)
+        b = b + (torch.einsum("BcdD,BcdD->BdD", u, u) / self.nc)
         # weighted capsule prediction (B, c, d)
-        s = torch.einsum("BdD,BcdD->Bcd", b.softmax(dim=1), u)
-        return s
+        v = torch.einsum("BcdD,BdD->Bcd", u, b.softmax(dim=1))
+        return v

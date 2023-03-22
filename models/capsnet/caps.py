@@ -156,7 +156,7 @@ class LinearCapsDR(torch.nn.Module):
         self,
         in_capsules: Tuple[int, int],  # (C, D)
         out_capsules: Tuple[int, int],  # (c, d)
-        routing_iters: int = 1,
+        routing_iters: int = 3,
     ):
         super().__init__()
         self.in_capsules = in_capsules
@@ -175,7 +175,7 @@ class LinearCapsDR(torch.nn.Module):
     ) -> torch.Tensor:
         B = x.size(0)
         # prediction tensor u_{j|i} (B, c, d, D)
-        u = torch.einsum("BCD,cdCD->BcdD", x, self.weight)
+        u = squash(torch.einsum("BCD,cdCD->BcdD", x, self.weight))
         # coupling logits (B, d, D)
         b = self.prior.tile(B, 1, 1)
         # initial capsule output (B, c, d)
