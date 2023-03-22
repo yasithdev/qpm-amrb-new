@@ -169,9 +169,10 @@ def train_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = margin_loss(y_z.softmax(-1), y)
-            reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
-            l = 0.8
+            classification_loss = margin_loss(y_z, y)
+            mask = y_z.argmax(-1).eq(y.argmax(-1)).nonzero()
+            reconstruction_loss = torch.nn.functional.mse_loss(x_z[mask], x[mask])
+            l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # backward pass
@@ -264,9 +265,10 @@ def test_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = margin_loss(y_z.softmax(-1), y)
-            reconstruction_loss = torch.nn.functional.mse_loss(x_z, x)
-            l = 0.8
+            classification_loss = margin_loss(y_z, y)
+            mask = y_z.argmax(-1).eq(y.argmax(-1)).nonzero()
+            reconstruction_loss = torch.nn.functional.mse_loss(x_z[mask], x[mask])
+            l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # save nll

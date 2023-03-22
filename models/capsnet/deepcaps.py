@@ -132,15 +132,13 @@ class MaskCaps(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        # Compute logits (B, D)
-        logits = x.norm(p=2, dim=1)
-        # Extract most-activated capsule output (B, C)
         (B, C, _) = x.size()
-        extracted = x.gather(
-            dim=2,
-            index=logits.argmax(dim=1).view(B, 1, 1).repeat(1, C, 1),
-        )
-        # (B, C, 1)
+        # Compute logits -> (B, D)
+        logits = torch.norm(x, p=2, dim=1)
+        # Generate index to extract capsule (B, C, 1)
+        index = torch.argmax(logits, dim=1).view(B, 1, 1).repeat(1, C, 1)
+        # Extract capsule -> (B, C, 1)
+        extracted = torch.gather(x, dim=2, index=index)
+        # (B, C, 1) -> (B, C)
         latent = extracted.view(B, C)
-        # (B, C)
         return logits, latent
