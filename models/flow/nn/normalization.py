@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
 
-import einops
 import torch
 
 from . import FlowTransform
@@ -39,18 +38,18 @@ class ActNorm(FlowTransform):
         assert x.dim() in [2, 4]
         shape = (1, -1, 1, 1) if x.dim() == 4 else (1, -1)
 
-        if self.training and not self.initialized:
-            self._initialize(x)
+        # if self.training and not self.initialized:
+        #     self._initialize(x)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        z = scale * x + shift
+        z = (x - shift) / scale
 
         if x.dim() == 4:
             B, _, H, W = x.size()
-            logabsdet = x.new_zeros(B) + self.log_scale.sum() * H * W
+            logabsdet = x.new_zeros(B) - self.log_scale.sum() * H * W
         else:
             B, _ = x.size()
-            logabsdet = x.new_zeros(B) + self.log_scale.sum()
+            logabsdet = x.new_zeros(B) - self.log_scale.sum()
 
         return z, logabsdet
 
@@ -64,14 +63,14 @@ class ActNorm(FlowTransform):
         shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        x = (z - shift) / scale
+        x = scale * z + shift
 
         if z.dim() == 4:
             B, _, H, W = z.size()
-            logabsdet = z.new_zeros(B) - self.log_scale.sum() * H * W
+            logabsdet = z.new_zeros(B) + self.log_scale.sum() * H * W
         else:
             B, _ = z.size()
-            logabsdet = z.new_zeros(B) - self.log_scale.sum()
+            logabsdet = z.new_zeros(B) + self.log_scale.sum()
 
         return x, logabsdet
 

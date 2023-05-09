@@ -253,6 +253,10 @@ class RQSCoupling(CouplingTransform):
         d: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        
+        assert w.shape[-1] == self.num_bins
+        assert h.shape[-1] == self.num_bins
+        assert d.shape[-1] == self.num_bins + 1
 
         left = bottom = self.lo
         right = top = self.hi

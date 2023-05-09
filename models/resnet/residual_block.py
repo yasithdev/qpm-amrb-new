@@ -14,8 +14,8 @@ class ResidualBlock(torch.nn.Module):
         out_channels: int,
         stride: int = 1,
         conv: T = torch.nn.Conv2d,
-        norm=torch.nn.BatchNorm2d,
-        activation=torch.nn.functional.relu,
+        norm=torch.nn.GroupNorm,
+        activation=torch.nn.functional.leaky_relu,
     ) -> None:
 
         super().__init__()
@@ -40,9 +40,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(
-                num_features=self.hidden_channels,
-            ),
+            self.Norm(4, self.hidden_channels),  # type: ignore
         )
         self.conv2 = torch.nn.Sequential(
             self.Conv(
@@ -53,9 +51,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=self.stride,
                 bias=False,
             ),
-            self.Norm(
-                num_features=self.hidden_channels,
-            ),
+            self.Norm(4, self.hidden_channels),  # type: ignore
         )
         self.conv3 = torch.nn.Sequential(
             self.Conv(
@@ -65,9 +61,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(
-                num_features=self.out_channels,
-            ),
+            self.Norm(4, self.out_channels),  # type: ignore
         )
 
         # if stride != 1, match identity to x using 1x1 convolution
@@ -80,9 +74,7 @@ class ResidualBlock(torch.nn.Module):
                     stride=self.stride,
                     bias=False,
                 ),
-                self.Norm(
-                    num_features=self.out_channels,
-                ),
+                self.Norm(4, self.out_channels),  # type: ignore
             )
 
     def forward(
