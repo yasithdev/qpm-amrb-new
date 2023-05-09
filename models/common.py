@@ -11,6 +11,12 @@ from sklearn.metrics import ConfusionMatrixDisplay, top_k_accuracy_score as topk
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
+def npad(
+    d: int,
+    k: int,
+    s: int,
+) -> int:
+    return (s - (d - k - 1) % s) % s
 
 def get_classifier(
     in_features: int,

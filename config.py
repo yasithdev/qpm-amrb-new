@@ -35,7 +35,7 @@ class Config:
         dataset_name: str,
         model_name: str,
         experiment_dir: str,
-        manifold_c: int,
+        manifold_d: int,
         batch_size: int,
         optim_lr: float,
         optim_m: float,
@@ -59,7 +59,7 @@ class Config:
         self.model_name = model_name
         self.experiment_dir = experiment_dir
         self.image_chw = image_chw
-        self.manifold_c = manifold_c
+        self.manifold_d = manifold_d
         self.batch_size = batch_size
         self.optim_lr = optim_lr
         self.optim_m = optim_m
@@ -99,7 +99,7 @@ def load_config() -> Config:
     cv_mode = getenv("CV_MODE")
     model_name = getenv("MODEL_NAME")
     experiment_dir = getenv("EXPERIMENT_DIR")
-    manifold_c = int(getenv("MANIFOLD_C"))
+    manifold_d = int(getenv("MANIFOLD_D"))
     batch_size = int(getenv("BATCH_SIZE"))
     optim_lr = float(getenv("OPTIM_LR"))
     optim_m = float(getenv("OPTIM_M"))
@@ -128,7 +128,7 @@ def load_config() -> Config:
         dataset_name=dataset_name,
         model_name=model_name,
         experiment_dir=experiment_dir,
-        manifold_c=manifold_c,
+        manifold_d=manifold_d,
         batch_size=batch_size,
         optim_lr=optim_lr,
         optim_m=optim_m,

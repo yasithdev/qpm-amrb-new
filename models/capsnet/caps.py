@@ -168,6 +168,7 @@ class LinearCapsDR(torch.nn.Module):
         self.weight = torch.nn.Parameter(torch.randn(c, d, C, D))
         # log prior (d, D)
         self.prior = torch.nn.Parameter(torch.zeros(d, D))
+        self.nc = c ** 0.5
 
     def forward(
         self,
@@ -183,7 +184,7 @@ class LinearCapsDR(torch.nn.Module):
         # dynamic routing
         for _ in range(self.routing_iters - 1):
             # add agreement to coupling logits: dot product of v with each u (B, d, D)
-            b = b + torch.einsum("Bcd,BcdD->BdD", v, u)
+            b = b + torch.einsum("Bcd,BcdD->BdD", v, u) / self.nc
             # update capsule output
             v = torch.einsum("BcdD,BdD->Bcd", u, b.softmax(dim=1))
         return v

@@ -6,10 +6,21 @@ import torch
 class FlowTransform(torch.nn.Module):
     """
     Base Class for Flow Transforms.
-    It provides forward() and inverse() directives to implement bijections
+    It provides _forward() and _inverse() directives to implement bijections
     """
 
     def forward(
+        self,
+        data: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+        forward: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if forward:
+            return self._forward(data, c)
+        else:
+            return self._inverse(data, c)
+
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -23,7 +34,7 @@ class FlowTransform(torch.nn.Module):
         """
         raise NotImplementedError()
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -64,7 +75,7 @@ class Compose(FlowTransform):
 
         self.transforms = torch.nn.ModuleList(transforms)
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -83,13 +94,13 @@ class Compose(FlowTransform):
             assert isinstance(transform, FlowTransform)
 
             # transform h and accumulate log_det
-            h, logabsdet = transform(h)
+            h, logabsdet = transform(h, forward=True)
             sum_logabsdet = sum_logabsdet + logabsdet
 
         z = h
         return z, sum_logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -108,7 +119,7 @@ class Compose(FlowTransform):
             assert isinstance(transform, FlowTransform)
 
             # transform h and accumulate log_det
-            h, logabsdet = transform.inverse(h)
+            h, logabsdet = transform(h, forward=False)
             sum_logabsdet = sum_logabsdet + logabsdet
         x = h
         return x, sum_logabsdet
@@ -142,7 +153,7 @@ class ComposeMultiScale(FlowTransform):
         self.transforms = torch.nn.ModuleList(transforms)
         self.dim = 1
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -167,7 +178,7 @@ class ComposeMultiScale(FlowTransform):
             h2 = torch.narrow(h, self.dim, slice_length, total_length - slice_length)
 
             # transform h and accumulate log_det
-            h1, logabsdet = transform(h1)
+            h1, logabsdet = transform(h1, forward=True)
             h = torch.cat([h1, h2], self.dim)
 
             # halve the slice length for next transform
@@ -179,7 +190,7 @@ class ComposeMultiScale(FlowTransform):
         z = h
         return z, sum_logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -204,7 +215,7 @@ class ComposeMultiScale(FlowTransform):
             h2 = torch.narrow(h, self.dim, slice_length, total_length - slice_length)
 
             # transform h and accumulate log_det
-            h1, logabsdet = transform.inverse(h1)
+            h1, logabsdet = transform(h1, forward=False)
             h = torch.cat([h1, h2], self.dim)
 
             # halve the slice length for next transform

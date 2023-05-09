@@ -27,7 +27,7 @@ class ConformalActNorm(FlowTransform):
         self.log_scale = nn.Parameter(torch.zeros(1))
         self.shift = nn.Parameter(torch.zeros(features))
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -51,7 +51,7 @@ class ConformalActNorm(FlowTransform):
 
         return z, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -127,7 +127,7 @@ class ConformalConv2D(FlowTransform):
         k = self.i - 2 * self.v @ self.v.T / torch.sum(self.v**2)
         return einops.rearrange(k, 'C c -> C c 1 1')
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -144,7 +144,7 @@ class ConformalConv2D(FlowTransform):
 
         return z, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -179,7 +179,7 @@ class PiecewiseConformalConv2D(FlowTransform):
         self.conv1 = ConformalConv2D(num_channels)
         self.conv2 = ConformalConv2D(num_channels)
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -193,15 +193,15 @@ class PiecewiseConformalConv2D(FlowTransform):
         # compute condition
         cond = einops.repeat(norm >= 1, 'B 1 H W -> B (C 1) H W', C=C)
         # compute output
-        z1 = self.conv1(x)[0]
-        z2 = self.conv2(x)[0]
+        z1 = self.conv1(x, forward=True)[0]
+        z2 = self.conv2(x, forward=True)[0]
         outputs = torch.where(cond, z1, z2)
 
         logabsdet = x.new_zeros(B)
 
         return outputs, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -215,8 +215,8 @@ class PiecewiseConformalConv2D(FlowTransform):
         # compute condition
         cond = einops.repeat(norm >= 1, 'B 1 H W -> B (C 1) H W', C=C)
         # compute output
-        x1 = self.conv1.inverse(z)[0]
-        x2 = self.conv2.inverse(z)[0]
+        x1 = self.conv1(z, forward=False)[0]
+        x2 = self.conv2(z, forward=False)[0]
         outputs = torch.where(cond, x1, x2)
 
         logabsdet = z.new_zeros(B)

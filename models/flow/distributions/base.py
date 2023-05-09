@@ -52,6 +52,7 @@ class Distribution(torch.nn.Module):
         Args:
             n (int): number of samples to generate
             c (torch.Tensor, optional): conditioning variables
+
             batch_size (int, optional): batch size (default=n)
 
         Returns:

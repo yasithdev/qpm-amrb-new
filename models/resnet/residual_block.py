@@ -1,5 +1,10 @@
 import torch
 
+from typing import Union, Type
+from ..common import npad
+
+T = Union[Type[torch.nn.Conv2d], Type[torch.nn.ConvTranspose2d]]
+
 
 class ResidualBlock(torch.nn.Module):
     def __init__(
@@ -8,7 +13,7 @@ class ResidualBlock(torch.nn.Module):
         hidden_channels: int,
         out_channels: int,
         stride: int = 1,
-        conv=torch.nn.Conv2d,
+        conv: T = torch.nn.Conv2d,
         norm=torch.nn.BatchNorm2d,
         activation=torch.nn.functional.relu,
     ) -> None:
@@ -45,7 +50,6 @@ class ResidualBlock(torch.nn.Module):
                 out_channels=self.hidden_channels,
                 kernel_size=3,
                 stride=self.stride,
-                padding=1,
                 bias=False,
             ),
             self.Norm(
@@ -88,6 +92,9 @@ class ResidualBlock(torch.nn.Module):
         x = xI = input
         x = self.conv1(x)
         x = self.activation(x)
+        ph = npad(x.size(2), k=3, s=self.stride)
+        pw = npad(x.size(3), k=3, s=self.stride)
+        x = torch.nn.functional.pad(x, (0, pw, 0, ph))
         x = self.conv2(x)
         x = self.activation(x)
         x = self.conv3(x)

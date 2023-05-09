@@ -93,7 +93,7 @@ class LULinear(FlowTransform):
     def logabsdet(self) -> torch.Tensor:
         return torch.sum(torch.log(self.upper_diag))
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -106,7 +106,7 @@ class LULinear(FlowTransform):
 
         return z, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:

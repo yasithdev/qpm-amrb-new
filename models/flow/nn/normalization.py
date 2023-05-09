@@ -30,7 +30,7 @@ class ActNorm(FlowTransform):
         self.log_scale = torch.nn.Parameter(torch.zeros(num_features))
         self.shift = torch.nn.Parameter(torch.zeros(num_features))
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -54,7 +54,7 @@ class ActNorm(FlowTransform):
 
         return z, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -77,21 +77,16 @@ class ActNorm(FlowTransform):
 
     def _initialize(
         self,
-        inputs,
-    ):
+        inputs: torch.Tensor,
+    ) -> None:
 
         """
         Data-dependent initialization, s.t. post-actnorm activations have
         zero mean and unitvariance.
 
         """
-
-        if inputs.dim() == 4:
-            inputs = einops.rearrange(inputs, "b c h w -> (b h w) c")
-
         with torch.no_grad():
-            std = inputs.std(dim=0)  # vector
-            mu = (inputs / std).mean(dim=0)  # vector
+            (std, mu) = torch.std_mean(inputs, dim=[0, 2, 3], keepdim=True)
             self.log_scale.data = -torch.log(std)
             self.shift.data = -mu
             self.initialized.data = torch.tensor(True, dtype=torch.bool)

@@ -1,10 +1,39 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import einops
 import torch
+import math
 import torch.nn.functional as F
 
 from . import FlowTransform
+
+
+class Flatten(FlowTransform):
+    def __init__(
+        self,
+        input_shape: Tuple[int, ...],
+    ) -> None:
+
+        super().__init__()
+        self.input_shape = input_shape
+
+    def _forward(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B = x.size(0)
+        return x.reshape(B, math.prod(self.input_shape)), x.new_zeros(B)
+
+    def _inverse(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B = z.size(0)
+        return z.reshape(B, *self.input_shape), z.new_zeros(B)
 
 
 class Squeeze(FlowTransform):
@@ -27,7 +56,7 @@ class Squeeze(FlowTransform):
         assert factor > 1, "Factor must be an integer > 1."
         self.factor = factor
 
-    def forward(
+    def _forward(
         self,
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -47,7 +76,7 @@ class Squeeze(FlowTransform):
 
         return z, logabsdet
 
-    def inverse(
+    def _inverse(
         self,
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
@@ -67,43 +96,17 @@ class Squeeze(FlowTransform):
         return x, logabsdet
 
 
-class Partition(FlowTransform):
-    def __init__(
-        self,
-        ambient_dims: int,
-        manifold_dims: int,
-    ) -> None:
+def partition(
+    z: torch.Tensor,
+    u_dims: int,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    u = z.narrow(dim=1, start=0, length=u_dims)
+    v = z.narrow(dim=1, start=u_dims, length=z.size(1) - u_dims)
+    return u, v
 
-        super().__init__()
-        self.ambient_dims = ambient_dims
-        self.manifold_dims = manifold_dims
 
-    def forward(
-        self,
-        uv: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
-    ) -> Tuple[Tuple[torch.Tensor,torch.Tensor], torch.Tensor]:
-
-        B = uv.size(0)
-
-        u = uv.narrow(1, 0, self.manifold_dims)
-        v = uv.narrow(1, self.manifold_dims, self.ambient_dims - self.manifold_dims)
-        logabsdet = uv.new_zeros(B)
-
-        return (u,v), logabsdet
-
-    def inverse(
-        self,
-        u: torch.Tensor,
-        c: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-
-        B = u.size(0)
-
-        padding_dims = self.ambient_dims - self.manifold_dims
-        padding_shape = (0, 0) * (u.dim() - 2) + (0, padding_dims)
-
-        u0 = F.pad(u, padding_shape)
-        logabsdet = u.new_zeros(B)
-
-        return u0, logabsdet
+def join(
+    u: torch.Tensor,
+    v: torch.Tensor,
+) -> torch.Tensor:
+    return torch.concat([u, v], dim=1)
