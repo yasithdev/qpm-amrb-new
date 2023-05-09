@@ -17,11 +17,11 @@ def get_model_optimizer_and_loops(
     if config.model_name == "flow_nll":
         from .model_flow_nll import load_model_and_optimizer, test_model, train_model
     
-    if config.model_name == "flow_gan":
-        from .model_flow_nll import load_model_and_optimizer, test_model, train_model
+    elif config.model_name == "flow_gan":
+        from .model_flow_gan import load_model_and_optimizer, test_model, train_model
 
-    if config.model_name == "flow_wgan":
-        from .model_flow_nll import load_model_and_optimizer, test_model, train_model
+    elif config.model_name == "flow_wgan":
+        from .model_flow_wgan import load_model_and_optimizer, test_model, train_model
 
     elif config.model_name == "resnet":
         from .model_resnet import load_model_and_optimizer, test_model, train_model

@@ -11,12 +11,6 @@ from sklearn.metrics import ConfusionMatrixDisplay, top_k_accuracy_score as topk
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
-def npad(
-    d: int,
-    k: int,
-    s: int,
-) -> int:
-    return (s - (d - k - 1) % s) % s
 
 def get_classifier(
     in_features: int,
@@ -48,12 +42,12 @@ def get_classifier(
 
 def load_saved_state(
     model: torch.nn.Module,
-    optim: Tuple[torch.optim.Optimizer,...],
+    optim: Tuple[torch.optim.Optimizer, ...],
     experiment_path: str,
     config: Config,
     epoch: Optional[int] = None,
 ) -> None:
-    
+
     if epoch is not None:
         model_filename = f"model_e{epoch}.path"
         optim_filename = f"optim_e{epoch}.path"
@@ -69,15 +63,18 @@ def load_saved_state(
         logging.info("Loaded saved model state from:", model_state_path)
 
     if os.path.exists(optim_state_path):
-        optim[0].load_state_dict(torch.load(optim_state_path, map_location=config.device))
+        optim[0].load_state_dict(
+            torch.load(optim_state_path, map_location=config.device)
+        )
         logging.info("Loaded saved optim state from:", optim_state_path)
+
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 def save_state(
     model: torch.nn.Module,
-    optim: Tuple[torch.optim.Optimizer,...],
+    optim: Tuple[torch.optim.Optimizer, ...],
     experiment_path: str,
     epoch: int,
 ) -> None:
@@ -280,3 +277,97 @@ def gather_samples(
         val_y_x = y_x[0].detach().argmax().cpu().numpy()
 
         samples.append((val_x, val_y, val_x_z, val_y_x))
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+class GradientScaler(torch.autograd.Function):
+    factor = torch.tensor(1.0)
+
+    @staticmethod
+    def forward(ctx, input):
+        return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        factor = GradientScaler.factor
+        return factor.view(-1, 1, 1, 1) * grad_output
+        # return torch.neg(grad_output)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def get_gradient_ratios(
+    lossA: torch.Tensor,
+    lossB: torch.Tensor,
+    x_f: torch.Tensor,
+) -> torch.Tensor:
+
+    grad = torch.autograd.grad
+    grad_lossA_xf = grad(torch.sum(lossA), x_f, retain_graph=True)[0]
+    grad_lossB_xf = grad(torch.sum(lossB), x_f, retain_graph=True)[0]
+    gamma = grad_lossA_xf / grad_lossB_xf
+
+    return gamma
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+def compute_shapes(
+    config: Config,
+) -> Tuple[int, ...]:
+
+    assert config.image_chw
+    assert config.dataset_info
+
+    k0, k1 = 4, 2
+
+    # ambient (x) flow configuration
+    c0, h0, w0 = config.image_chw
+    c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
+    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
+
+    # manifold (m) flow configuration
+    cm = config.manifold_d // h2 // w2
+    num_bins = 10
+
+    # categorical configuration
+    num_labels = config.dataset_info["num_train_labels"]
+    return (k0, k1, c0, c1, c2, cm, h2, w2, num_bins, num_labels)
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+class GradientHook(object):
+    def __init__(self, module, is_negate=True):
+        self.module = module
+        self.is_negate = is_negate
+        self.handle = None
+
+    def set_negate(self, is_negate):
+        self.is_negate = is_negate
+
+    def negate_grads_func(self, module, grad_input, grad_output):
+        # if is_negate is false, not negate grads
+        if not self.is_negate:
+            return
+
+        if isinstance(grad_input, tuple):
+            result = []
+            for item in grad_input:
+                if isinstance(item, torch.Tensor):
+                    result.append(torch.neg(item))
+                else:
+                    result.append(item)
+            return tuple(result)
+        if isinstance(grad_input, torch.Tensor):
+            return torch.neg(grad_input)
+
+    def set_negate_grads_hook(self):
+        self.handle = self.module.register_backward_hook(self.negate_grads_func)
+
+    def __del__(self):
+        if self.handle:
+            self.handle.remove()

@@ -1,9 +1,16 @@
 import torch
 
-from typing import Union, Type
-from ..common import npad
+from typing import Union, Type, Tuple
 
 T = Union[Type[torch.nn.Conv2d], Type[torch.nn.ConvTranspose2d]]
+
+
+def npad(
+    d: int,
+    k: int,
+    s: int,
+) -> int:
+    return (s - (d - k - 1) % s) % s
 
 
 class ResidualBlock(torch.nn.Module):
@@ -101,3 +108,87 @@ class ResidualBlock(torch.nn.Module):
         x = self.activation(x)
 
         return x
+
+
+def get_encoder(
+    input_chw: Tuple[int, int, int],
+    num_features: int,
+) -> torch.nn.Module:
+    """
+    Create a ResNet-Based Encoder
+
+    :param input_chw: (C, H, W)
+    :param num_features: number of output channels (D)
+    :return: model that transforms (B, C, H, W) -> (B, D, 1, 1)
+    """
+    (c, h, w) = input_chw
+    d = num_features
+
+    k1, s1 = 5, 2
+    pw1, ph1 = npad(w, k1, s1), npad(h, k1, s1)
+    w1, h1 = (w - k1 + pw1 + 1) // s1, (h - k1 + pw1 + 1) // s1
+
+    c1 = 32
+    c2 = 48
+    c3 = 64
+
+    model = torch.nn.Sequential(
+        # (B,C,H,W) -> (B,C,H+ph,W+pw)
+        torch.nn.ZeroPad2d((0, pw1, 0, ph1)),
+        # (B,C,H+ph,W+pw) -> (B,C1,H/2,W/2)
+        torch.nn.Conv2d(
+            in_channels=c,
+            out_channels=c1,
+            kernel_size=k1,
+            stride=s1,
+            bias=False,
+        ),
+        torch.nn.GroupNorm(4, c1),
+        torch.nn.LeakyReLU(),
+        # (B,C1,H/2,W/2) -> (B,C1,H/2,W/2)
+        ResidualBlock(
+            in_channels=c1,
+            hidden_channels=c1,
+            out_channels=c1,
+            stride=1,
+            conv=torch.nn.Conv2d,
+            norm=torch.nn.GroupNorm,
+        ),
+        # (B,C1,H/2,W/2) -> (B,C2,H/4,W/4)
+        ResidualBlock(
+            in_channels=c1,
+            hidden_channels=c1,
+            out_channels=c2,
+            stride=2,
+            conv=torch.nn.Conv2d,
+            norm=torch.nn.GroupNorm,
+        ),
+        # (B,C2,H/4,W/4) -> (B,C2,H/4,W/4)
+        ResidualBlock(
+            in_channels=c2,
+            hidden_channels=c2,
+            out_channels=c2,
+            stride=1,
+            conv=torch.nn.Conv2d,
+            norm=torch.nn.GroupNorm,
+        ),
+        # (B,C2,H/4,W/4) -> (B,C3,H/8,W/8)
+        ResidualBlock(
+            in_channels=c2,
+            hidden_channels=c2,
+            out_channels=c3,
+            stride=2,
+            conv=torch.nn.Conv2d,
+            norm=torch.nn.GroupNorm,
+        ),
+        # (B,C3,H/8,W/8) -> (B,D,1,1)
+        torch.nn.Conv2d(
+            in_channels=c3,
+            out_channels=d,
+            kernel_size=(h // 8, w // 8),
+            stride=1,
+        ),
+        torch.nn.Flatten(),
+    )
+
+    return model
