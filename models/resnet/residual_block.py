@@ -49,6 +49,7 @@ class ResidualBlock(torch.nn.Module):
                 in_channels=self.hidden_channels,
                 out_channels=self.hidden_channels,
                 kernel_size=3,
+                padding=1,
                 stride=self.stride,
                 bias=False,
             ),
@@ -92,8 +93,8 @@ class ResidualBlock(torch.nn.Module):
         x = xI = input
         x = self.conv1(x)
         x = self.activation(x)
-        ph = npad(x.size(2), k=3, s=self.stride)
-        pw = npad(x.size(3), k=3, s=self.stride)
+        ph = npad(x.size(2) - 2, k=3, s=self.stride)
+        pw = npad(x.size(3) - 2, k=3, s=self.stride)
         x = torch.nn.functional.pad(x, (0, pw, 0, ph))
         x = self.conv2(x)
         x = self.activation(x)

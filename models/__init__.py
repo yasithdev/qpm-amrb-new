@@ -7,10 +7,11 @@ from config import Config
 
 def get_model_optimizer_and_loops(
     config: Config,
-) -> Tuple[torch.nn.Module, torch.optim.Optimizer, Callable, Callable]:
+) -> Tuple[torch.nn.Module, Tuple[torch.optim.Optimizer,...], Callable, Callable]:
 
     # load requested module, if available
-    assert config.image_chw is not None
+    assert config.image_chw
+    assert config.dataset_info
     B, C, H, W = (config.batch_size, *config.image_chw)
 
     if config.model_name == "flow":

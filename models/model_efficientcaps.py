@@ -33,7 +33,7 @@ out_caps_c = 16
 
 def load_model_and_optimizer(
     config: Config,
-) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer,...]]:
     
     assert config.dataset_info is not None
     assert config.image_chw is not None
@@ -107,14 +107,14 @@ def load_model_and_optimizer(
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
     optim = torch.optim.AdamW(**optim_config)
 
-    return model, optim
+    return model, (optim,)
 
 
 def train_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
-    optim: torch.optim.Optimizer,
+    optim: Tuple[torch.optim.Optimizer,...],
     **kwargs,
 ) -> dict:
     
@@ -122,7 +122,7 @@ def train_model(
 
     # initialize loop
     model.train()
-    size = len(config.train_loader.dataset)
+    size = len(config.train_loader.dataset) # type: ignore
     sum_loss = 0
 
     # training
@@ -175,9 +175,9 @@ def train_model(
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # backward pass
-            optim.zero_grad()
+            optim[0].zero_grad()
             minibatch_loss.backward()
-            optim.step()
+            optim[0].step()
 
             # save nll
             nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction='none')
@@ -218,7 +218,7 @@ def test_model(
 
     # initialize loop
     model.eval()
-    size = len(config.test_loader.dataset)
+    size = len(config.test_loader.dataset) # type: ignore
     sum_loss = 0
 
     # testing

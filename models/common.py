@@ -48,7 +48,7 @@ def get_classifier(
 
 def load_saved_state(
     model: torch.nn.Module,
-    optim: torch.optim.Optimizer,
+    optim: Tuple[torch.optim.Optimizer,...],
     experiment_path: str,
     config: Config,
     epoch: Optional[int] = None,
@@ -69,7 +69,7 @@ def load_saved_state(
         logging.info("Loaded saved model state from:", model_state_path)
 
     if os.path.exists(optim_state_path):
-        optim.load_state_dict(torch.load(optim_state_path, map_location=config.device))
+        optim[0].load_state_dict(torch.load(optim_state_path, map_location=config.device))
         logging.info("Loaded saved optim state from:", optim_state_path)
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ def load_saved_state(
 
 def save_state(
     model: torch.nn.Module,
-    optim: torch.optim.Optimizer,
+    optim: Tuple[torch.optim.Optimizer,...],
     experiment_path: str,
     epoch: int,
 ) -> None:
@@ -85,7 +85,7 @@ def save_state(
     model_state_path = os.path.join(experiment_path, f"model_e{epoch}.pth")
     optim_state_path = os.path.join(experiment_path, f"optim_e{epoch}.pth")
     torch.save(model.state_dict(), model_state_path)
-    torch.save(optim.state_dict(), optim_state_path)
+    torch.save(optim[0].state_dict(), optim_state_path)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

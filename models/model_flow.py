@@ -1,16 +1,44 @@
 from typing import Tuple
 
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from config import Config
 
 from . import flow
-from .common import Functional, gather_samples, gen_epoch_acc, set_requires_grad, npad
+from .common import gather_samples, gen_epoch_acc, set_requires_grad, npad
 from .flow.util import decode_mask
 from .resnet import ResidualBlock
 
 import numpy as np
+
+
+class GradientScaler(torch.autograd.Function):
+    factor = torch.tensor(1.0)
+
+    @staticmethod
+    def forward(ctx, input):
+        return input
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        factor = GradientScaler.factor
+        return factor.view(-1, 1, 1, 1) * grad_output
+        # return torch.neg(grad_output)
+
+
+def get_gradient_ratios(
+    lossA: torch.Tensor,
+    lossB: torch.Tensor,
+    x_f: torch.Tensor,
+) -> torch.Tensor:
+
+    grad_lossA_xf = torch.autograd.grad(torch.sum(lossA), x_f, retain_graph=True)[0]
+    grad_lossB_xf = torch.autograd.grad(torch.sum(lossB), x_f, retain_graph=True)[0]
+    gamma = grad_lossA_xf / grad_lossB_xf
+
+    return gamma
 
 
 def get_encoder(
@@ -83,11 +111,15 @@ def get_encoder(
             conv=torch.nn.Conv2d,
             norm=torch.nn.BatchNorm2d,
         ),
-        # (B,C3,H/8,W/8) -> (B,C3*H*W/64)
-        torch.nn.Flatten(),
-        torch.nn.Linear(c3 * h * w // 64, d),
+        # (B,C3,H/8,W/8) -> (B,D,1,1)
+        torch.nn.Conv2d(
+            in_channels=c3,
+            out_channels=d,
+            kernel_size=(h // 8, w // 8),
+            stride=1,
+        ),
         torch.nn.BatchNorm2d(d),
-        Functional(lambda x: x.view(d, 1, 1))
+        torch.nn.Flatten(),
     )
 
     return model
@@ -118,7 +150,7 @@ def compute_shape_params(
 
 def load_model_and_optimizer(
     config: Config,
-) -> Tuple[torch.nn.ModuleDict, torch.optim.Optimizer]:
+) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
 
     assert config.dataset_info is not None
     assert config.image_chw is not None
@@ -222,17 +254,26 @@ def load_model_and_optimizer(
     )
 
     # set up optimizer
-    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.AdamW(**optim_config)
+    optim_config = {"lr": config.optim_lr}
+    optim_g = torch.optim.AdamW(
+        params=list(model["x_flow"].parameters())
+        + list(model["u_flow"].parameters())
+        + list(model["classifier"].parameters()),
+        **optim_config,
+    )
+    optim_d = torch.optim.AdamW(
+        params=model["critic"].parameters(),
+        **optim_config,
+    )
 
-    return model, optim
+    return model, (optim_g, optim_d)
 
 
 def train_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
-    optim: torch.optim.Optimizer,
+    optim: Tuple[torch.optim.Optimizer, ...],
     **kwargs,
 ) -> dict:
 
@@ -254,6 +295,9 @@ def train_model(
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
         critic: torch.nn.Module = model["critic"]  # type: ignore
+        scaler = GradientScaler.apply
+        cT = torch.ones(config.batch_size, 1).to(config.device)
+        cF = torch.zeros(config.batch_size, 1).to(config.device)
 
         x: torch.Tensor
         y: torch.Tensor
@@ -270,6 +314,7 @@ def train_model(
             # cast x and y to float
             x = x.float().to(config.device)
             y = y.float().to(config.device)
+            B = x.size(0)
 
             u: torch.Tensor
             v: torch.Tensor
@@ -281,45 +326,68 @@ def train_model(
             logabsdet_zu: torch.Tensor
             logabsdet_ux: torch.Tensor
 
-            # (a) forward pass
-            uv, logabsdet_xu = x_flow(x, forward=True)
-            u, v = flow.nn.partition(uv, cm)
-            y_x = classifier(u)
-            y_x = torch.nn.functional.gumbel_softmax(y_x)
-            # (b) reverse pass
-            z = dist.sample(n=x.size(0)).to(x.device)
+            # (a) classification pass
+            uv_x, logabsdet_xu = x_flow(x, forward=True)
+            u_x, v_x = flow.nn.partition(uv_x, cm)
+            y_x = classifier(u_x)
+            y_x = F.gumbel_softmax(y_x)
+
+            # (b) conditional generation pass
+            z = dist.sample(B).to(x.device)
             z = torch.concat([z, y_x.detach()], dim=1)
             u_z, logabsdet_zu = u_flow(z, forward=False)
-            uv_z = flow.nn.join(u_z, torch.zeros_like(v))
+            y_z = classifier(u_z)
+            y_z = F.gumbel_softmax(y_z)
+            v_z = torch.zeros_like(v_x)
+            uv_z = flow.nn.join(u_z, v_z)
             x_z, logabsdet_ux = x_flow(uv_z, forward=False)
+            x_z: torch.Tensor = scaler(x_z) # type: ignore
+
+            # (c) discriminator pass
+            c_x: torch.Tensor = critic(x)
+            c_z: torch.Tensor = critic(x_z)
 
             # accumulate predictions
-            u_pred.extend(u.detach().cpu().numpy())
-            v_pred.extend(v.detach().cpu().numpy())
+            u_pred.extend(u_x.detach().cpu().numpy())
+            v_pred.extend(v_x.detach().cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_x)
 
             # calculate losses
-            c_z: torch.Tensor = critic(x_z)
-            c_x: torch.Tensor = critic(x)
             # log_px = dist.log_prob(z) - logabsdet_zu - logabsdet_ux
             # z_nll.extend(-log_px.detach().cpu().numpy())
-            # m_loss = torch.nn.functional.mse_loss(x_z, x)
-            m_loss = c_x.clamp(max=0.9) + c_z.clamp(min=0.1)
-            y_loss = torch.nn.functional.cross_entropy(y_x, y)
-            # v_loss = torch.nn.functional.l1_loss(v, torch.zeros_like(v))
+            # mse_loss = F.mse_loss(x_z, x)
+
+            cT_loss = F.binary_cross_entropy_with_logits(c_x, cT[:B])
+            cF_loss = F.binary_cross_entropy_with_logits(c_z, cF[:B], reduction="none")
+
+            d_loss = cT_loss + torch.mean(cF_loss)
+            g_loss = F.binary_cross_entropy_with_logits(c_z, cT[:B], reduction="none")
+
+            gamma = get_gradient_ratios(g_loss, cF_loss, c_z)
+            GradientScaler.factor = gamma
+
+            y_x_loss = F.cross_entropy(y_x, y)
+            y_z_loss = F.cross_entropy(y_z, y)
+
+            # v_loss = F.l1_loss(v, torch.zeros_like(v))
             # z_loss = -log_px.mean()
-            α = 0.1
-            β = 0.0001
-            # minibatch_loss = m_loss + y_loss + α * v_loss + β * z_loss
-            minibatch_loss = m_loss + y_loss
+            # α = 0.01
+            # β = 0.1
+            minibatch_loss = y_x_loss + y_z_loss + d_loss + g_loss.mean()
 
             # backward pass
-            optim.zero_grad()
-            minibatch_loss.backward()
-            optim.step()
+            (optim_g, optim_d) = optim
+
+            optim_g.zero_grad()
+            optim_d.zero_grad()
+
+            d_loss.backward()
+
+            optim_g.step()
+            optim_d.step()
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
@@ -374,6 +442,9 @@ def test_model(
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
         critic: torch.nn.Module = model["critic"]  # type: ignore
+        scaler = GradientScaler.apply
+        cT = torch.ones(config.batch_size, 1).to(config.device)
+        cF = torch.zeros(config.batch_size, 1).to(config.device)
 
         x: torch.Tensor
         y: torch.Tensor
@@ -390,6 +461,7 @@ def test_model(
             # cast x and y to float
             x = x.float().to(config.device)
             y = y.float().to(config.device)
+            B = x.size(0)
 
             u: torch.Tensor
             v: torch.Tensor
@@ -401,40 +473,57 @@ def test_model(
             logabsdet_zu: torch.Tensor
             logabsdet_ux: torch.Tensor
 
-            # (a) forward pass
-            uv, logabsdet_xu = x_flow(x, forward=True)
-            u, v = flow.nn.partition(uv, cm)
-            y_x = classifier(u)
-            y_x = torch.nn.functional.gumbel_softmax(y_x)
-            # (b) reverse pass
-            z = dist.sample(n=x.size(0)).to(x.device)
+            # (a) classification pass
+            uv_x, logabsdet_xu = x_flow(x, forward=True)
+            u_x, v_x = flow.nn.partition(uv_x, cm)
+            y_x = classifier(u_x)
+            y_x = F.gumbel_softmax(y_x)
+
+            # (b) conditional generation pass
+            z = dist.sample(B).to(x.device)
             z = torch.concat([z, y_x.detach()], dim=1)
             u_z, logabsdet_zu = u_flow(z, forward=False)
-            uv_z = flow.nn.join(u_z, torch.zeros_like(v))
+            y_z = classifier(u_z)
+            y_z = F.gumbel_softmax(y_z)
+            v_z = torch.zeros_like(v_x)
+            uv_z = flow.nn.join(u_z, v_z)
             x_z, logabsdet_ux = x_flow(uv_z, forward=False)
+            x_z: torch.Tensor = scaler(x_z) # type: ignore
+
+            # (c) discriminator pass
+            c_x: torch.Tensor = critic(x)
+            c_z: torch.Tensor = critic(x_z)
 
             # accumulate predictions
-            u_pred.extend(u.detach().cpu().numpy())
-            v_pred.extend(v.detach().cpu().numpy())
+            u_pred.extend(u_x.detach().cpu().numpy())
+            v_pred.extend(v_x.detach().cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_x)
 
             # calculate losses
-            c_z: torch.Tensor = critic(x_z)
-            c_x: torch.Tensor = critic(x)
             # log_px = dist.log_prob(z) - logabsdet_zu - logabsdet_ux
             # z_nll.extend(-log_px.detach().cpu().numpy())
-            # m_loss = torch.nn.functional.mse_loss(x_z, x)
-            m_loss = c_x.clamp(max=0.9) + c_z.clamp(min=0.1)
-            y_loss = torch.nn.functional.cross_entropy(y_x, y)
-            # v_loss = torch.nn.functional.l1_loss(v, torch.zeros_like(v))
+            # mse_loss = F.mse_loss(x_z, x)
+
+            cT_loss = F.binary_cross_entropy_with_logits(c_x, cT[:B])
+            cF_loss = F.binary_cross_entropy_with_logits(c_z, cF[:B], reduction="none")
+
+            d_loss = cT_loss + torch.mean(cF_loss)
+            g_loss = F.binary_cross_entropy_with_logits(c_z, cT[:B], reduction="none")
+
+            # gamma = get_gradient_ratios(g_loss, cF_loss, c_z)
+            # GradientScaler.factor = gamma
+
+            y_x_loss = F.cross_entropy(y_x, y)
+            y_z_loss = F.cross_entropy(y_z, y)
+
+            # v_loss = F.l1_loss(v, torch.zeros_like(v))
             # z_loss = -log_px.mean()
-            α = 0.1
-            β = 0.0001
-            # minibatch_loss = m_loss + y_loss + α * v_loss + β * z_loss
-            minibatch_loss = m_loss + y_loss
+            # α = 0.01
+            # β = 0.1
+            minibatch_loss = y_x_loss + y_z_loss + d_loss + g_loss.mean()
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
