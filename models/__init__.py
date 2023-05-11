@@ -14,8 +14,8 @@ def get_model_optimizer_and_loops(
     assert config.dataset_info
     B, C, H, W = (config.batch_size, *config.image_chw)
 
-    if config.model_name == "flow_nll":
-        from .model_flow_nll import load_model_and_optimizer, test_model, train_model
+    if config.model_name == "flow_cwgan":
+        from .model_flow_cwgan import load_model_and_optimizer, test_model, train_model
     
     elif config.model_name == "flow_gan":
         from .model_flow_gan import load_model_and_optimizer, test_model, train_model
@@ -53,14 +53,14 @@ def get_model_optimizer_and_loops(
     input_size = (B, C, H, W)
 
     # flow model
-    if config.model_name in ["flow_nll", "flow_gan", "flow_wgan"]:
+    if config.model_name in ["flow_cwgan", "flow_gan", "flow_wgan"]:
         x_size = (B, C, H, W)
         c, h, w = C * 64, H // 8, W // 8
         cm = config.manifold_d // h // w
         u_size = (B, cm * h * w)
         x_size = (B, c, h, w)
-        torchinfo.summary(model["u_flow"], input_size=u_size, depth=5)
-        torchinfo.summary(model["x_flow"], input_size=x_size, depth=5)
+        torchinfo.summary(model["flow"], input_size=u_size, depth=5)
+        # torchinfo.summary(model["x_flow"], input_size=x_size, depth=5)
 
     # resnet model
     elif config.model_name == "resnet":

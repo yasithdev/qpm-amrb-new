@@ -90,12 +90,13 @@ def load_model_and_optimizer(
         "t_channels": uI,
         "num_bins": num_bins,
     }
+    
     model = torch.nn.ModuleDict(
         {
             # Base Distribution
             "dist": flow.distributions.StandardNormal(cm * h2 * w2),
-            # MNIST: (cm * 4 * 4) -> (cm, 4, 4)
-            "u_flow": flow.Compose(
+            # MNIST: (cm * 4 * 4) -> (cm, 4, 4) -> (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
+            "flow": flow.Compose(
                 [
                     #
                     flow.nn.Unflatten(target_shape=(cm, h2, w2)),
@@ -104,11 +105,9 @@ def load_model_and_optimizer(
                     flow.nn.ActNorm(cm),
                     flow.nn.RQSCoupling(**rqs_coupling_args_uB),
                     flow.nn.ActNorm(cm),
-                ]
-            ),
-            # MNIST: (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
-            "x_flow": flow.Compose(
-                [
+                    #
+                    flow.nn.Pad(c2 - cm),
+                    #
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
                     flow.nn.ActNorm(c2),
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
@@ -121,7 +120,6 @@ def load_model_and_optimizer(
                     flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
                     #
                     flow.nn.Unsqueeze(factor=k0),
-                    #
                 ]
             ),
             # MNIST: (1, 32, 32) -> (num_labels,)
@@ -132,7 +130,7 @@ def load_model_and_optimizer(
                 ),
             ),
             # MNIST: (1, 32, 32) -> (1,)
-            "critic": torch.nn.Sequential(
+            "discriminator": torch.nn.Sequential(
                 get_encoder(
                     input_chw=config.image_chw,
                     num_features=1,
@@ -141,16 +139,16 @@ def load_model_and_optimizer(
         }
     )
 
-    hook_grad = GradientHook(torch.nn.ModuleList([model["u_flow"], model["x_flow"]]))
-    hook_grad.set_negate_grads_hook()
+    generator_hook = GradientHook(model["flow"])
+    generator_hook.set_negate_grads_hook()
 
     # set up optimizer
     optim_g = torch.optim.AdamW(
-        params=[*model["x_flow"].parameters(), *model["u_flow"].parameters()],
+        params=model["flow"].parameters(),
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
-        params=[*model["critic"].parameters(), *model["classifier"].parameters()],
+        params=[*model["discriminator"].parameters(), *model["classifier"].parameters()],
         lr=config.optim_lr,
     )
 
@@ -183,14 +181,10 @@ def epoch_adv(
     set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
-        x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
-        u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
+        flow: flow.FlowTransform = model["flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
-        critic: torch.nn.Module = model["critic"]  # type: ignore
-        target_real = torch.ones(config.batch_size, 1).to(config.device)
-        target_fake = torch.zeros(config.batch_size, 1).to(config.device)
-        target = torch.cat([target_real, target_fake], dim=0)
+        discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
 
         x: torch.Tensor
         y: torch.Tensor
@@ -209,6 +203,10 @@ def epoch_adv(
             y = y.float().to(config.device)
             B = x.size(0)
 
+            target_real = x.new_ones(B, 1)
+            target_fake = x.new_zeros(B, 1)
+            target = torch.cat([-target_real, target_fake], dim=0)
+
             # target image classification
             y_x = classifier(x)
             y_x = F.gumbel_softmax(y_x)
@@ -217,17 +215,14 @@ def epoch_adv(
             z = dist.sample(B).to(x.device)
             # z = torch.concat([z, y_x.detach()], dim=1)
             u_z: torch.Tensor
-            u_z, logabsdet_zu = u_flow(z, forward=True)
-            v_z = u_z.new_zeros(B, c2 - cm, h2, w2)
-            uv_z = flow.nn.join(u_z, v_z)
-            x_z, logabsdet_ux = x_flow(uv_z, forward=True)
+            x_z, logabsdet_zx = flow(z, forward=True)
 
             # generated image classification
             y_z = classifier(x_z)
             y_z = F.gumbel_softmax(y_z)
 
-            # critic
-            pred: torch.Tensor = critic(torch.cat([x, x_z], dim=0))
+            # discriminator
+            pred: torch.Tensor = discriminator(torch.cat([x, x_z], dim=0))
 
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
@@ -236,20 +231,20 @@ def epoch_adv(
             gather_samples(samples, x, y, x_z, y_x)
 
             # calculate losses
-            loss_minibatch = torch.mean(pred * target)
+            loss_minibatch = torch.mean(pred.sigmoid() @ target.T)
 
             # backward pass (if optimizer is given)
             if optim:
                 (optim_g, optim_d) = optim
-                optim_d.zero_grad()
                 optim_g.zero_grad()
+                optim_d.zero_grad()
                 loss_minibatch.backward()
                 optim_d.step()
                 optim_g.step()
 
             # weight clipping for lipschitz constraint
-            for param in critic.parameters():
-                param.data.clamp_(-0.01, 0.01)
+            for param in discriminator.parameters():
+                param.data.clamp_(-0.1, 0.1)
 
             # accumulate sum loss
             sum_loss += loss_minibatch.item() * config.batch_size

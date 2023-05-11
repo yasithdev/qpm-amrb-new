@@ -133,7 +133,7 @@ def load_model_and_optimizer(
                 ),
             ),
             # MNIST: (1, 32, 32) -> (1,)
-            "critic": torch.nn.Sequential(
+            "discriminator": torch.nn.Sequential(
                 get_encoder(
                     input_chw=config.image_chw,
                     num_features=1,
@@ -148,7 +148,7 @@ def load_model_and_optimizer(
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
-        params=[*model["critic"].parameters(), *model["classifier"].parameters()],
+        params=[*model["discriminator"].parameters(), *model["classifier"].parameters()],
         lr=config.optim_lr,
     )
 
@@ -185,11 +185,9 @@ def epoch_adv(
         u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
-        critic: torch.nn.Module = model["critic"]  # type: ignore
+        discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
         scaler = GradientScaler.apply
         bce = F.binary_cross_entropy_with_logits
-        target_real = torch.ones(config.batch_size, 1).to(config.device)
-        target_fake = torch.zeros(config.batch_size, 1).to(config.device)
 
         x: torch.Tensor
         y: torch.Tensor
@@ -207,6 +205,9 @@ def epoch_adv(
             x = x.float().to(config.device)
             y = y.float().to(config.device)
             B = x.size(0)
+
+            target_real = x.new_ones(B, 1)
+            target_fake = x.new_zeros(B, 1)
 
             # # logging purposes only
             # with torch.no_grad():
@@ -231,9 +232,9 @@ def epoch_adv(
             y_z = classifier(x_z)
             y_z = F.gumbel_softmax(y_z)
 
-            # critic
-            pred_real: torch.Tensor = critic(x)
-            pred_fake: torch.Tensor = critic(x_z)
+            # discriminator
+            pred_real: torch.Tensor = discriminator(x)
+            pred_fake: torch.Tensor = discriminator(x_z)
 
             # accumulate predictions
             # u_pred.extend(u_x.detach().cpu().numpy())
@@ -248,14 +249,14 @@ def epoch_adv(
             # z_nll.extend(loss_nll.detach().cpu().numpy())
             # loss_mse = F.mse_loss(x_z, x)
             # loss_v = F.l1_loss(v, torch.zeros_like(v))
-            # loss_real_real = bce(pred_real, target_real[:B]) + F.cross_entropy(y_x, y)
+            # loss_real_real = bce(pred_real, target_real) + F.cross_entropy(y_x, y)
 
             # loss wrt classifying real as real
-            loss_real_real = bce(pred_real, target_real[:B])
+            loss_real_real = bce(pred_real, target_real)
             # loss wrt classifying fake as fake
-            loss_fake_fake = bce(pred_fake, target_fake[:B], reduction="none")
+            loss_fake_fake = bce(pred_fake, target_fake, reduction="none")
             # loss wrt classifying fake as real
-            loss_fake_real = bce(pred_fake, target_real[:B], reduction="none")
+            loss_fake_real = bce(pred_fake, target_real, reduction="none")
 
             # total discriminator loss (for logging only)
             # loss_discriminator = loss_real_real + torch.mean(loss_fake_fake)

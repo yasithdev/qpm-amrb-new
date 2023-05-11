@@ -4,6 +4,7 @@ from typing import List, Callable, Tuple, Optional
 
 import numpy as np
 import torch
+import torch.utils.hooks
 from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
@@ -341,10 +342,14 @@ def compute_shapes(
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 class GradientHook(object):
-    def __init__(self, module, is_negate=True):
+    def __init__(
+        self,
+        module: torch.nn.Module,
+        is_negate: bool = True,
+    ) -> None:
         self.module = module
         self.is_negate = is_negate
-        self.handle = None
+        self.handle: Optional[torch.utils.hooks.RemovableHandle] = None
 
     def set_negate(self, is_negate):
         self.is_negate = is_negate
@@ -366,7 +371,7 @@ class GradientHook(object):
             return torch.neg(grad_input)
 
     def set_negate_grads_hook(self):
-        self.handle = self.module.register_backward_hook(self.negate_grads_func)
+        self.handle = self.module.register_full_backward_hook(self.negate_grads_func)
 
     def __del__(self):
         if self.handle:

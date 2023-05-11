@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 import einops
 import torch
+import torch.nn.functional as F
 import math
 
 from . import FlowTransform
@@ -61,6 +62,35 @@ class Unflatten(FlowTransform):
 
         B = z.size(0)
         return z.reshape(B, math.prod(self.target_shape)), z.new_zeros(B)
+
+
+class Pad(FlowTransform):
+    def __init__(
+        self,
+        padding: int,
+    ) -> None:
+
+        super().__init__()
+        self.padding = padding
+
+    def _forward(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B = x.size(0)
+        pattern = [0, 0, 0, 0, 0, self.padding]
+        return F.pad(x, pattern), x.new_zeros(B)
+
+    def _inverse(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B, C = z.size(0), z.size(1)
+        return z.narrow(dim=1, start=0, length=C - self.padding), z.new_zeros(B)
 
 
 class Squeeze(FlowTransform):
