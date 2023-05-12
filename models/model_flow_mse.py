@@ -121,7 +121,6 @@ def load_model_and_optimizer(
                     #
                     flow.nn.Flatten(input_shape=(cm, h2, w2)),
                     flow.nn.ActNorm(cm * h2 * w2),
-                    flow.nn.Tanh(),  # to restrict the domain to (-1, +1)
                     #
                 ]
             ),
@@ -213,7 +212,7 @@ def epoch_adv(
             x_z, logabsdet_zx = generator(z_x, forward=False)
 
             # calculate losses
-            loss_z = dist.log_prob(z_x)
+            loss_z = F.mse_loss(z_x, torch.zeros_like(z_x))
             loss_x = F.mse_loss(x_z, x)
 
             # accumulate predictions

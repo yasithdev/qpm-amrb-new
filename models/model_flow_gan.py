@@ -1,24 +1,24 @@
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+import torchinfo
 from tqdm import tqdm
 
 from config import Config
 
 from . import flow
 from .common import (
+    GradientScaler,
+    compute_shapes,
     gather_samples,
     gen_epoch_acc,
-    set_requires_grad,
-    compute_shapes,
     get_gradient_ratios,
-    GradientScaler,
+    set_requires_grad,
 )
-from .resnet.residual_block import get_encoder
 from .flow.util import decode_mask
-
-import numpy as np
+from .resnet.residual_block import get_encoder
 
 
 def train_model(
@@ -151,6 +151,21 @@ def load_model_and_optimizer(
     return model, (optim_g, optim_d)
 
 
+def describe_model(
+    model: torch.nn.ModuleDict,
+    config: Config,
+) -> None:
+    assert config.image_chw
+    B, C, H, W = (config.batch_size, *config.image_chw)
+    x_size = (B, C, H, W)
+    c, h, w = C * 64, H // 8, W // 8
+    cm = config.manifold_d // h // w
+    uv_size = (B, c, h, w)
+    u_size = (B, cm * h * w)
+    torchinfo.summary(model["generator"], input_size=x_size, depth=5)
+    # torchinfo.summary(model["x_flow"], input_size=x_size, depth=5)
+
+
 def epoch_adv(
     model: torch.nn.ModuleDict,
     epoch: int,
@@ -248,7 +263,9 @@ def epoch_adv(
             # loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
 
             # compute minibatch loss
-            loss_minibatch = F.mse_loss(z_x, torch.zeros_like(z_x)) + F.mse_loss(x, flow(z_x, forward=True))
+            loss_minibatch = F.mse_loss(z_x, torch.zeros_like(z_x)) + F.mse_loss(
+                x, flow(z_x, forward=True)
+            )
 
             # backward pass (if optimizer is given)
             if optim:

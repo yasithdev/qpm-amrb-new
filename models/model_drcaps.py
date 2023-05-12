@@ -2,11 +2,13 @@ import logging
 from functools import partial
 from typing import Tuple
 
+import numpy as np
 import torch
 import torch.utils.data
-from config import Config
+import torchinfo
 from tqdm import tqdm
-import numpy as np
+
+from config import Config
 
 from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
@@ -33,8 +35,8 @@ out_caps_c = 16
 
 def load_model_and_optimizer(
     config: Config,
-) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer,...]]:
-    
+) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
+
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
@@ -115,15 +117,15 @@ def train_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
-    optim: Tuple[torch.optim.Optimizer,...],
+    optim: Tuple[torch.optim.Optimizer, ...],
     **kwargs,
 ) -> dict:
-    
+
     assert config.train_loader is not None
 
     # initialize loop
     model.train()
-    size = len(config.train_loader.dataset) # type: ignore
+    size = len(config.train_loader.dataset)  # type: ignore
     sum_loss = 0
 
     # training
@@ -181,7 +183,9 @@ def train_model(
             optim[0].step()
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction='none')
+            nll = torch.nn.functional.nll_loss(
+                y_z.log_softmax(-1), y.argmax(-1), reduction="none"
+            )
             y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
@@ -195,7 +199,9 @@ def train_model(
     avg_loss = sum_loss / size
     acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
-    tqdm.write(f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]")
+    tqdm.write(
+        f"[TRN] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
+    )
 
     return {
         "loss": avg_loss,
@@ -214,12 +220,12 @@ def test_model(
     config: Config,
     **kwargs,
 ) -> dict:
-    
+
     assert config.test_loader is not None
 
     # initialize loop
     model.eval()
-    size = len(config.test_loader.dataset) # type: ignore
+    size = len(config.test_loader.dataset)  # type: ignore
     sum_loss = 0
 
     # testing
@@ -272,7 +278,9 @@ def test_model(
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # save nll
-            nll = torch.nn.functional.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction='none')
+            nll = torch.nn.functional.nll_loss(
+                y_z.log_softmax(-1), y.argmax(-1), reduction="none"
+            )
             y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
@@ -286,7 +294,9 @@ def test_model(
     avg_loss = sum_loss / size
     acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
-    tqdm.write(f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]")
+    tqdm.write(
+        f"[TST] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
+    )
 
     return {
         "loss": avg_loss,
@@ -297,3 +307,22 @@ def test_model(
         "y_nll": np.array(y_nll),
         "samples": samples,
     }
+
+
+def describe_model(
+    model: torch.nn.ModuleDict,
+    config: Config,
+) -> None:
+
+    assert config.dataset_info
+    assert config.image_chw
+    B, C, H, W = (config.batch_size, *config.image_chw)
+
+    c, n = 16, config.dataset_info["num_train_labels"]
+    enc_in_size = (B, C, H, W)
+    enc_out_size = (B, c, n)
+    cls_in_size = enc_out_size
+    dec_in_size = (B, c, 1, 1)
+    torchinfo.summary(model["encoder"], input_size=enc_in_size, depth=5)
+    torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
+    torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
