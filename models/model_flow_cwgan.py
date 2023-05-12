@@ -12,8 +12,7 @@ from .common import (
     gen_epoch_acc,
     set_requires_grad,
     compute_shapes,
-    get_gradient_ratios,
-    GradientScaler,
+    GradientHook,
 )
 from .resnet.residual_block import get_encoder
 from .flow.util import decode_mask
@@ -91,12 +90,13 @@ def load_model_and_optimizer(
         "t_channels": uI,
         "num_bins": num_bins,
     }
+    
     model = torch.nn.ModuleDict(
         {
             # Base Distribution
-            "dist": flow.distributions.StandardNormal(cm * h2 * w2),
-            # MNIST: (cm * 4 * 4) -> (cm, 4, 4)
-            "u_flow": flow.Compose(
+            "dist": flow.distributions.StandardNormal(cm * h2 * w2 - num_bins),
+            # MNIST: (cm * 4 * 4) -> (cm, 4, 4) -> (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
+            "flow": flow.Compose(
                 [
                     #
                     flow.nn.Unflatten(target_shape=(cm, h2, w2)),
@@ -105,11 +105,9 @@ def load_model_and_optimizer(
                     flow.nn.ActNorm(cm),
                     flow.nn.RQSCoupling(**rqs_coupling_args_uB),
                     flow.nn.ActNorm(cm),
-                ]
-            ),
-            # MNIST: (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
-            "x_flow": flow.Compose(
-                [
+                    #
+                    flow.nn.Pad(c2 - cm),
+                    #
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
                     flow.nn.ActNorm(c2),
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
@@ -122,7 +120,6 @@ def load_model_and_optimizer(
                     flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
                     #
                     flow.nn.Unsqueeze(factor=k0),
-                    #
                 ]
             ),
             # MNIST: (1, 32, 32) -> (num_labels,)
@@ -142,9 +139,12 @@ def load_model_and_optimizer(
         }
     )
 
+    generator_hook = GradientHook(model["flow"])
+    generator_hook.set_negate_grads_hook()
+
     # set up optimizer
     optim_g = torch.optim.AdamW(
-        params=[*model["x_flow"].parameters(), *model["u_flow"].parameters()],
+        params=model["flow"].parameters(),
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
@@ -181,15 +181,10 @@ def epoch_adv(
     set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
-        x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
-        u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
+        flow: flow.FlowTransform = model["flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
         discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
-        scaler = GradientScaler.apply
-        bce = F.binary_cross_entropy_with_logits
-        target_real = torch.ones(config.batch_size, 1).to(config.device)
-        target_fake = torch.zeros(config.batch_size, 1).to(config.device)
 
         x: torch.Tensor
         y: torch.Tensor
@@ -208,10 +203,9 @@ def epoch_adv(
             y = y.float().to(config.device)
             B = x.size(0)
 
-            # # logging purposes only
-            # with torch.no_grad():
-            #     uv_x, logabsdet_xu = x_flow(x, forward=False)
-            #     u_x, v_x = flow.nn.partition(uv_x, cm)
+            target_real = x.new_ones(B, 1)
+            target_fake = -x.new_ones(B, 1)
+            target = torch.cat([target_real, target_fake], dim=0)
 
             # target image classification
             y_x = classifier(x)
@@ -219,65 +213,38 @@ def epoch_adv(
 
             # image generation
             z = dist.sample(B).to(x.device)
-            # z = torch.concat([z, y_x.detach()], dim=1)
+            z = torch.concat([z, y_x.detach()], dim=1)
             u_z: torch.Tensor
-            u_z, logabsdet_zu = u_flow(z, forward=True)
-            v_z = u_z.new_zeros(B, c2 - cm, h2, w2)
-            uv_z = flow.nn.join(u_z, v_z)
-            x_z, logabsdet_ux = x_flow(uv_z, forward=True)
-            x_z: torch.Tensor = scaler(x_z)  # type: ignore
+            x_z, logabsdet_zx = flow(z, forward=True)
 
             # generated image classification
             y_z = classifier(x_z)
             y_z = F.gumbel_softmax(y_z)
 
             # discriminator
-            pred_real: torch.Tensor = discriminator(x)
-            pred_fake: torch.Tensor = discriminator(x_z)
+            pred: torch.Tensor = discriminator(torch.cat([x, x_z], dim=0))
 
             # accumulate predictions
-            # u_pred.extend(u_x.detach().cpu().numpy())
-            # v_pred.extend(v_x.detach().cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_x)
 
             # calculate losses
-            # loss_nll = dist.log_prob(z) - logabsdet_zu - logabsdet_ux
-            # z_nll.extend(loss_nll.detach().cpu().numpy())
-            # loss_mse = F.mse_loss(x_z, x)
-            # loss_v = F.l1_loss(v, torch.zeros_like(v))
-            # loss_real_real = bce(pred_real, target_real[:B]) + F.cross_entropy(y_x, y)
-
-            # loss wrt classifying real as real
-            loss_real_real = bce(pred_real, target_real[:B])
-            # loss wrt classifying fake as fake
-            loss_fake_fake = bce(pred_fake, target_fake[:B], reduction="none")
-            # loss wrt classifying fake as real
-            loss_fake_real = bce(pred_fake, target_real[:B], reduction="none")
-
-            # total discriminator loss (for logging only)
-            # loss_discriminator = loss_real_real + torch.mean(loss_fake_fake)
-            # loss_generator = torch.mean(loss_fake_real)
-
-            gamma = get_gradient_ratios(loss_fake_real, loss_fake_fake, pred_fake)
-            GradientScaler.factor = gamma
-            loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
-
-            # compute minibatch loss
-            loss_minibatch = (
-                loss_real_real + torch.mean(loss_fake_scaled) + F.cross_entropy(y_x, y)
-            )
+            loss_minibatch = torch.abs(torch.mean(pred.tanh() * target)) + F.cross_entropy(y_x, y) + F.cross_entropy(y_x, y_z)
 
             # backward pass (if optimizer is given)
             if optim:
                 (optim_g, optim_d) = optim
-                optim_d.zero_grad()
                 optim_g.zero_grad()
+                optim_d.zero_grad()
                 loss_minibatch.backward()
                 optim_d.step()
                 optim_g.step()
+
+            # weight clipping for lipschitz constraint
+            for param in discriminator.parameters():
+                param.data.clamp_(-0.01, 0.01)
 
             # accumulate sum loss
             sum_loss += loss_minibatch.item() * config.batch_size

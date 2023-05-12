@@ -1,3 +1,4 @@
+from .activations import Tanh
 from ..base import FlowTransform
 from .normalization import ActNorm
 from .coupling import AffineCoupling, RQSCoupling

@@ -90,7 +90,7 @@ def load_model_and_optimizer(
         "t_channels": uI,
         "num_bins": num_bins,
     }
-    
+
     model = torch.nn.ModuleDict(
         {
             # Base Distribution
@@ -122,13 +122,6 @@ def load_model_and_optimizer(
                     flow.nn.Unsqueeze(factor=k0),
                 ]
             ),
-            # MNIST: (1, 32, 32) -> (num_labels,)
-            "classifier": torch.nn.Sequential(
-                get_encoder(
-                    input_chw=config.image_chw,
-                    num_features=num_labels,
-                ),
-            ),
             # MNIST: (1, 32, 32) -> (1,)
             "discriminator": torch.nn.Sequential(
                 get_encoder(
@@ -148,7 +141,7 @@ def load_model_and_optimizer(
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
-        params=[*model["discriminator"].parameters(), *model["classifier"].parameters()],
+        params=model["discriminator"].parameters(),
         lr=config.optim_lr,
     )
 
@@ -183,7 +176,6 @@ def epoch_adv(
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
         flow: flow.FlowTransform = model["flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
-        classifier: torch.nn.Module = model["classifier"]  # type: ignore
         discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
 
         x: torch.Tensor
@@ -204,34 +196,27 @@ def epoch_adv(
             B = x.size(0)
 
             target_real = x.new_ones(B, 1)
-            target_fake = x.new_zeros(B, 1)
-            target = torch.cat([-target_real, target_fake], dim=0)
-
-            # target image classification
-            y_x = classifier(x)
-            y_x = F.gumbel_softmax(y_x)
+            target_fake = -x.new_ones(B, 1)
+            target = torch.cat([target_real, target_fake], dim=0)
 
             # image generation
+            x_z: torch.Tensor
+            z: torch.Tensor
+            logabsdet_zx: torch.Tensor
             z = dist.sample(B).to(x.device)
-            # z = torch.concat([z, y_x.detach()], dim=1)
-            u_z: torch.Tensor
             x_z, logabsdet_zx = flow(z, forward=True)
-
-            # generated image classification
-            y_z = classifier(x_z)
-            y_z = F.gumbel_softmax(y_z)
 
             # discriminator
             pred: torch.Tensor = discriminator(torch.cat([x, x_z], dim=0))
 
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
+            y_pred.extend(y.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
-            gather_samples(samples, x, y, x_z, y_x)
+            gather_samples(samples, x, y, x_z, y)
 
             # calculate losses
-            loss_minibatch = torch.mean(pred.sigmoid() @ target.T)
+            loss_minibatch = torch.abs(torch.mean(pred.tanh() * target))
 
             # backward pass (if optimizer is given)
             if optim:
@@ -244,7 +229,7 @@ def epoch_adv(
 
             # weight clipping for lipschitz constraint
             for param in discriminator.parameters():
-                param.data.clamp_(-0.1, 0.1)
+                param.data.clamp_(-0.01, 0.01)
 
             # accumulate sum loss
             sum_loss += loss_minibatch.item() * config.batch_size

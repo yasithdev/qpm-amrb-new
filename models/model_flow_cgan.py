@@ -94,9 +94,9 @@ def load_model_and_optimizer(
     model = torch.nn.ModuleDict(
         {
             # Base Distribution
-            "dist": flow.distributions.StandardNormal(cm * h2 * w2),
-            # MNIST: (cm * 4 * 4) -> (cm, 4, 4) -> (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
-            "flow": flow.Compose(
+            "dist": flow.distributions.StandardNormal(cm * h2 * w2 - num_bins),
+            # MNIST: (cm * 4 * 4) -> (cm, 4, 4)
+            "u_flow": flow.Compose(
                 [
                     #
                     flow.nn.Unflatten(target_shape=(cm, h2, w2)),
@@ -105,9 +105,11 @@ def load_model_and_optimizer(
                     flow.nn.ActNorm(cm),
                     flow.nn.RQSCoupling(**rqs_coupling_args_uB),
                     flow.nn.ActNorm(cm),
-                    #
-                    flow.nn.Pad(c2 - cm),
-                    #
+                ]
+            ),
+            # MNIST: (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
+            "x_flow": flow.Compose(
+                [
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
                     flow.nn.ActNorm(c2),
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
@@ -123,6 +125,13 @@ def load_model_and_optimizer(
                     #
                 ]
             ),
+            # MNIST: (1, 32, 32) -> (num_labels,)
+            "classifier": torch.nn.Sequential(
+                get_encoder(
+                    input_chw=config.image_chw,
+                    num_features=num_labels,
+                ),
+            ),
             # MNIST: (1, 32, 32) -> (1,)
             "discriminator": torch.nn.Sequential(
                 get_encoder(
@@ -135,11 +144,11 @@ def load_model_and_optimizer(
 
     # set up optimizer
     optim_g = torch.optim.AdamW(
-        params=model["flow"].parameters(),
+        params=[*model["x_flow"].parameters(), *model["u_flow"].parameters()],
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
-        params=model["discriminator"].parameters(),
+        params=[*model["discriminator"].parameters(), *model["classifier"].parameters()],
         lr=config.optim_lr,
     )
 
@@ -172,8 +181,10 @@ def epoch_adv(
     set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
+        x_flow: flow.FlowTransform = model["x_flow"]  # type: ignore
+        u_flow: flow.FlowTransform = model["u_flow"]  # type: ignore
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
-        flow: flow.FlowTransform = model["flow"]  # type: ignore
+        classifier: torch.nn.Module = model["classifier"]  # type: ignore
         discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
         scaler = GradientScaler.apply
         bce = F.binary_cross_entropy_with_logits
@@ -195,16 +206,31 @@ def epoch_adv(
             y = y.float().to(config.device)
             B = x.size(0)
 
-            target_real: torch.Tensor = x.new_ones(B, 1)
-            target_fake: torch.Tensor = x.new_zeros(B, 1)
+            target_real = x.new_ones(B, 1)
+            target_fake = x.new_zeros(B, 1)
+
+            # # logging purposes only
+            # with torch.no_grad():
+            #     uv_x, logabsdet_xu = x_flow(x, forward=False)
+            #     u_x, v_x = flow.nn.partition(uv_x, cm)
+
+            # target image classification
+            y_x = classifier(x)
+            y_x = F.gumbel_softmax(y_x)
 
             # image generation
-            x_z: torch.Tensor
-            z: torch.Tensor
-            logabsdet_zx: torch.Tensor
             z = dist.sample(B).to(x.device)
-            x_z, logabsdet_zx = flow(z, forward=True)
-            x_z = scaler(x_z)  # type: ignore
+            z = torch.concat([z, y_x.detach()], dim=1)
+            u_z: torch.Tensor
+            u_z, logabsdet_zu = u_flow(z, forward=True)
+            v_z = u_z.new_zeros(B, c2 - cm, h2, w2)
+            uv_z = flow.nn.join(u_z, v_z)
+            x_z, logabsdet_ux = x_flow(uv_z, forward=True)
+            x_z: torch.Tensor = scaler(x_z)  # type: ignore
+
+            # generated image classification
+            y_z = classifier(x_z)
+            y_z = F.gumbel_softmax(y_z)
 
             # discriminator
             pred_real: torch.Tensor = discriminator(x)
@@ -214,9 +240,9 @@ def epoch_adv(
             # u_pred.extend(u_x.detach().cpu().numpy())
             # v_pred.extend(v_x.detach().cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y.detach().softmax(-1).cpu().numpy())
+            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
-            gather_samples(samples, x, y, x_z, y)
+            gather_samples(samples, x, y, x_z, y_x)
 
             # calculate losses
             # loss_nll = dist.log_prob(z) - logabsdet_zu - logabsdet_ux
@@ -241,7 +267,9 @@ def epoch_adv(
             loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
 
             # compute minibatch loss
-            loss_minibatch = loss_real_real + torch.mean(loss_fake_scaled)
+            loss_minibatch = (
+                loss_real_real + torch.mean(loss_fake_scaled) + F.cross_entropy(y_x, y) + F.cross_entropy(y_z, y_x)
+            )
 
             # backward pass (if optimizer is given)
             if optim:
