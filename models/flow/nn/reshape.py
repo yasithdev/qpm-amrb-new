@@ -91,6 +91,37 @@ class Pad(FlowTransform):
 
         B, C = z.size(0), z.size(1)
         return z.narrow(dim=1, start=0, length=C - self.padding), z.new_zeros(B)
+    
+class Proj(FlowTransform):
+    def __init__(
+        self,
+        ambient_dims: int,
+        manifold_dims: int,
+    ) -> None:
+
+        super().__init__()
+        self.ambient_dims = ambient_dims
+        self.manifold_dims = manifold_dims
+        self.padding = self.ambient_dims - self.manifold_dims
+
+    def _inverse(
+        self,
+        x: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B = x.size(0)
+        pattern = [0, 0, 0, 0, 0, self.padding]
+        return F.pad(x, pattern), x.new_zeros(B)
+
+    def _forward(
+        self,
+        z: torch.Tensor,
+        c: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+
+        B, C = z.size(0), z.size(1)
+        return z.narrow(dim=1, start=0, length=self.manifold_dims), z.new_zeros(B)
 
 
 class Squeeze(FlowTransform):

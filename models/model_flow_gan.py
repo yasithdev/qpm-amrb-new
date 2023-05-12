@@ -103,20 +103,25 @@ def load_model_and_optimizer(
                     #
                     flow.nn.RQSCoupling(**rqs_coupling_args_uA),
                     flow.nn.ActNorm(cm),
+                    flow.nn.LeakyReLU(),
                     flow.nn.RQSCoupling(**rqs_coupling_args_uB),
                     flow.nn.ActNorm(cm),
+                    flow.nn.LeakyReLU(),
                     #
                     flow.nn.Pad(c2 - cm),
                     #
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
                     flow.nn.ActNorm(c2),
+                    flow.nn.LeakyReLU(),
                     flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
                     flow.nn.ActNorm(c2),
+                    flow.nn.LeakyReLU(),
                     #
                     flow.nn.Unsqueeze(factor=k1),
                     #
                     flow.nn.RQSCoupling(**rqs_coupling_args_x1B),
                     flow.nn.ActNorm(c1),
+                    flow.nn.LeakyReLU(),
                     flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
                     #
                     flow.nn.Unsqueeze(factor=k0),
@@ -140,7 +145,7 @@ def load_model_and_optimizer(
     )
     optim_d = torch.optim.AdamW(
         params=model["discriminator"].parameters(),
-        lr=config.optim_lr,
+        lr=config.optim_lr * 0.1,
     )
 
     return model, (optim_g, optim_d)
@@ -204,7 +209,9 @@ def epoch_adv(
             logabsdet_zx: torch.Tensor
             z = dist.sample(B).to(x.device)
             x_z, logabsdet_zx = flow(z, forward=True)
-            x_z = scaler(x_z)  # type: ignore
+            # x_z = scaler(x_z)  # type: ignore
+
+            z_x, logabsdet_xz = flow(x, forward=False)
 
             # discriminator
             pred_real: torch.Tensor = discriminator(x)
@@ -225,23 +232,23 @@ def epoch_adv(
             # loss_v = F.l1_loss(v, torch.zeros_like(v))
             # loss_real_real = bce(pred_real, target_real) + F.cross_entropy(y_x, y)
 
-            # loss wrt classifying real as real
-            loss_real_real = bce(pred_real, target_real)
-            # loss wrt classifying fake as fake
-            loss_fake_fake = bce(pred_fake, target_fake, reduction="none")
-            # loss wrt classifying fake as real
-            loss_fake_real = bce(pred_fake, target_real, reduction="none")
+            # # loss wrt classifying real as real
+            # loss_real_real = bce(pred_real, target_real)
+            # # loss wrt classifying fake as fake
+            # loss_fake_fake = bce(pred_fake, target_fake, reduction="none")
+            # # loss wrt classifying fake as real
+            # loss_fake_real = bce(pred_fake, target_real, reduction="none")
 
-            # total discriminator loss (for logging only)
-            # loss_discriminator = loss_real_real + torch.mean(loss_fake_fake)
-            # loss_generator = torch.mean(loss_fake_real)
+            # # total discriminator loss (for logging only)
+            # # loss_discriminator = loss_real_real + torch.mean(loss_fake_fake)
+            # # loss_generator = torch.mean(loss_fake_real)
 
-            gamma = get_gradient_ratios(loss_fake_real, loss_fake_fake, pred_fake)
-            GradientScaler.factor = gamma
-            loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
+            # gamma = get_gradient_ratios(loss_fake_real, loss_fake_fake, pred_fake)
+            # GradientScaler.factor = gamma
+            # loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
 
             # compute minibatch loss
-            loss_minibatch = loss_real_real + torch.mean(loss_fake_scaled)
+            loss_minibatch = F.mse_loss(z_x, torch.zeros_like(z_x)) + F.mse_loss(x, flow(z_x, forward=True))
 
             # backward pass (if optimizer is given)
             if optim:
