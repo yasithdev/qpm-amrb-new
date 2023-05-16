@@ -8,7 +8,7 @@ from typing import Literal
 
 from config import Config, load_config
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
-from models import get_model_optimizer_and_loops
+from models import get_model_optimizer_and_step
 from models.common import load_saved_state
 from vis import gen_umap
 
@@ -49,8 +49,11 @@ def main(
     df: pd.DataFrame,
     config: Config,
 ) -> None:
+    
+    assert config.train_loader
+    assert config.test_loader
 
-    model, optim, _, test_model = get_model_optimizer_and_loops(config)
+    model, optim, step = get_model_optimizer_and_step(config)
 
     rows = df[
         (df.model == config.model_name) & (df.cv_k == config.cv_k)
@@ -58,8 +61,8 @@ def main(
     epochs = list(rows.step)
     print(f"Epochs: {epochs}")
 
-    train_labels = list(config.train_loader.dataset.labels)
-    test_labels = list(config.test_loader.dataset.labels)
+    train_labels = list(config.train_loader.dataset.labels) # type: ignore
+    test_labels = list(config.test_loader.dataset.labels) # type: ignore
     labels = (
         [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
     )
@@ -79,7 +82,7 @@ def main(
         model = model.float().to(config.device)
 
         # testing loop
-        stats = test_model(
+        stats = step(
             model=model,
             epoch=epoch,
             config=config,

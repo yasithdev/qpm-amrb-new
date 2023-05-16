@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Optional
 
 import torch
 import torch.utils.data
@@ -13,32 +13,20 @@ def load_model_and_optimizer(
     raise NotImplementedError()
 
 
-def train_model(
-    model: torch.nn.Module,
-    epoch: int,
-    loader: torch.utils.data.DataLoader,
-    config: Config,
-    optim: Tuple[torch.optim.Optimizer, ...],
-    **kwargs,
-) -> dict:
-
-    raise NotImplementedError()
-
-
-def test_model(
-    model: torch.nn.Module,
-    epoch: int,
-    loader: torch.utils.data.DataLoader,
-    config: Config,
-    **kwargs,
-) -> dict:
-
-    raise NotImplementedError()
-
-
 def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
+
+    raise NotImplementedError()
+
+
+def step_model(
+    model: torch.nn.Module,
+    epoch: int,
+    config: Config,
+    optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
+    **kwargs,
+) -> dict:
 
     raise NotImplementedError()

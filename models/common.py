@@ -294,7 +294,6 @@ class GradientScaler(torch.autograd.Function):
     def backward(ctx, grad_output):
         factor = GradientScaler.factor
         return factor.view(-1, 1, 1, 1) * grad_output
-        # return torch.neg(grad_output)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -317,7 +316,7 @@ def get_gradient_ratios(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def compute_shapes(
+def compute_flow_shapes(
     config: Config,
 ) -> Tuple[int, ...]:
 

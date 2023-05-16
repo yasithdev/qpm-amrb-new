@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from config import Config, load_config
-from models import get_model_optimizer_and_loops
+from models import get_model_optimizer_and_step
 from models.common import load_saved_state, save_state
 
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
@@ -75,11 +75,14 @@ def log_stats(
 
 def main(config: Config):
 
+    assert config.train_loader
+    assert config.test_loader
+
     if not (config.exc_resume or config.exc_dry_run):
         shutil.rmtree(experiment_path, ignore_errors=True)
         os.makedirs(experiment_path, exist_ok=True)
 
-    model, optim, train_model, test_model = get_model_optimizer_and_loops(config)
+    model, optim, step = get_model_optimizer_and_step(config)
 
     # load saved model and optimizer, if present
     if config.exc_resume:
@@ -95,8 +98,8 @@ def main(config: Config):
 
     # run train / test loops
     logging.info("Started Train/Test")
-    train_labels = list(config.train_loader.dataset.labels)
-    test_labels = list(config.test_loader.dataset.labels)
+    train_labels = list(config.train_loader.dataset.labels) # type: ignore
+    test_labels = list(config.test_loader.dataset.labels) # type: ignore
     labels = (
         [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
     )
@@ -105,7 +108,7 @@ def main(config: Config):
 
         # training loop
         if epoch > 0:
-            stats = train_model(
+            stats = step(
                 model=model,
                 epoch=epoch,
                 config=config,
@@ -117,7 +120,7 @@ def main(config: Config):
             )
 
         # testing loop
-        stats = test_model(
+        stats = step(
             model=model,
             epoch=epoch,
             config=config,

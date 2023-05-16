@@ -11,44 +11,35 @@ from config import Config
 from . import flow
 from .common import (
     GradientScaler,
-    compute_shapes,
+    compute_flow_shapes,
     gather_samples,
     gen_epoch_acc,
     get_gradient_ratios,
-    set_requires_grad,
 )
 from .flow.util import decode_mask
 from .resnet.residual_block import get_encoder
 
 
-def train_model(
-    model: torch.nn.ModuleDict,
-    epoch: int,
-    config: Config,
-    optim: Tuple[torch.optim.Optimizer, ...],
-    **kwargs,
-) -> dict:
-    return epoch_adv(model, epoch, config, optim)
+def compute_sizes(config: Config) -> dict:
+    assert config.image_chw
+    C, H, W = config.image_chw
+    (_, _, _, _, c2, cm, h2, w2, _, _) = compute_flow_shapes(config)
 
-
-def test_model(
-    model: torch.nn.ModuleDict,
-    epoch: int,
-    config: Config,
-    **kwargs,
-) -> dict:
-    return epoch_adv(model, epoch, config, None)
+    return {
+        "x": (C, H, W),
+        "uv": (c2, h2, w2),
+        "u": (cm, h2, w2),
+        "v": (c2 - cm, h2, w2),
+        "z": (cm * h2 * w2),
+    }
 
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
 
-    assert config.dataset_info is not None
-    assert config.image_chw is not None
-
-    c, h, w = config.image_chw
-    (k0, k1, c0, c1, c2, cm, h2, w2, num_bins, num_labels) = compute_shapes(config)
+    assert config.image_chw
+    (k0, k1, _, c1, c2, cm, h2, w2, num_bins, num_labels) = compute_flow_shapes(config)
 
     x1_mask = torch.zeros(c1).bool()
     x1_mask[::2] = True
@@ -91,61 +82,74 @@ def load_model_and_optimizer(
         "t_channels": uI,
         "num_bins": num_bins,
     }
+
+    # Base Distribution
+    dist = flow.distributions.StandardNormal(cm * h2 * w2 - num_labels)
+
+    # MNIST: (1, 32, 32) <-> (16, 8, 8) <-> (64, 4, 4)
+    flow_x = flow.Compose(
+        [
+            #
+            flow.nn.Squeeze(factor=k0),
+            flow.nn.ActNorm(c1),
+            #
+            flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
+            flow.nn.ActNorm(c1),
+            flow.nn.RQSCoupling(**rqs_coupling_args_x1B),
+            flow.nn.ActNorm(c1),
+            flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
+            flow.nn.ActNorm(c1),
+            #
+            flow.nn.Squeeze(factor=k1),
+            #
+            flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
+            flow.nn.ActNorm(c2),
+            flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
+            flow.nn.ActNorm(c2),
+            flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
+            flow.nn.ActNorm(c2),
+        ]
+    )
+
+    # MNIST: (cm, 4, 4) <-> (cm * 4 * 4)
+    flow_u = flow.Compose(
+        [
+            flow.nn.RQSCoupling(**rqs_coupling_args_uA),
+            flow.nn.ActNorm(cm),
+            flow.nn.RQSCoupling(**rqs_coupling_args_uB),
+            flow.nn.ActNorm(cm),
+            flow.nn.RQSCoupling(**rqs_coupling_args_uA),
+            #
+            flow.nn.Flatten(input_shape=(cm, h2, w2)),
+            flow.nn.ActNorm(cm * h2 * w2),
+        ]
+    )
+
+    # MNIST: (1, 32, 32) -> (K,)
+    classifier = torch.nn.Sequential(
+        get_encoder(
+            input_chw=config.image_chw,
+            num_features=num_labels,
+        ),
+    )
+
     model = torch.nn.ModuleDict(
         {
-            # Base Distribution
-            "dist": flow.distributions.StandardNormal(cm * h2 * w2),
-            # MNIST: (cm * 4 * 4) -> (cm, 4, 4) -> (64, 4, 4) -> (16, 8, 8) -> (1, 32, 32)
-            "flow": flow.Compose(
-                [
-                    #
-                    flow.nn.Unflatten(target_shape=(cm, h2, w2)),
-                    #
-                    flow.nn.RQSCoupling(**rqs_coupling_args_uA),
-                    flow.nn.ActNorm(cm),
-                    flow.nn.LeakyReLU(),
-                    flow.nn.RQSCoupling(**rqs_coupling_args_uB),
-                    flow.nn.ActNorm(cm),
-                    flow.nn.LeakyReLU(),
-                    #
-                    flow.nn.Pad(c2 - cm),
-                    #
-                    flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
-                    flow.nn.ActNorm(c2),
-                    flow.nn.LeakyReLU(),
-                    flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-                    flow.nn.ActNorm(c2),
-                    flow.nn.LeakyReLU(),
-                    #
-                    flow.nn.Unsqueeze(factor=k1),
-                    #
-                    flow.nn.RQSCoupling(**rqs_coupling_args_x1B),
-                    flow.nn.ActNorm(c1),
-                    flow.nn.LeakyReLU(),
-                    flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
-                    #
-                    flow.nn.Unsqueeze(factor=k0),
-                    #
-                ]
-            ),
-            # MNIST: (1, 32, 32) -> (1,)
-            "discriminator": torch.nn.Sequential(
-                get_encoder(
-                    input_chw=config.image_chw,
-                    num_features=1,
-                ),
-            ),
+            "dist": dist,
+            "flow_x": flow_x,
+            "flow_u": flow_u,
+            "classifier": classifier,
         }
     )
 
     # set up optimizer
     optim_g = torch.optim.AdamW(
-        params=model["flow"].parameters(),
+        params=[*flow_x.parameters(), *flow_u.parameters()],
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
-        params=model["discriminator"].parameters(),
-        lr=config.optim_lr * 0.1,
+        params=classifier.parameters(),
+        lr=config.optim_lr,
     )
 
     return model, (optim_g, optim_d)
@@ -155,25 +159,22 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
-    assert config.image_chw
-    B, C, H, W = (config.batch_size, *config.image_chw)
-    x_size = (B, C, H, W)
-    c, h, w = C * 64, H // 8, W // 8
-    cm = config.manifold_d // h // w
-    uv_size = (B, c, h, w)
-    u_size = (B, cm * h * w)
-    torchinfo.summary(model["generator"], input_size=x_size, depth=5)
-    # torchinfo.summary(model["x_flow"], input_size=x_size, depth=5)
+    B = config.batch_size
+    sizes = compute_sizes(config)
+    torchinfo.summary(model["flow_x"], input_size=(B, *sizes["x"]), depth=5)
+    torchinfo.summary(model["flow_u"], input_size=(B, *sizes["u"]), depth=5)
+    torchinfo.summary(model["classifier"], input_size=(B, *sizes["x"]), depth=5)
 
 
-def epoch_adv(
+def step_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-    assert config.train_loader is not None
+
+    assert config.train_loader
 
     # initialize loop
     if optim:
@@ -186,20 +187,32 @@ def epoch_adv(
     data_loader = config.train_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
-    c2, cm, h2, w2 = compute_shapes(config)[4:8]
+    sizes = compute_sizes(config)
 
     # logic
-    set_requires_grad(model, True)
     with torch.enable_grad():
-        iterable = tqdm(data_loader, desc=f"[TRN] Epoch {epoch}", **config.tqdm_args)
+        iterable = tqdm(
+            data_loader, desc=f"[{prefix}] Epoch {epoch}", **config.tqdm_args
+        )
         dist: flow.distributions.Distribution = model["dist"]  # type: ignore
-        flow: flow.FlowTransform = model["flow"]  # type: ignore
-        discriminator: torch.nn.Module = model["discriminator"]  # type: ignore
+        flow_x: flow.Compose = model["flow_x"]  # type: ignore
+        flow_u: flow.Compose = model["flow_u"]  # type: ignore
+        classifier: torch.nn.Module = model["classifier"]  # type: ignore
         scaler = GradientScaler.apply
-        bce = F.binary_cross_entropy_with_logits
 
         x: torch.Tensor
         y: torch.Tensor
+
+        uv_x: torch.Tensor
+        u_x: torch.Tensor
+        v_x: torch.Tensor
+        z_x: torch.Tensor
+
+        z: torch.Tensor
+        u_z: torch.Tensor
+        v_z: torch.Tensor
+        x_z: torch.Tensor
+
         y_true = []
         y_pred = []
         u_pred = []
@@ -215,57 +228,45 @@ def epoch_adv(
             y = y.float().to(config.device)
             B = x.size(0)
 
-            target_real: torch.Tensor = x.new_ones(B, 1)
-            target_fake: torch.Tensor = x.new_zeros(B, 1)
+            y_real: torch.Tensor = y
+            y_fake: torch.Tensor = y.new_ones(y.size()) / y.size(-1)
 
-            # image generation
-            x_z: torch.Tensor
-            z: torch.Tensor
-            logabsdet_zx: torch.Tensor
-            z = dist.sample(B).to(x.device)
-            x_z, logabsdet_zx = flow(z, forward=True)
-            # x_z = scaler(x_z)  # type: ignore
+            # x -> (u x v) -> u -> z
+            uv_x, _ = flow_x(x, forward=True)
+            u_x, v_x = flow.nn.partition(uv_x, sizes["u"][0])
+            z_x, _ = flow_u(u_x, forward=True)
 
-            z_x, logabsdet_xz = flow(x, forward=False)
+            # z~ -> u~ -> (u~ x 0) -> x~
+            z = torch.cat([dist.sample(B).to(x.device), F.gumbel_softmax(y)], dim=-1)
+            u_z, _ = flow_u(z, forward=False)
+            v_z = u_z.new_zeros((B, *sizes["v"]))
+            uv_z = flow.nn.join(u_z, v_z)
+            x_z, _ = flow_x(uv_z, forward=False)
+            x_z = scaler(x_z)  # type: ignore
 
             # discriminator
-            pred_real: torch.Tensor = discriminator(x)
-            pred_fake: torch.Tensor = discriminator(x_z)
+            y_x: torch.Tensor = F.gumbel_softmax(classifier(x))
+            y_z: torch.Tensor = F.gumbel_softmax(classifier(x_z))
 
             # accumulate predictions
-            # u_pred.extend(u_x.detach().cpu().numpy())
-            # v_pred.extend(v_x.detach().cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y.detach().softmax(-1).cpu().numpy())
-            z_pred.extend(z.detach().flatten(start_dim=1).cpu().numpy())
+            u_pred.extend(u_x.detach().flatten(start_dim=1).cpu().numpy())
+            v_pred.extend(v_x.detach().flatten(start_dim=1).cpu().numpy())
+            z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y)
 
             # calculate losses
-            # loss_nll = dist.log_prob(z) - logabsdet_zu - logabsdet_ux
-            # z_nll.extend(loss_nll.detach().cpu().numpy())
-            # loss_mse = F.mse_loss(x_z, x)
-            # loss_v = F.l1_loss(v, torch.zeros_like(v))
-            # loss_real_real = bce(pred_real, target_real) + F.cross_entropy(y_x, y)
-
-            # # loss wrt classifying real as real
-            # loss_real_real = bce(pred_real, target_real)
-            # # loss wrt classifying fake as fake
-            # loss_fake_fake = bce(pred_fake, target_fake, reduction="none")
-            # # loss wrt classifying fake as real
-            # loss_fake_real = bce(pred_fake, target_real, reduction="none")
-
-            # # total discriminator loss (for logging only)
-            # # loss_discriminator = loss_real_real + torch.mean(loss_fake_fake)
-            # # loss_generator = torch.mean(loss_fake_real)
-
-            # gamma = get_gradient_ratios(loss_fake_real, loss_fake_fake, pred_fake)
-            # GradientScaler.factor = gamma
-            # loss_fake_scaled = (loss_fake_fake - loss_fake_real) / (1.0 - gamma)
-
-            # compute minibatch loss
-            loss_minibatch = F.mse_loss(z_x, torch.zeros_like(z_x)) + F.mse_loss(
-                x, flow(z_x, forward=True)
-            )
+            loss_real = F.cross_entropy(y_x, y_real)
+            loss_fake_real = F.cross_entropy(y_z, y_real, reduction="none")
+            loss_fake_fake = F.cross_entropy(y_z, y_fake, reduction="none")
+            # loss_discriminator = loss_real + torch.mean(loss_fake_fake)
+            # loss_generator = torch.mean(loss_fake_real)
+            gamma = get_gradient_ratios(loss_fake_real, loss_fake_fake, y_z)
+            gamma = gamma.mean(dim=-1)
+            GradientScaler.factor = gamma
+            loss_fake = torch.mean((loss_fake_fake - loss_fake_real) / (1.0 - gamma))
+            loss_minibatch = loss_real + loss_fake
 
             # backward pass (if optimizer is given)
             if optim:

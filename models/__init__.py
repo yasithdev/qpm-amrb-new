@@ -6,9 +6,9 @@ import torch
 from config import Config
 
 
-def get_model_optimizer_and_loops(
+def get_model_optimizer_and_step(
     config: Config,
-) -> Tuple[torch.nn.Module, Tuple[torch.optim.Optimizer, ...], Callable, Callable]:
+) -> Tuple[torch.nn.Module, Tuple[torch.optim.Optimizer, ...], Callable]:
 
     # load requested module, if available
     assert config.image_chw
@@ -21,8 +21,7 @@ def get_model_optimizer_and_loops(
             fromlist=[
                 "load_model_and_optimizer",
                 "describe_model",
-                "train_model",
-                "test_model",
+                "step_model",
             ],
             level=1,
         )
@@ -34,7 +33,7 @@ def get_model_optimizer_and_loops(
     model = model.float().to(config.device)
 
     # print model summary
-    module.describe_model(model)
+    module.describe_model(model, config)
 
-    # return model, optimizer, training loop, and testing loop
-    return model, optimizer, module.train_model, module.test_model
+    # return model, optimizer, and step
+    return model, optimizer, module.step_model
