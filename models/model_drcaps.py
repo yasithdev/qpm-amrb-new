@@ -20,7 +20,6 @@ from .common import (
     gen_epoch_acc,
     get_conv_out_shape,
     margin_loss,
-    set_requires_grad,
 )
 from .resnet import get_decoder
 
@@ -159,7 +158,6 @@ def step_model(
     sum_loss = 0
 
     # step
-    set_requires_grad(model, True)
     with torch.enable_grad():
         iterable = tqdm(
             data_loader, desc=f"[{prefix}] Epoch {epoch}", **config.tqdm_args

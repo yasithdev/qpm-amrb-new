@@ -167,22 +167,24 @@ def step_model(
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-    assert config.train_loader
 
-    # initialize loop
+    # pre-step
     if optim:
+        data_loader = config.train_loader
+        assert data_loader
         model.train()
         prefix = "TRN"
     else:
+        data_loader = config.test_loader
+        assert data_loader
         model.eval()
         prefix = "TST"
 
-    data_loader = config.train_loader
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
     sizes = compute_sizes(config)
 
-    # logic
+    # step
     with torch.enable_grad():
         iterable = tqdm(
             data_loader, desc=f"[{prefix}] Epoch {epoch}", **config.tqdm_args
@@ -268,7 +270,7 @@ def step_model(
             log_stats = {"Loss(mb)": f"{loss_minibatch.item():.4f}"}
             iterable.set_postfix(log_stats)
 
-    # post-training
+    # post-step
     avg_loss = sum_loss / size
     acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
 
