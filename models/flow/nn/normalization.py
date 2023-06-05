@@ -1,6 +1,7 @@
 from typing import Optional, Tuple
 
 import torch
+import einops
 
 from . import FlowTransform
 
@@ -42,7 +43,7 @@ class ActNorm(FlowTransform):
         #     self._initialize(x)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        z = (x - shift) / (scale + 1e-3)
+        z = scale * x + shift
 
         if x.dim() == 4:
             B, _, H, W = x.size()
@@ -63,7 +64,7 @@ class ActNorm(FlowTransform):
         shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        x = (scale + 1e-3) * z + shift
+        x = (z - shift) / scale
 
         if z.dim() == 4:
             B, _, H, W = z.size()
@@ -84,8 +85,14 @@ class ActNorm(FlowTransform):
         zero mean and unitvariance.
 
         """
+        if inputs.dim() == 4:
+            dims = [0, 2, 3]
+        else:
+            dims = 0
+
         with torch.no_grad():
-            (std, mu) = torch.std_mean(inputs, dim=[0, 2, 3], keepdim=True)
+            std = inputs.std(dim=dims)
+            mu = (inputs / std).mean(dim=dims)
             self.log_scale.data = -torch.log(std)
             self.shift.data = -mu
             self.initialized.data = torch.tensor(True, dtype=torch.bool)

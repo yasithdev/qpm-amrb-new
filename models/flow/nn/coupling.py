@@ -304,6 +304,8 @@ class RQSCoupling(CouplingTransform):
             c = -input_delta * (data - input_cumheights)
 
             discriminant = b.pow(2) - 4 * a * c
+            # added to prevent stability issues
+            discriminant = discriminant.clamp(min=0.0)
             assert (discriminant >= 0).all()
 
             root = (2 * c) / (-b - torch.sqrt(discriminant))

@@ -79,7 +79,7 @@ def load_model_and_optimizer(
 
     # Base Distribution
     dist_z = flow.distributions.StandardNormal(k=cm * h2 * w2, mu=0.0, std=1.0)
-    dist_v = flow.distributions.StandardNormal(k=(c2 - cm) * h2 * w2, mu=0.0, std=0.0001)
+    dist_v = flow.distributions.StandardNormal(k=(c2 - cm) * h2 * w2, mu=0.0, std=0.01)
 
     # MNIST: (1, 32, 32) <-> (16, 8, 8) <-> (64, 4, 4)
     flow_x = flow.Compose(
@@ -89,30 +89,26 @@ def load_model_and_optimizer(
             flow.nn.ActNorm(c1),
             #
             flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
-            flow.nn.ActNorm(c1),
             flow.nn.RQSCoupling(**rqs_coupling_args_x1B),
-            flow.nn.ActNorm(c1),
             flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
-            flow.nn.ActNorm(c1),
             #
             flow.nn.Squeeze(factor=k1),
+            flow.nn.ActNorm(c2),
             #
             flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-            flow.nn.ActNorm(c2),
             flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
-            flow.nn.ActNorm(c2),
             flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-            flow.nn.ActNorm(c2),
         ]
     )
 
     # MNIST: (cm, 4, 4) <-> (cm * 4 * 4)
     flow_u = flow.Compose(
         [
+            #
+            flow.nn.ActNorm(cm),
+            #
             flow.nn.RQSCoupling(**rqs_coupling_args_uA),
-            flow.nn.ActNorm(cm),
             flow.nn.RQSCoupling(**rqs_coupling_args_uB),
-            flow.nn.ActNorm(cm),
             flow.nn.RQSCoupling(**rqs_coupling_args_uA),
             #
             flow.nn.Flatten(input_shape=(cm, h2, w2)),
@@ -254,7 +250,8 @@ def step_model(
             gather_samples(samples, x, y, x_z, y_x)
 
             # compute minibatch loss
-            loss_minibatch = loss_z.mean() + loss_v.mean() + loss_m + loss_y_x
+            ß = 1e-3
+            loss_minibatch = loss_z.mean() + (ß * loss_v.mean()) + loss_m + loss_y_x
 
             # backward pass (if optimizer is given)
             if optim:
