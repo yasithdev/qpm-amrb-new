@@ -152,18 +152,18 @@ class RQSCoupling(CouplingTransform):
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_bins: int = 10,
-        bound: float = 10.0,
-        min_w: float = 1e-3,
-        min_h: float = 1e-3,
-        min_d: float = 1e-3,
+        bound: float = 1.0,
+        min_w: float = 1e-2,
+        min_h: float = 1e-2,
+        min_d: float = 1e-2,
     ) -> None:
 
         nI = len(i_channels)
         nT = len(t_channels)
 
         assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
-        assert min_w * num_bins <= 1.0, "min_w too large for the number of bins"
-        assert min_h * num_bins <= 1.0, "min_h too large for the number of bins"
+        assert min_w * num_bins <= (bound * 2), "min_w too large for the number of bins"
+        assert min_h * num_bins <= (bound * 2), "min_h too large for the number of bins"
 
         nW = num_bins
         nH = num_bins
@@ -216,33 +216,32 @@ class RQSCoupling(CouplingTransform):
         )
 
         # constant-pad d for outer data
-        # const = np.log(np.exp(1 - self.min_d) - 1)
-        const = 1.0
+        const = np.log(np.exp(1 - self.min_d) - 1)
         d = F.pad(d, pad=(1, 1), value=const)
 
         assert w.shape[-1] == self.num_bins
         assert h.shape[-1] == self.num_bins
         assert d.shape[-1] == self.num_bins + 1
 
-        output = torch.empty_like(data)
-        logabsdet = torch.empty_like(data)
-
-        idx_outer = (data <= self.lo) | (data >= self.hi)
-        idx_inner = ~idx_outer
-
-        # outer data - identity transform
-        output[idx_outer], logabsdet[idx_outer] = data[idx_outer], 0.0
+        # default - identity transform
+        output = data
+        logabsdet = torch.zeros_like(data)
 
         # inner data - rqs transform
-        kwargs = {
-            "data": data[idx_inner],
-            "h": h[idx_inner, :],
-            "w": w[idx_inner, :],
-            "d": d[idx_inner, :],
-            "inverse": inverse,
-        }
-        output[idx_inner], logabsdet[idx_inner] = self.spline(**kwargs)
-        logabsdet = einops.reduce(logabsdet, "b ... -> b", reduction="sum")
+        idx_inner = (data >= self.lo) & (data <= self.hi)
+
+        if idx_inner.numel() > 0:
+
+            kwargs = {
+                "data": data[idx_inner],
+                "h": h[idx_inner, :],
+                "w": w[idx_inner, :],
+                "d": d[idx_inner, :],
+                "inverse": inverse,
+            }
+            
+            output[idx_inner], logabsdet[idx_inner] = self.spline(**kwargs)
+            logabsdet = einops.reduce(logabsdet, "b ... -> b", reduction="sum")
 
         return output, logabsdet
 
@@ -254,17 +253,9 @@ class RQSCoupling(CouplingTransform):
         d: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        
-        assert w.shape[-1] == self.num_bins
-        assert h.shape[-1] == self.num_bins
-        assert d.shape[-1] == self.num_bins + 1
 
         left = bottom = self.lo
         right = top = self.hi
-
-        # scale down the variance
-        h /= np.sqrt(self.nI)
-        w /= np.sqrt(self.nI)
 
         heights = self.min_h + (1 - self.min_h * self.num_bins) * F.softmax(h, dim=-1)
         cumheights = torch.cumsum(heights, dim=-1)
@@ -284,7 +275,7 @@ class RQSCoupling(CouplingTransform):
         cumwidths[..., -1] = right
         widths = cumwidths[..., 1:] - cumwidths[..., :-1]
 
-        derivs = self.min_d + F.softplus(d)
+        derivs = self.min_d + torch.as_tensor(F.softplus(d))
 
         if inverse:
             bin_idx = self.searchsorted(cumheights, data)[..., None]
@@ -316,8 +307,7 @@ class RQSCoupling(CouplingTransform):
             assert (discriminant >= 0).all()
 
             root = (2 * c) / (-b - torch.sqrt(discriminant))
-            # root = (- b + torch.sqrt(discriminant)) / (2 * a)
-            output = root * input_bin_widths + input_cumwidths
+            outputs = root * input_bin_widths + input_cumwidths
 
             theta_one_minus_theta = root * (1 - root)
             denominator = input_delta + (
@@ -331,7 +321,7 @@ class RQSCoupling(CouplingTransform):
             )
             logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
-            return output, -logabsdet
+            return outputs, -logabsdet
 
         else:
             theta = (data - input_cumwidths) / input_bin_widths
@@ -344,7 +334,7 @@ class RQSCoupling(CouplingTransform):
                 (input_derivs + input_derivs_plus_one - 2 * input_delta)
                 * theta_one_minus_theta
             )
-            output = input_cumheights + numerator / denominator
+            outputs = input_cumheights + numerator / denominator
 
             derivative_numerator = input_delta.pow(2) * (
                 input_derivs_plus_one * theta.pow(2)
@@ -353,7 +343,7 @@ class RQSCoupling(CouplingTransform):
             )
             logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
-            return output, logabsdet
+            return outputs, logabsdet
 
     @staticmethod
     def searchsorted(

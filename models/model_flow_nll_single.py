@@ -21,10 +21,9 @@ def compute_sizes(config: Config) -> dict:
 
     return {
         "x": (C, H, W),
-        "uv": (c2, h2, w2),
-        "u": (cm, h2, w2),
-        "v": (c2 - cm, h2, w2),
-        "z": (cm * h2 * w2),
+        "uv": (c2 * h2 * w2),
+        "u": (cm * h2 * w2),
+        "v": ((c2 - cm) * h2 * w2),
     }
 
 
@@ -63,60 +62,28 @@ def load_model_and_optimizer(
         "num_bins": num_bins,
     }
 
-    u_mask = torch.zeros(cm).bool()
-    u_mask[::2] = True
-    uI, uT = decode_mask(u_mask)
-    rqs_coupling_args_uA = {
-        "i_channels": uI,
-        "t_channels": uT,
-        "num_bins": num_bins,
-    }
-    rqs_coupling_args_uB = {
-        "i_channels": uT,
-        "t_channels": uI,
-        "num_bins": num_bins,
-    }
-
     # Base Distribution
-    dist_z = flow.distributions.StandardNormal(k=cm * h2 * w2, mu=0.0, std=1.0)
-    dist_v = flow.distributions.StandardNormal(k=(c2 - cm) * h2 * w2, mu=0.0, std=0.0001)
+    dist_z = flow.distributions.StandardNormal(k=c2 * h2 * w2, mu=0.0, std=1.0)
 
-    # MNIST: (1, 32, 32) <-> (16, 8, 8) <-> (64, 4, 4)
+    # MNIST: (1, 32, 32) <-> (16, 8, 8) <-> [RQS] <-> (64, 4, 4) <-> [RQS] <-> (784)
     flow_x = flow.Compose(
         [
             #
+            flow.nn.Tanh(),
             flow.nn.Squeeze(factor=k0),
-            flow.nn.ActNorm(c1),
             #
             flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
-            flow.nn.ActNorm(c1),
             flow.nn.RQSCoupling(**rqs_coupling_args_x1B),
-            flow.nn.ActNorm(c1),
-            flow.nn.RQSCoupling(**rqs_coupling_args_x1A),
-            flow.nn.ActNorm(c1),
             #
+            flow.nn.Tanh(),
             flow.nn.Squeeze(factor=k1),
             #
             flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-            flow.nn.ActNorm(c2),
             flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
-            flow.nn.ActNorm(c2),
-            flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-            flow.nn.ActNorm(c2),
-        ]
-    )
-
-    # MNIST: (cm, 4, 4) <-> (cm * 4 * 4)
-    flow_u = flow.Compose(
-        [
-            flow.nn.RQSCoupling(**rqs_coupling_args_uA),
-            flow.nn.ActNorm(cm),
-            flow.nn.RQSCoupling(**rqs_coupling_args_uB),
-            flow.nn.ActNorm(cm),
-            flow.nn.RQSCoupling(**rqs_coupling_args_uA),
             #
-            flow.nn.Flatten(input_shape=(cm, h2, w2)),
-            flow.nn.ActNorm(cm * h2 * w2),
+            flow.nn.Tanh(),
+            flow.nn.Flatten(input_shape=(c2, h2, w2)),
+            #
         ]
     )
 
@@ -131,16 +98,14 @@ def load_model_and_optimizer(
     model = torch.nn.ModuleDict(
         {
             "dist_z": dist_z,
-            "dist_v": dist_v,
             "flow_x": flow_x,
-            "flow_u": flow_u,
             "classifier": classifier,
         }
     )
 
     # set up optimizer
     optim_g = torch.optim.AdamW(
-        params=[*flow_x.parameters(), *flow_u.parameters()],
+        params=flow_x.parameters(),
         lr=config.optim_lr,
     )
     optim_d = torch.optim.AdamW(
@@ -158,7 +123,6 @@ def describe_model(
     B = config.batch_size
     sizes = compute_sizes(config)
     torchinfo.summary(model["flow_x"], input_size=(B, *sizes["x"]), depth=5)
-    torchinfo.summary(model["flow_u"], input_size=(B, *sizes["u"]), depth=5)
     torchinfo.summary(model["classifier"], input_size=(B, *sizes["x"]), depth=5)
 
 
@@ -192,27 +156,15 @@ def step_model(
             data_loader, desc=f"[{prefix}] Epoch {epoch}", **config.tqdm_args
         )
         dist_z: flow.distributions.Distribution = model["dist_z"]  # type: ignore
-        dist_v: flow.distributions.Distribution = model["dist_v"]  # type: ignore
         flow_x: flow.Compose = model["flow_x"]  # type: ignore
-        flow_u: flow.Compose = model["flow_u"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
 
         x: torch.Tensor
         y: torch.Tensor
-
-        uv_x: torch.Tensor
-        u_x: torch.Tensor
-        v_x: torch.Tensor
-        z_x: torch.Tensor
-
-        u_z: torch.Tensor
-        v_z: torch.Tensor
         x_z: torch.Tensor
 
         y_true = []
         y_pred = []
-        u_pred = []
-        v_pred = []
         z_pred = []
         z_nll = []
         samples = []
@@ -225,36 +177,27 @@ def step_model(
             B = x.size(0)
 
             # x -> (u x v) -> u -> z
-            uv_x, _ = flow_x(x, forward=True)
-            u_x, v_x = flow.nn.partition(uv_x, sizes["u"][0])
-            z_x, _ = flow_u(u_x, forward=True)
+            z_x, _ = flow_x(x, forward=True)
 
             # u -> (u x 0) -> x~
-            u_z = u_x
-            v_z = v_x.new_zeros(v_x.size())
-            uv_z = flow.nn.join(u_z, v_z)
-            x_z, _ = flow_x(uv_z, forward=False)
+            x_z, _ = flow_x(z_x, forward=False)
 
             # classifier
             y_z = classifier(x_z)
 
             # calculate losses
             loss_z = -dist_z.log_prob(z_x)
-            loss_v = -dist_v.log_prob(v_x)
-            loss_m = F.mse_loss(x, x_z)
-            loss_y_z = F.cross_entropy(y_z, y)
+            loss_y = F.cross_entropy(y_z, y)
 
             # accumulate predictions
-            u_pred.extend(u_x.detach().flatten(start_dim=1).cpu().numpy())
-            v_pred.extend(v_x.detach().flatten(start_dim=1).cpu().numpy())
+            z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
-            z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
             z_nll.extend(loss_z.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # compute minibatch loss
-            loss_minibatch = loss_z.mean() + loss_v.mean() + loss_m + loss_y_z
+            loss_minibatch = loss_z.mean() + loss_y
 
             # backward pass (if optimizer is given)
             if optim:
@@ -272,9 +215,7 @@ def step_model(
             log_stats = {
                 "Loss(mb)": f"{loss_minibatch:.4f}",
                 "Loss(z)": f"{loss_z.mean():.4f}",
-                "Loss(v)": f"{loss_v.mean():.4f}",
-                "Loss(m)": f"{loss_m:.4f}",
-                "Loss(y)": f"{loss_y_z:.4f}",
+                "Loss(y)": f"{loss_y:.4f}",
             }
             iterable.set_postfix(log_stats)
 
@@ -291,8 +232,6 @@ def step_model(
         "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "u_pred": np.array(u_pred),
-        "v_pred": np.array(v_pred),
         "z_pred": np.array(z_pred),
         "z_nll": np.array(z_nll),
         "samples": samples,
