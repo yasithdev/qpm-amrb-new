@@ -7,8 +7,6 @@ import torch
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
 
-from datasets import get_dataset_chw
-
 
 def get_best_device():
 

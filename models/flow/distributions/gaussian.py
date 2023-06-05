@@ -16,15 +16,20 @@ class StandardNormal(Distribution):
 
     def __init__(
         self,
-        *shape: int,
+        k: int,
+        mu: float = 0.0,
+        std: float = 1.0,
+        device: str = "cuda",
     ) -> None:
 
         super().__init__()
 
-        self.shape = torch.Size(shape)
-        k = prod(shape)
-        # -1/2.k.log(2π)
-        self.neg_log_pz = torch.as_tensor(-0.5 * k * log(2 * pi))
+        self.k = k
+        self.mu = mu
+        self.std = std
+        self.device = device
+        # log(2π^(-k/2)) = -k/2*log(2π)
+        self.const = (-self.k / 2) * log(2 * pi)
 
     def _log_prob(
         self,
@@ -33,12 +38,14 @@ class StandardNormal(Distribution):
     ) -> torch.Tensor:
 
         # Note: c is ignored
-        assert self.shape == z.shape[1:], f"{self.shape} != {z.shape[1:]}"
-        # -1/2.log(xTx)
-        log_exp = -0.5 * einops.reduce(z**2, "b ... -> b", reduction="sum")
-        # -1/2.k.log(2π) + -1/2.log(xTx)
-        log_prob = self.neg_log_pz + log_exp
-        return log_prob
+        k = prod(z.size()[1:])
+        assert self.k == k, f"{self.k} != {k}"
+        # log(exp(-1/2*((x-mu)/std)**2))
+        dist = (z - self.mu) / self.std
+        log_exp = (-1 / 2) * einops.reduce(dist**2, "b ... -> b", reduction="sum")
+        # -k/2*log(2π) + log(exp(-1/2*((x-mu)/std)**2))
+        log_prob = self.const + log_exp
+        return log_exp
 
     def _sample(
         self,
@@ -47,9 +54,7 @@ class StandardNormal(Distribution):
     ) -> torch.Tensor:
 
         # Note: c is ignored
-        shape = [n, *self.shape]
-        device = self.neg_log_pz.device
-        sample = torch.randn(size=shape, device=device)
+        sample = torch.randn(size=(n, self.k), device=self.device)
         return sample
 
     def _mean(
@@ -58,5 +63,5 @@ class StandardNormal(Distribution):
     ) -> torch.Tensor:
 
         # Note: c is ignored
-        mean = self.neg_log_pz.new_zeros(self.shape)
+        mean = torch.zeros(self.k, device=self.device)
         return mean

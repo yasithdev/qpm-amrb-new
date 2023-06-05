@@ -209,14 +209,15 @@ class RQSCoupling(CouplingTransform):
             C=data.size(1),
             P=self.nH + self.nW + self.nD,
         )
-        h, w, d = einops.unpack(
+        w, h, d = einops.unpack(
             tensor=params,
-            packed_shapes=[(self.nH,), (self.nW,), (self.nD,)],
+            packed_shapes=[(self.nW,), (self.nH,), (self.nD,)],
             pattern="B C H W *",
         )
 
         # constant-pad d for outer data
-        const = np.log(np.exp(1 - self.min_d) - 1)
+        # const = np.log(np.exp(1 - self.min_d) - 1)
+        const = 1.0
         d = F.pad(d, pad=(1, 1), value=const)
 
         assert w.shape[-1] == self.num_bins
@@ -226,7 +227,7 @@ class RQSCoupling(CouplingTransform):
         output = torch.empty_like(data)
         logabsdet = torch.empty_like(data)
 
-        idx_outer = (data < self.lo) | (data > self.hi)
+        idx_outer = (data <= self.lo) | (data >= self.hi)
         idx_inner = ~idx_outer
 
         # outer data - identity transform
@@ -248,8 +249,8 @@ class RQSCoupling(CouplingTransform):
     def spline(
         self,
         data: torch.Tensor,
-        h: torch.Tensor,
         w: torch.Tensor,
+        h: torch.Tensor,
         d: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -265,8 +266,8 @@ class RQSCoupling(CouplingTransform):
         h /= np.sqrt(self.nI)
         w /= np.sqrt(self.nI)
 
-        heights = self.min_h + (1 - self.min_h * self.num_bins) * F.softmax(h, dim=1)
-        cumheights = torch.cumsum(heights, dim=1)
+        heights = self.min_h + (1 - self.min_h * self.num_bins) * F.softmax(h, dim=-1)
+        cumheights = torch.cumsum(heights, dim=-1)
         cumheights = F.pad(cumheights, pad=(1, 0), mode="constant", value=0.0)
         cumheights = (top - bottom) * cumheights + bottom
         # rounding to prevent errors
@@ -274,8 +275,8 @@ class RQSCoupling(CouplingTransform):
         cumheights[..., -1] = top
         heights = cumheights[..., 1:] - cumheights[..., :-1]
 
-        widths = self.min_w + (1 - self.min_w * self.num_bins) * F.softmax(w, dim=1)
-        cumwidths = torch.cumsum(widths, dim=1)
+        widths = self.min_w + (1 - self.min_w * self.num_bins) * F.softmax(w, dim=-1)
+        cumwidths = torch.cumsum(widths, dim=-1)
         cumwidths = F.pad(cumwidths, pad=(1, 0), mode="constant", value=0.0)
         cumwidths = (right - left) * cumwidths + left
         # rounding to prevent errors
@@ -290,17 +291,17 @@ class RQSCoupling(CouplingTransform):
         else:
             bin_idx = self.searchsorted(cumwidths, data)[..., None]
 
-        input_cumwidths = cumwidths.gather(1, bin_idx)[..., 0]
-        input_bin_widths = widths.gather(1, bin_idx)[..., 0]
+        input_cumwidths = cumwidths.gather(-1, bin_idx)[..., 0]
+        input_bin_widths = widths.gather(-1, bin_idx)[..., 0]
 
-        input_cumheights = cumheights.gather(1, bin_idx)[..., 0]
+        input_cumheights = cumheights.gather(-1, bin_idx)[..., 0]
         delta = heights / widths
-        input_delta = delta.gather(1, bin_idx)[..., 0]
+        input_delta = delta.gather(-1, bin_idx)[..., 0]
 
-        input_derivs = derivs.gather(1, bin_idx)[..., 0]
-        input_derivs_plus_one = derivs[..., 1:].gather(1, bin_idx)[..., 0]
+        input_derivs = derivs.gather(-1, bin_idx)[..., 0]
+        input_derivs_plus_one = derivs[..., 1:].gather(-1, bin_idx)[..., 0]
 
-        input_heights = heights.gather(1, bin_idx)[..., 0]
+        input_heights = heights.gather(-1, bin_idx)[..., 0]
 
         if inverse:
             a = (data - input_cumheights) * (
@@ -362,4 +363,4 @@ class RQSCoupling(CouplingTransform):
     ) -> torch.Tensor:
 
         bin_locations[..., -1] += eps
-        return torch.sum(inputs[..., None] >= bin_locations, dim=1) - 1
+        return torch.sum(inputs[..., None] >= bin_locations, dim=-1) - 1

@@ -78,7 +78,8 @@ def load_model_and_optimizer(
     }
 
     # Base Distribution
-    dist = flow.distributions.StandardNormal(cm * h2 * w2 - num_labels)
+    dist_z = flow.distributions.StandardNormal(k=cm * h2 * w2, mu=0.0, std=1.0)
+    dist_v = flow.distributions.StandardNormal(k=(c2 - cm) * h2 * w2, mu=0.0, std=0.0001)
 
     # MNIST: (1, 32, 32) <-> (16, 8, 8) <-> (64, 4, 4)
     flow_x = flow.Compose(
@@ -129,7 +130,8 @@ def load_model_and_optimizer(
 
     model = torch.nn.ModuleDict(
         {
-            "dist": dist,
+            "dist_z": dist_z,
+            "dist_v": dist_v,
             "flow_x": flow_x,
             "flow_u": flow_u,
             "classifier": classifier,
@@ -189,7 +191,8 @@ def step_model(
         iterable = tqdm(
             data_loader, desc=f"[{prefix}] Epoch {epoch}", **config.tqdm_args
         )
-        dist: flow.distributions.Distribution = model["dist"]  # type: ignore
+        dist_z: flow.distributions.Distribution = model["dist_z"]  # type: ignore
+        dist_v: flow.distributions.Distribution = model["dist_v"]  # type: ignore
         flow_x: flow.Compose = model["flow_x"]  # type: ignore
         flow_u: flow.Compose = model["flow_u"]  # type: ignore
         classifier: torch.nn.Module = model["classifier"]  # type: ignore
@@ -226,33 +229,32 @@ def step_model(
             u_x, v_x = flow.nn.partition(uv_x, sizes["u"][0])
             z_x, _ = flow_u(u_x, forward=True)
 
-            # z~ -> u~ -> (u~ x 0) -> x~
-            u_z, _ = flow_u(z_x, forward=False)
-            v_z = u_z.new_zeros((B, *sizes["v"]))
+            # u -> (u x 0) -> x~
+            u_z = u_x
+            v_z = v_x.new_zeros(v_x.size())
             uv_z = flow.nn.join(u_z, v_z)
             x_z, _ = flow_x(uv_z, forward=False)
 
             # classifier
             y_z = classifier(x_z)
-            y_x = classifier(x)
 
             # calculate losses
-            loss_z = F.mse_loss(z_x, torch.zeros_like(z_x))
-            loss_v = F.mse_loss(v_x, torch.zeros_like(v_x))
-            loss_x = F.mse_loss(x_z, x)
+            loss_z = -dist_z.log_prob(z_x)
+            loss_v = -dist_v.log_prob(v_x)
+            loss_m = F.mse_loss(x, x_z)
             loss_y_z = F.cross_entropy(y_z, y)
-            loss_y_x = F.cross_entropy(y_x, y)
 
             # accumulate predictions
             u_pred.extend(u_x.detach().flatten(start_dim=1).cpu().numpy())
             v_pred.extend(v_x.detach().flatten(start_dim=1).cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
+            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
+            z_nll.extend(loss_z.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # compute minibatch loss
-            loss_minibatch = loss_x + loss_z + loss_v + loss_y_x + loss_y_z
+            loss_minibatch = loss_z.mean() + loss_v.mean() + loss_m + loss_y_z
 
             # backward pass (if optimizer is given)
             if optim:
