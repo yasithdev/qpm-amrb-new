@@ -42,7 +42,7 @@ class ActNorm(FlowTransform):
         #     self._initialize(x)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        z = (x - shift) / scale
+        z = (x - shift) / (scale + 1e-3)
 
         if x.dim() == 4:
             B, _, H, W = x.size()
@@ -63,7 +63,7 @@ class ActNorm(FlowTransform):
         shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        x = scale * z + shift
+        x = (scale + 1e-3) * z + shift
 
         if z.dim() == 4:
             B, _, H, W = z.size()

@@ -236,25 +236,25 @@ def step_model(
             x_z, _ = flow_x(uv_z, forward=False)
 
             # classifier
-            y_z = classifier(x_z)
+            y_x = classifier(x)
 
             # calculate losses
             loss_z = -dist_z.log_prob(z_x)
             loss_v = -dist_v.log_prob(v_x)
             loss_m = F.mse_loss(x, x_z)
-            loss_y_z = F.cross_entropy(y_z, y)
+            loss_y_x = F.cross_entropy(y_x, y)
 
             # accumulate predictions
             u_pred.extend(u_x.detach().flatten(start_dim=1).cpu().numpy())
             v_pred.extend(v_x.detach().flatten(start_dim=1).cpu().numpy())
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
+            y_pred.extend(y_x.detach().softmax(-1).cpu().numpy())
             z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
             z_nll.extend(loss_z.detach().cpu().numpy())
-            gather_samples(samples, x, y, x_z, y_z)
+            gather_samples(samples, x, y, x_z, y_x)
 
             # compute minibatch loss
-            loss_minibatch = loss_z.mean() + loss_v.mean() + loss_m + loss_y_z
+            loss_minibatch = loss_z.mean() + loss_v.mean() + loss_m + loss_y_x
 
             # backward pass (if optimizer is given)
             if optim:
@@ -274,7 +274,7 @@ def step_model(
                 "Loss(z)": f"{loss_z.mean():.4f}",
                 "Loss(v)": f"{loss_v.mean():.4f}",
                 "Loss(m)": f"{loss_m:.4f}",
-                "Loss(y)": f"{loss_y_z:.4f}",
+                "Loss(y)": f"{loss_y_x:.4f}",
             }
             iterable.set_postfix(log_stats)
 
