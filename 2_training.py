@@ -27,6 +27,7 @@ def log_stats(
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
+    K = len(labels)
 
     # uncertainty
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
@@ -44,7 +45,6 @@ def log_stats(
     data[f"{prefix}_estimates"] = estimates
 
     if mode == "leave-out" and prefix == "test":
-        K = len(labels)
         y_true = np.full((B,), fill_value=K - 1)
         targets = [wandb.Image(x, caption=labels[K - 1]) for x, _, _, _ in samples]
     else:
@@ -52,7 +52,7 @@ def log_stats(
     data[f"{prefix}_targets"] = targets
 
     # top-k accuracies
-    acc1, acc2, acc3 = gen_epoch_acc(y_pred=y_pred.tolist(), y_true=y_true.tolist(), labels=labels)
+    acc1, acc2, acc3 = gen_epoch_acc(y_pred=y_pred, y_true=y_true, labels=np.arange(K)) # type: ignore
     tqdm.write(
         f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
     )
