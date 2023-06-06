@@ -6,6 +6,7 @@ from typing import Literal, Dict
 import numpy as np
 import torch
 from tqdm import tqdm
+from sklearn.metrics import roc_auc_score
 
 from config import Config, load_config
 from models import get_model_optimizer_and_step
@@ -113,31 +114,38 @@ def main(config: Config):
 
     for epoch in range(config.train_epochs + 1):
 
+        epoch_stats: dict = {}
+
         # training loop
         if epoch > 0:
-            stats = step(
+            trn_stats = step(
                 model=model,
                 epoch=epoch,
                 config=config,
                 optim=optim,
             )
-            wandb.log(
-                log_stats(
-                    stats, labels, prefix="train", mode=config.cv_mode, step=epoch
-                ),
-                step=epoch,
-            )
+            epoch_stats.update(log_stats(trn_stats, labels, "train", config.cv_mode, epoch))
 
         # testing loop
-        stats = step(
+        tst_stats = step(
             model=model,
             epoch=epoch,
             config=config,
         )
-        wandb.log(
-            log_stats(stats, labels, prefix="test", mode=config.cv_mode, step=epoch),
-            step=epoch,
-        )
+        epoch_stats.update(log_stats(tst_stats, labels, "test", config.cv_mode, epoch))
+
+        if "train_x_ucty" in epoch_stats and "test_x_ucty" in epoch_stats:
+            trn_x_ucty = epoch_stats["train_x_ucty"]
+            tst_x_ucty = epoch_stats["test_x_ucty"]
+            # binary classification labels for ID and OOD
+            values = np.concatenate([trn_x_ucty, tst_x_ucty], axis=0)
+            values = values / values.max()
+            nID = trn_x_ucty.shape[0]
+            nOD = tst_x_ucty.shape[0]
+            target = np.concatenate([np.zeros(nID), np.ones(nOD)], axis=0)
+            epoch_stats["auroc"] = roc_auc_score(target, values)
+
+        wandb.log(epoch_stats, step=epoch)
 
         # save model/optimizer states
         if not config.exc_dry_run:
