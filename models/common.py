@@ -215,9 +215,8 @@ def get_convt_out_shape(
 def gen_epoch_acc(
     y_pred: list,
     y_true: list,
+    labels: list,
 ) -> Tuple[float, float, float]:
-
-    labels = np.arange(len(y_pred[0]))
     top1_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=1))
     top2_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=2))
     top3_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=3))

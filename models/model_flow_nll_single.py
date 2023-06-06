@@ -9,7 +9,7 @@ from tqdm import tqdm
 from config import Config
 
 from . import flow
-from .common import compute_flow_shapes, gather_samples, gen_epoch_acc
+from .common import compute_flow_shapes, gather_samples
 from .flow.util import decode_mask
 from .resnet.residual_block import get_encoder
 
@@ -221,15 +221,9 @@ def step_model(
 
     # post-step
     avg_loss = sum_loss / size
-    acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
-
-    tqdm.write(
-        f"[{prefix}] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
-    )
 
     return {
         "loss": avg_loss,
-        "acc": acc_score,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "z_pred": np.array(z_pred),

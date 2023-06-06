@@ -2,35 +2,31 @@ import logging
 import os
 import shutil
 
-from typing import Literal
+from typing import Literal, Dict
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from config import Config, load_config
 from models import get_model_optimizer_and_step
-from models.common import load_saved_state, save_state
+from models.common import load_saved_state, save_state, gen_epoch_acc
 
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 
 
 def log_stats(
-    stats: dict,
+    stats: Dict[str, np.ndarray],
     labels: list,
     prefix: Literal["train", "test"],
     mode: str,
+    step: int,
 ) -> dict:
 
     data = {}
 
-    acc1, acc2, acc3 = stats["acc"]
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
-
-    # top-k accuracies
-    data[f"{prefix}_accuracy"] = acc1
-    data[f"{prefix}_top2accuracy"] = acc2
-    data[f"{prefix}_top3accuracy"] = acc3
 
     # uncertainty
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
@@ -55,6 +51,14 @@ def log_stats(
         targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
     data[f"{prefix}_targets"] = targets
 
+    # top-k accuracies
+    acc1, acc2, acc3 = gen_epoch_acc(y_pred=y_pred.tolist(), y_true=y_true.tolist(), labels=labels)
+    tqdm.write(
+        f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
+    )
+    data[f"{prefix}_acc1"] = acc1
+    data[f"{prefix}_acc2"] = acc2
+    data[f"{prefix}_acc3"] = acc3
     data[f"{prefix}_cm"] = wandb.plot.confusion_matrix(
         y_true=y_true,  # type: ignore
         probs=y_pred,  # type: ignore
@@ -118,7 +122,9 @@ def main(config: Config):
                 optim=optim,
             )
             wandb.log(
-                log_stats(stats, labels, prefix="train", mode=config.cv_mode),
+                log_stats(
+                    stats, labels, prefix="train", mode=config.cv_mode, step=epoch
+                ),
                 step=epoch,
             )
 
@@ -129,7 +135,7 @@ def main(config: Config):
             config=config,
         )
         wandb.log(
-            log_stats(stats, labels, prefix="test", mode=config.cv_mode),
+            log_stats(stats, labels, prefix="test", mode=config.cv_mode, step=epoch),
             step=epoch,
         )
 

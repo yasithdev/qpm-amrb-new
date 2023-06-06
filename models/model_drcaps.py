@@ -17,7 +17,6 @@ from .capsnet.drcaps import ConvCapsDR, squash
 from .common import (
     Functional,
     gather_samples,
-    gen_epoch_acc,
     get_conv_out_shape,
     margin_loss,
 )
@@ -228,15 +227,9 @@ def step_model(
 
     # post-step
     avg_loss = sum_loss / size
-    acc_score = gen_epoch_acc(y_pred=y_pred, y_true=y_true)
-
-    tqdm.write(
-        f"[{prefix}] Epoch {epoch}: Loss(avg): {avg_loss:.4f}, Acc: [{acc_score[0]:.4f}, {acc_score[1]:.4f}, {acc_score[2]:.4f}]"
-    )
 
     return {
         "loss": avg_loss,
-        "acc": acc_score,
         "z_pred": np.array(z_pred),
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
