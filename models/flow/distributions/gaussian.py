@@ -34,6 +34,7 @@ class StandardNormal(Distribution):
     def _log_prob(
         self,
         z: torch.Tensor,
+        ignore_constants: bool = True,
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
@@ -44,8 +45,10 @@ class StandardNormal(Distribution):
         dist = (z - self.mu) / self.std
         log_exp = (-1 / 2) * einops.reduce(dist**2, "b ... -> b", reduction="sum")
         # -k/2*log(2π) + log(exp(-1/2*((x-mu)/std)**2))
-        log_prob = self.const + log_exp
-        return log_exp
+        if ignore_constants:
+            return log_exp
+        else:
+            return self.const + log_exp
 
     def _sample(
         self,

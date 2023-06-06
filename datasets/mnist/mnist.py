@@ -49,6 +49,7 @@ class MNISTDataset(torchvision.datasets.VisionDataset):
                 pivot = int(len(images) * split_frac)
                 images = images[shift:] + images[:shift]
                 dataset_sub[target] = images[:pivot] if train else images[pivot:]
+            self.labels = targets
         # if set to leave-out crossval mode
         elif cv_mode == "leave-out":
             assert cv_folds == len(targets)
@@ -57,8 +58,10 @@ class MNISTDataset(torchvision.datasets.VisionDataset):
             one_hot_targets = np.delete(one_hot_targets, cv_k, axis=1)
             if train:
                 dataset_sub = {t: dataset_all[t] for t in targets}
+                self.labels = targets
             else:
                 dataset_sub = {leave_out_target: dataset_all[leave_out_target]}
+                self.labels = [leave_out_target]
         else:
             raise NotImplementedError(f"Unsupported cv_mode: {cv_mode}")
         # create final dataset
@@ -71,7 +74,6 @@ class MNISTDataset(torchvision.datasets.VisionDataset):
         self.dataset = dataset_final
         self.transform = transform
         self.target_transform = target_transform
-        self.labels = targets
 
     def __getitem__(self, index: int):
 

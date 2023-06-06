@@ -18,6 +18,7 @@ class Distribution(torch.nn.Module):
     def log_prob(
         self,
         x: torch.Tensor,
+        ignore_constants: bool = True,
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 
@@ -36,7 +37,7 @@ class Distribution(torch.nn.Module):
         if c is not None:
             assert x.size(0) == c.size(0)
 
-        return self._log_prob(x, c)
+        return self._log_prob(x, ignore_constants, c)
 
     def sample(
         self,
@@ -94,6 +95,7 @@ class Distribution(torch.nn.Module):
     def _log_prob(
         self,
         x: torch.Tensor,
+        ignore_constants: bool = True,
         c: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
 

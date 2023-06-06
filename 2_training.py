@@ -19,46 +19,38 @@ def log_stats(
     prefix: Literal["train", "test"],
     mode: str,
 ) -> dict:
-    
+
     data = {}
 
-    # loss
-    data[f"{prefix}_loss"] = stats["loss"]
+    acc1, acc2, acc3 = stats["acc"]
+    y_true = stats["y_true"]
+    y_pred = stats["y_pred"]
+    B = y_pred.shape[0]
 
     # top-k accuracies
-    acc1, acc2, acc3 = stats["acc"]
     data[f"{prefix}_accuracy"] = acc1
     data[f"{prefix}_top2accuracy"] = acc2
     data[f"{prefix}_top3accuracy"] = acc3
 
-    # optional parameters
-    if "u_pred" in stats:
-        data[f"{prefix}_u_pred"] = np.array(stats["u_pred"])
-    if "v_pred" in stats:
-        data[f"{prefix}_v_pred"] = np.array(stats["v_pred"])
-    if "z_pred" in stats:
-        data[f"{prefix}_z_pred"] = np.array(stats["z_pred"])
-    if "z_nll" in stats:
-        data[f"{prefix}_z_nll"] = np.array(stats["z_nll"])
-    if "y_nll" in stats:
-        data[f"{prefix}_y_nll"] = np.array(stats["y_nll"])
+    # uncertainty
+    zero_ucty = np.zeros((B, 1), dtype=np.float32)
+    y_ucty = stats.get("y_ucty", zero_ucty)
+    x_ucty = stats.get("x_ucty", zero_ucty)
 
     # compute confusion matrix
-    y_true = np.array(stats["y_true"])
-    y_pred = np.array(stats["y_pred"])
     samples = stats["samples"]
 
     # in leave-out mode, add column for left-out class
     if mode == "leave-out":
-        y_pred = np.pad(y_pred, ((0, 0), (0, 1)), constant_values=0)
+        y_pred = np.concatenate([y_pred, y_ucty], axis=-1)
 
     estimates = [wandb.Image(xz, caption=labels[yz]) for _, _, xz, yz in samples]
     data[f"{prefix}_estimates"] = estimates
 
     if mode == "leave-out" and prefix == "test":
-        n = len(labels) - 1
-        y_true = np.full(y_true.shape[0], n)
-        targets = [wandb.Image(x, caption=labels[n]) for x, _, _, _ in samples]
+        K = len(labels)
+        y_true = np.full((B,), fill_value=K - 1)
+        targets = [wandb.Image(x, caption=labels[K - 1]) for x, _, _, _ in samples]
     else:
         targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
     data[f"{prefix}_targets"] = targets
@@ -69,6 +61,11 @@ def log_stats(
         class_names=labels,
         title=f"Confusion Matrix ({prefix})",
     )
+
+    # everything else
+    for key in stats.keys():
+        if key not in ["acc", "y_true", "y_pred", "samples"]:
+            data[f"{prefix}_{key}"] = stats[key]
 
     return data
 
@@ -98,11 +95,18 @@ def main(config: Config):
 
     # run train / test loops
     logging.info("Started Train/Test")
-    train_labels = list(config.train_loader.dataset.labels) # type: ignore
-    test_labels = list(config.test_loader.dataset.labels) # type: ignore
-    labels = (
-        [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
-    )
+    train_labels = list(config.train_loader.dataset.labels)  # type: ignore
+    test_labels = list(config.test_loader.dataset.labels)  # type: ignore
+    if config.cv_mode == "leave-out":
+        print(f"Labels (ID): {train_labels}")
+        print(f"Labels (OOD): {test_labels}")
+        assert set(train_labels).isdisjoint(test_labels)
+        labels = [*train_labels, *test_labels]
+    else:
+        assert set(train_labels) == set(test_labels)
+        labels = train_labels
+        print(f"Labels: {train_labels}")
+    exit(0)
 
     for epoch in range(config.train_epochs + 1):
 

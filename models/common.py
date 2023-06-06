@@ -1,14 +1,18 @@
 import logging
 import os
-from typing import List, Callable, Tuple, Optional
+from functools import partial
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.utils.hooks
-from config import Config
 from einops import rearrange
 from matplotlib import pyplot as plt
-from sklearn.metrics import ConfusionMatrixDisplay, top_k_accuracy_score as topk_acc
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.metrics import top_k_accuracy_score as topk_acc
+
+from config import Config
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -375,3 +379,62 @@ class GradientHook(object):
     def __del__(self):
         if self.handle:
             self.handle.remove()
+
+
+def edl_kl(
+    α: torch.Tensor,
+) -> torch.Tensor:
+
+    # function definitions
+    lnΓ = torch.lgamma
+    ϝ = torch.digamma  # derivative of lnΓ
+    Σ = partial(torch.sum, dim=-1, keepdim=True)
+    K = α.size(-1)
+
+    # logic
+    β = α.new_ones(1, K)
+    lnB = lnΓ(Σ(α)) - Σ(lnΓ(α))
+    lnB_uni = Σ(lnΓ(β)) - lnΓ(Σ(β))
+    kl = Σ((α - β) * (ϝ(α) - ϝ(Σ(α)))) + lnB + lnB_uni
+    return kl
+
+
+def edl_loss(
+    logits: torch.Tensor,
+    target: torch.Tensor,
+    epoch: int,
+    τ: int = 10,
+) -> torch.Tensor:
+
+    # function definitions
+    Σ = partial(torch.sum, dim=-1, keepdim=True)
+
+    # logic
+    α = torch.as_tensor(F.softplus(logits))
+    y = target
+    S = Σ(α)
+    p = α / S
+    λ = min(1, epoch / τ)
+
+    L_err = Σ((y - p).pow(2))
+    L_var = Σ(p * (1 - p) / (S + 1))
+    L_kl = λ * edl_kl(1 + (α - 1) * (1 - y))
+
+    return L_err + L_var + L_kl
+
+
+def edl_probs(
+    logits: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+
+    # function definitions
+    Σ = partial(torch.sum, dim=-1, keepdim=True)
+    K = logits.size(-1)
+
+    # logic
+    α = torch.as_tensor(F.softplus(logits))
+    S = Σ(α)
+    p = (α - 1) / S
+    u = K / S
+
+    return p, u
