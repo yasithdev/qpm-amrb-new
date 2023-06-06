@@ -78,15 +78,15 @@ umapz-amrb2_species-leaveout-%:
 # == [ACTUAL] AMRB2_strain kfold ==
 umapx-amrb2_strain-kfold:
 	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=k-fold    CV_FOLDS=10               ${RUN_ARGS} python -u 1_amrb_preview.py
-train-amrb2_species-kfold-%:
+train-amrb2_strain-kfold-%:
 	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
-umapz-amrb2_species-kfold-%:
+umapz-amrb2_strain-kfold-%:
 	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 5_umap.py
 
 # == [ACTUAL] AMRB2_strain leaveout ==
-umapx-amrb2_species-leaveout:
-	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=4                ${RUN_ARGS} python -u 1_amrb_preview.py
-train-amrb2_species-leaveout-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
-umapz-amrb2_species-leaveout-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 5_umap.py
+umapx-amrb2_strain-leaveout:
+	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=19                ${RUN_ARGS} python -u 1_amrb_preview.py
+train-amrb2_strain-leaveout-%:
+	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+umapz-amrb2_strain-leaveout-%:
+	DATASET_NAME=AMRB2_strain.$${CV_K} CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 5_umap.py

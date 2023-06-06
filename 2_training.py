@@ -98,15 +98,14 @@ def main(config: Config):
     train_labels = list(config.train_loader.dataset.labels)  # type: ignore
     test_labels = list(config.test_loader.dataset.labels)  # type: ignore
     if config.cv_mode == "leave-out":
-        print(f"Labels (ID): {train_labels}")
-        print(f"Labels (OOD): {test_labels}")
+        print(f"Labels (train): {train_labels}")
+        print(f"Labels (test): {test_labels}")
         assert set(train_labels).isdisjoint(test_labels)
         labels = [*train_labels, *test_labels]
     else:
         assert set(train_labels) == set(test_labels)
         labels = train_labels
-        print(f"Labels: {train_labels}")
-    exit(0)
+        print(f"Labels (train, test): {train_labels}")
 
     for epoch in range(config.train_epochs + 1):
 
