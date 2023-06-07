@@ -48,30 +48,33 @@ def get_classifier(
 def load_saved_state(
     model: torch.nn.Module,
     optim: Tuple[torch.optim.Optimizer, ...],
-    experiment_path: str,
     config: Config,
     epoch: Optional[int] = None,
 ) -> None:
 
     if epoch is not None:
-        model_filename = f"model_e{epoch}.path"
-        optim_filename = f"optim_e{epoch}.path"
+        model_filename = f"{config.model_name}_model_e{epoch}.pth"
+        optim_filename = f"{config.model_name}_optim_e{epoch}.pth"
     else:
-        model_filename = f"model.path"
-        optim_filename = f"optim.path"
+        model_filename = f"{config.model_name}_model.pth"
+        optim_filename = f"{config.model_name}_optim.pth"
 
-    model_state_path = os.path.join(experiment_path, model_filename)
-    optim_state_path = os.path.join(experiment_path, optim_filename)
+    model_state_path = os.path.join(config.experiment_path, model_filename)
+    optim_state_path = os.path.join(config.experiment_path, optim_filename)
 
-    if os.path.exists(model_state_path):
+    if not os.path.exists(model_state_path):
+        logging.warn("no saved model state: %s", model_state_path)
+    else:
+        logging.info("loading saved model state from: %s", model_state_path)
         model.load_state_dict(torch.load(model_state_path, map_location=config.device))
-        logging.info("Loaded saved model state from:", model_state_path)
 
-    if os.path.exists(optim_state_path):
+    if not os.path.exists(optim_state_path):
+        logging.warn("no saved optim state: %s", optim_state_path)
+    else:
+        logging.info("loading saved optim state from: %s", optim_state_path)
         optim[0].load_state_dict(
             torch.load(optim_state_path, map_location=config.device)
         )
-        logging.info("Loaded saved optim state from:", optim_state_path)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -80,12 +83,14 @@ def load_saved_state(
 def save_state(
     model: torch.nn.Module,
     optim: Tuple[torch.optim.Optimizer, ...],
-    experiment_path: str,
+    config: Config,
     epoch: int,
 ) -> None:
-    logging.info("checkpoint - saving current model and optimizer state")
-    model_state_path = os.path.join(experiment_path, f"model_e{epoch}.pth")
-    optim_state_path = os.path.join(experiment_path, f"optim_e{epoch}.pth")
+    logging.info(f"saving model and optimizer states - e{epoch}")
+    model_filename = f"{config.model_name}_model_e{epoch}.pth"
+    optim_filename = f"{config.model_name}_optim_e{epoch}.pth"
+    model_state_path = os.path.join(config.experiment_path, model_filename)
+    optim_state_path = os.path.join(config.experiment_path, optim_filename)
     torch.save(model.state_dict(), model_state_path)
     torch.save(optim[0].state_dict(), optim_state_path)
 

@@ -1,5 +1,4 @@
 import pandas as pd
-from typing import List
 
 if __name__ == "__main__":
 
@@ -20,21 +19,37 @@ if __name__ == "__main__":
     df_lo_st = pd.read_csv("results/AMRB2_cls_summary_leave-out_strain.csv")
 
     # K-Fold - Species
-    results_kf_sp = df_kf_sp.groupby("model")[cols].agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}").T
+    results_kf_sp = (
+        df_kf_sp.groupby("model")[cols]
+        .agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}")
+        .T
+    )
     print("\nAMRB2 K-Fold (Species)")
     print(results_kf_sp)
 
     # K-Fold - Strain
-    results_kf_st = df_kf_st.groupby("model")[cols].agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}").T
+    results_kf_st = (
+        df_kf_st.groupby("model")[cols]
+        .agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}")
+        .T
+    )
     print("\nAMRB2 K-Fold (Strain)")
     print(results_kf_st)
 
     # Leave-Out - Strain
-    results_lo_sp = df_lo_sp.groupby("model")[cols].agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}").T
+    results_lo_sp = (
+        df_lo_sp.groupby("model")[cols]
+        .agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}")
+        .T
+    )
     print("\nAMRB2 Leave-Out (Species)")
     print(results_lo_sp)
 
     # Leave-Out - Strain
-    results_lo_st = df_lo_st.groupby("model")[cols].agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}").T
+    results_lo_st = (
+        df_lo_st.groupby("model")[cols]
+        .agg(lambda x: f"{x.mean():.5f} ± {x.std():.5f}")
+        .T
+    )
     print("\nAMRB2 Leave-Out (Strain)")
     print(results_lo_st)

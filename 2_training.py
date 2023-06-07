@@ -1,8 +1,7 @@
 import logging
 import os
-import shutil
 
-from typing import Literal, Dict
+from typing import Literal, Dict, List
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -15,45 +14,47 @@ from models.common import load_saved_state, save_state, gen_epoch_acc
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 
 
-def log_stats(
+def gen_log_metrics(
     stats: Dict[str, np.ndarray],
-    labels: list,
     prefix: Literal["train", "test"],
-    mode: str,
+    config: Config,
     step: int,
 ) -> dict:
 
     data = {}
+    labels = config.labels
+    mode = config.cv_mode
+    assert labels
 
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
     K = len(labels)
-
-    # uncertainty
+    IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
     y_ucty = stats.get("y_ucty", zero_ucty)
     x_ucty = stats.get("x_ucty", zero_ucty)
-
-    # compute confusion matrix
     samples = stats["samples"]
 
-    # in leave-out mode, add column for left-out class
+    # update y_pred and y_true for leave-out mode
     if mode == "leave-out":
         y_pred = np.concatenate([y_pred, y_ucty], axis=-1)
+        if prefix == "test":
+            y_true = np.full((B,), fill_value=K - 1)
 
-    estimates = [wandb.Image(xz, caption=labels[yz]) for _, _, xz, yz in samples]
-    data[f"{prefix}_estimates"] = estimates
-
+    # log targets
     if mode == "leave-out" and prefix == "test":
-        y_true = np.full((B,), fill_value=K - 1)
-        targets = [wandb.Image(x, caption=labels[K - 1]) for x, _, _, _ in samples]
+        targets = [IMG(x, caption=labels[K - 1]) for x, _, _, _ in samples]
     else:
-        targets = [wandb.Image(x, caption=labels[y]) for x, y, _, _ in samples]
+        targets = [IMG(x, caption=labels[y]) for x, y, _, _ in samples]
     data[f"{prefix}_targets"] = targets
 
-    # top-k accuracies
-    acc1, acc2, acc3 = gen_epoch_acc(y_pred=y_pred, y_true=y_true, labels=np.arange(K)) # type: ignore
+    # log estimates
+    estimates = [IMG(xz, caption=labels[yz]) for _, _, xz, yz in samples]
+    data[f"{prefix}_estimates"] = estimates
+
+    # log top-k acc and confusion matrix
+    acc1, acc2, acc3 = gen_epoch_acc(y_pred, y_true, np.arange(K))  # type: ignore
     tqdm.write(
         f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
     )
@@ -67,7 +68,7 @@ def log_stats(
         title=f"Confusion Matrix ({prefix})",
     )
 
-    # everything else
+    # log everything else
     for key in stats.keys():
         if key not in ["acc", "y_true", "y_pred", "samples"]:
             data[f"{prefix}_{key}"] = stats[key]
@@ -75,42 +76,43 @@ def log_stats(
     return data
 
 
+def agg_log_metrics(
+    log: dict,
+) -> None:
+    if "train_x_ucty" in log and "test_x_ucty" in log:
+        trn_x_ucty = log["train_x_ucty"]
+        tst_x_ucty = log["test_x_ucty"]
+        # binary classification labels for ID and OOD
+        values = np.concatenate([trn_x_ucty, tst_x_ucty], axis=0)
+        values = values / values.max()
+        nID = trn_x_ucty.shape[0]
+        nOD = tst_x_ucty.shape[0]
+        target = np.concatenate([np.zeros(nID), np.ones(nOD)], axis=0)
+        log["auroc"] = roc_auc_score(target, values)
+
+
 def main(config: Config):
 
     assert config.train_loader
     assert config.test_loader
-
-    if not (config.exc_resume or config.exc_dry_run):
-        shutil.rmtree(experiment_path, ignore_errors=True)
-        os.makedirs(experiment_path, exist_ok=True)
+    assert config.labels
 
     model, optim, step = get_model_optimizer_and_step(config)
 
     # load saved model and optimizer, if present
-    if config.exc_resume:
-        load_saved_state(
-            model=model,
-            optim=optim,
-            experiment_path=experiment_path,
-            config=config,
-        )
+    load_saved_state(
+        model=model,
+        optim=optim,
+        config=config,
+    )
     model = model.float().to(config.device)
 
     wandb.watch(model, log_freq=100)
 
     # run train / test loops
     logging.info("Started Train/Test")
-    train_labels = list(config.train_loader.dataset.labels)  # type: ignore
-    test_labels = list(config.test_loader.dataset.labels)  # type: ignore
-    if config.cv_mode == "leave-out":
-        print(f"Labels (train): {train_labels}")
-        print(f"Labels (test): {test_labels}")
-        assert set(train_labels).isdisjoint(test_labels)
-        labels = [*train_labels, *test_labels]
-    else:
-        assert set(train_labels) == set(test_labels)
-        labels = train_labels
-        print(f"Labels (train, test): {train_labels}")
+
+    artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
     for epoch in range(config.train_epochs + 1):
 
@@ -124,7 +126,8 @@ def main(config: Config):
                 config=config,
                 optim=optim,
             )
-            epoch_stats.update(log_stats(trn_stats, labels, "train", config.cv_mode, epoch))
+            log = gen_log_metrics(trn_stats, "train", config, epoch)
+            epoch_stats.update(log)
 
         # testing loop
         tst_stats = step(
@@ -132,32 +135,32 @@ def main(config: Config):
             epoch=epoch,
             config=config,
         )
-        epoch_stats.update(log_stats(tst_stats, labels, "test", config.cv_mode, epoch))
+        log = gen_log_metrics(tst_stats, "test", config, epoch)
+        epoch_stats.update(log)
 
-        if "train_x_ucty" in epoch_stats and "test_x_ucty" in epoch_stats:
-            trn_x_ucty = epoch_stats["train_x_ucty"]
-            tst_x_ucty = epoch_stats["test_x_ucty"]
-            # binary classification labels for ID and OOD
-            values = np.concatenate([trn_x_ucty, tst_x_ucty], axis=0)
-            values = values / values.max()
-            nID = trn_x_ucty.shape[0]
-            nOD = tst_x_ucty.shape[0]
-            target = np.concatenate([np.zeros(nID), np.ones(nOD)], axis=0)
-            epoch_stats["auroc"] = roc_auc_score(target, values)
+        agg_log_metrics(epoch_stats)
 
         wandb.log(epoch_stats, step=epoch)
 
-        # save model/optimizer states
-        if not config.exc_dry_run:
-            save_state(
-                model=model,
-                optim=optim,
-                experiment_path=experiment_path,
-                epoch=epoch,
+        # save model and optimizer states
+        save_state(
+            model=model,
+            optim=optim,
+            config=config,
+            epoch=epoch,
+        )
+        artifact.add_file(
+            os.path.join(
+                config.experiment_path, f"{config.model_name}_model_e{epoch}.pth"
             )
+        )
+        artifact.add_file(
+            os.path.join(
+                config.experiment_path, f"{config.model_name}_optim_e{epoch}.pth"
+            )
+        )
 
-        artifact.add_file(os.path.join(experiment_path, f"model_e{epoch}.pth"))
-        artifact.add_file(os.path.join(experiment_path, f"optim_e{epoch}.pth"))
+    artifact.save()
 
 
 if __name__ == "__main__":
@@ -165,7 +168,6 @@ if __name__ == "__main__":
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.manual_seed(42)
-    # torch.use_deterministic_algorithms(mode=True)
 
     config = load_config()
 
@@ -191,41 +193,15 @@ if __name__ == "__main__":
         cv_mode=config.cv_mode,
         label_type=config.label_type,
     )
-
-    # set experiment name and path
-    experiment_name = "2_training"
-    experiment_path = os.path.join(
-        config.experiment_dir,
-        experiment_name,
-        f"{config.dataset_name}-{config.model_name}",
-        f"{config.label_type}-{config.cv_k}",
-    )
-    name_tags = [
-        config.dataset_name,
-        config.model_name,
-        config.cv_mode,
-        str(config.cv_k),
-    ]
-    run_config = {
-        "cv_folds": config.cv_folds,
-        "cv_k": config.cv_k,
-        "cv_mode": config.cv_mode,
-        "dataset": config.dataset_name,
-        "model": config.model_name,
-    }
-    if config.dataset_name.startswith("AMRB"):
-        name_tags.insert(1, config.label_type)
-        run_config["label_type"] = config.label_type
-    run_name = "-".join(name_tags)
+    config.init_labels()
 
     import wandb
     import wandb.plot
 
     wandb.init(
-        project="qpm-amrb-v2",
-        name=run_name,
-        config=run_config,
+        project="qpm-amrb-v3",
+        name=config.run_name,
+        config=config.run_config,
     )
-    artifact = wandb.Artifact(run_name, type="model")
+
     main(config)
-    artifact.save()

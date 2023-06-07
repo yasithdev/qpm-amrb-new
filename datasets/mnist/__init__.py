@@ -22,7 +22,7 @@ def create_data_loaders(
         [
             ToTensor(),
             ZeroPad2D(h1=2,h2=2,w1=2,w2=2),
-            AddGaussianNoise(mean=0.0, std=0.001),
+            AddGaussianNoise(mean=0.0, std=0.01),
         ]
     )
 

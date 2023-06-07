@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     for (dataset, label_type, model, cv_mode) in combinations:
         runs: List[wandb.apis.public.Run] = api.runs(
-            path="yasith/qpm-amrb-v2",
+            path="yasith/qpm-amrb-v3",
             filters={
                 "config.dataset": dataset,
                 "config.label_type": label_type,

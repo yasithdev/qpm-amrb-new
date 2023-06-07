@@ -250,13 +250,13 @@ def step_model(
             L_y_x = edl_loss(y_x, y, epoch)
 
             # accumulate predictions
-            u_pred.extend(u_x.detach().flatten(start_dim=1).cpu().numpy())
-            v_pred.extend(v_x.detach().flatten(start_dim=1).cpu().numpy())
-            y_true.extend(y.argmax(-1).cpu().numpy())
+            u_pred.extend(u_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
+            v_pred.extend(v_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
+            y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
             x_ucty.extend(uX.detach().cpu().numpy())
-            z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
+            z_pred.extend(z_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
             z_nll.extend(L_z.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_x)
 

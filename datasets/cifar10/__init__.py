@@ -21,7 +21,7 @@ def create_data_loaders(
     transform = Compose(
         [
             ToTensor(),
-            AddGaussianNoise(mean=0.0, std=0.001),
+            AddGaussianNoise(mean=0.0, std=0.01),
         ]
     )
 

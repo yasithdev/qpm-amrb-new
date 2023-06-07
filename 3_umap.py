@@ -1,10 +1,9 @@
 import os
+from typing import Literal
 
 import numpy as np
 import pandas as pd
 import torch
-
-from typing import Literal
 
 from config import Config, load_config
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
@@ -12,33 +11,39 @@ from models import get_model_optimizer_and_step
 from models.common import load_saved_state
 from vis import gen_umap
 
-def log_stats(
+
+def gen_log_metrics(
     stats: dict,
-    labels: list,
     prefix: Literal["train", "test"],
-    mode: str,
-    plot_title: str,
-    plot_path: str,
+    config: Config,
+    epoch: int,
 ) -> None:
 
-    loss = stats["loss"]
-    acc1, acc2, acc3 = stats["acc"]
+    labels = config.labels
+    mode = config.cv_mode
+    assert labels
 
     y_true = np.array(stats["y_true"])
     y_pred = np.array(stats["y_pred"])
     z_pred = np.array(stats["z_pred"])
+    B = y_pred.shape[0]
+    K = len(labels)
+    zero_ucty = np.zeros((B, 1), dtype=np.float32)
+    y_ucty = stats.get("y_ucty", zero_ucty)
+    x_ucty = stats.get("x_ucty", zero_ucty)
 
-    # in leave-out mode, add column for left-out class
+    # update y_pred and y_true for leave-out mode
     if mode == "leave-out":
-        y_pred = np.pad(y_pred, ((0, 0), (0, 1)), constant_values=0)
+        y_pred = np.concatenate([y_pred, y_ucty], axis=-1)
+        if prefix == "test":
+            y_true = np.full((B,), fill_value=K - 1)
 
-    if mode == "leave-out" and prefix == "test":
-        n = len(labels) - 1
-        y_true = np.full(y_true.shape[0], n)
-
+    # log UMAP plot
+    plot_title = f"UMAP (Z) - Test Set"
+    plot_path = os.path.join(config.experiment_path, f"umapz_e{epoch}.png")
     gen_umap(
         x=z_pred,
-        y=y_true,
+        y=y_true.astype(np.int32),
         out_path=plot_path,
         title=plot_title,
         labels=labels,
@@ -46,26 +51,21 @@ def log_stats(
 
 
 def main(
-    df: pd.DataFrame,
     config: Config,
 ) -> None:
-    
+
     assert config.train_loader
     assert config.test_loader
+    assert config.labels
 
     model, optim, step = get_model_optimizer_and_step(config)
 
-    rows = df[
-        (df.model == config.model_name) & (df.cv_k == config.cv_k)
-    ]
+    df_path = f"results/{config.run_name}_cls_summary.csv"
+    df = pd.read_csv(df_path)
+
+    rows = df[(df.model == config.model_name) & (df.cv_k == config.cv_k)]
     epochs = list(rows.step)
     print(f"Epochs: {epochs}")
-
-    train_labels = list(config.train_loader.dataset.labels) # type: ignore
-    test_labels = list(config.test_loader.dataset.labels) # type: ignore
-    labels = (
-        [*train_labels, *test_labels] if config.cv_mode == "leave-out" else train_labels
-    )
 
     # for each selected epoch, load saved parameters
     for epoch in epochs:
@@ -75,34 +75,19 @@ def main(
         load_saved_state(
             model=model,
             optim=optim,
-            experiment_path=weights_path,
             config=config,
             epoch=epoch,
         )
         model = model.float().to(config.device)
 
         # testing loop
-        stats = step(
+        test_stats = step(
             model=model,
             epoch=epoch,
             config=config,
         )
-        
-        plot_id = f"{config.dataset_name}-{config.label_type}-{config.cv_mode}-{config.model_name}-CV{config.cv_k}-E{epoch}"
-        plot_path = os.path.join(
-            config.experiment_dir,
-            "5_umap",
-            f"{plot_id}.png",
-        )
 
-        log_stats(
-            stats,
-            labels,
-            prefix="test",
-            mode=config.cv_mode,
-            plot_title=f"[UMAP] Z: {plot_id} (test)",
-            plot_path=plot_path,
-        )
+        gen_log_metrics(test_stats, "test", config, epoch)
 
 
 if __name__ == "__main__":
@@ -110,7 +95,6 @@ if __name__ == "__main__":
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.manual_seed(42)
-    # torch.use_deterministic_algorithms(mode=True)
 
     config = load_config()
 
@@ -136,15 +120,6 @@ if __name__ == "__main__":
         cv_k=config.cv_k,
         cv_folds=config.cv_folds,
     )
+    config.init_labels()
 
-    weights_path = os.path.join(
-        config.experiment_dir,
-        "2_training",
-        f"{config.dataset_name}-{config.model_name}",
-        f"{config.label_type}-{config.cv_k}",
-    )
-
-    df_path = f"results/{config.dataset_name}_cls_summary_{config.cv_mode}_{config.label_type}.csv"
-    df = pd.read_csv(df_path)
-
-    main(df, config)
+    main(config)
