@@ -91,7 +91,7 @@ def main(config: Config):
         dV: np.ndarray = SQ_SUM(v_x.detach())
 
         row = [wandb.Image(dX[i], caption=f"{dV[i]:.4f}") for i in range(10)]
-        wandb.log({f"comparison_N{var}": row})
+        wandb.log({f"comparison/N={var}": row})
 
 
 if __name__ == "__main__":
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     import wandb
 
     wandb.init(
-        project="denoising_flows",
+        project="ood_flows",
         name=config.run_name,
         config=config.run_config,
     )

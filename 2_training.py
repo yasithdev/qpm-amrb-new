@@ -47,21 +47,21 @@ def gen_log_metrics(
         targets = [IMG(x, caption=labels[K - 1]) for x, _, _, _ in samples]
     else:
         targets = [IMG(x, caption=labels[y]) for x, y, _, _ in samples]
-    data[f"{prefix}_targets"] = targets
+    data[f"{prefix}/targets"] = targets
 
     # log estimates
     estimates = [IMG(xz, caption=labels[yz]) for _, _, xz, yz in samples]
-    data[f"{prefix}_estimates"] = estimates
+    data[f"{prefix}/estimates"] = estimates
 
     # log top-k acc and confusion matrix
     acc1, acc2, acc3 = gen_epoch_acc(y_pred, y_true, np.arange(K))  # type: ignore
     tqdm.write(
         f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
     )
-    data[f"{prefix}_acc1"] = acc1
-    data[f"{prefix}_acc2"] = acc2
-    data[f"{prefix}_acc3"] = acc3
-    data[f"{prefix}_cm"] = wandb.plot.confusion_matrix(
+    data[f"{prefix}/acc1"] = acc1
+    data[f"{prefix}/acc2"] = acc2
+    data[f"{prefix}/acc3"] = acc3
+    data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
         y_true=y_true,  # type: ignore
         probs=y_pred,  # type: ignore
         class_names=labels,
@@ -69,9 +69,13 @@ def gen_log_metrics(
     )
 
     # log everything else
-    for key in stats.keys():
-        if key not in ["acc", "y_true", "y_pred", "samples"]:
-            data[f"{prefix}_{key}"] = stats[key]
+    for key in set(stats.keys()).difference(["acc", "y_true", "y_pred", "samples"]):
+        if key in ["u_pred", "v_pred", "x_ucty", "y_ucty", "z_pred", "z_nll"]:
+            data[f"{prefix}/{key}"] = wandb.Histogram(
+                np_histogram=np.histogram(stats[key])
+            )
+        else:
+            data[f"{prefix}/{key}"] = stats[key]
 
     return data
 
@@ -199,7 +203,7 @@ if __name__ == "__main__":
     import wandb.plot
 
     wandb.init(
-        project="qpm-amrb-v3",
+        project="ood_flows",
         name=config.run_name,
         config=config.run_config,
     )

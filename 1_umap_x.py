@@ -70,7 +70,7 @@ def main(config: Config):
     logging.info("Plotting UMAP projection of training samples")
     gen_umap(
         x=x_trn,
-        y=y_trn.astype(np.int32),
+        y=y_trn.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
         labels=config.train_loader.dataset.labels,  # type: ignore
@@ -79,7 +79,7 @@ def main(config: Config):
     logging.info("Plotting UMAP projection of testing samples")
     gen_umap(
         x=x_tst,
-        y=y_tst.astype(np.int32),
+        y=y_tst.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
         labels=config.test_loader.dataset.labels,  # type: ignore
