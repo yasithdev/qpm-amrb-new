@@ -1,11 +1,11 @@
 import logging
 import os
 
-from typing import Literal, Dict, List
+from typing import Literal, Dict
 import numpy as np
 import torch
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score
+from sklearn import metrics
 
 from config import Config, load_config
 from models import get_model_optimizer_and_step
@@ -33,7 +33,6 @@ def gen_log_metrics(
     IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
     y_ucty = stats.get("y_ucty", zero_ucty)
-    x_ucty = stats.get("x_ucty", zero_ucty)
     samples = stats["samples"]
 
     # update y_pred and y_true for leave-out mode
@@ -62,20 +61,39 @@ def gen_log_metrics(
     data[f"{prefix}/acc2"] = acc2
     data[f"{prefix}/acc3"] = acc3
     data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-        y_true=y_true,  # type: ignore
         probs=y_pred,  # type: ignore
+        y_true=y_true,  # type: ignore
         class_names=labels,
         title=f"Confusion Matrix ({prefix})",
     )
-
-    # log everything else
-    for key in set(stats.keys()).difference(["acc", "y_true", "y_pred", "samples"]):
-        if key in ["u_pred", "v_pred", "x_ucty", "y_ucty", "z_pred", "z_nll"]:
-            data[f"{prefix}/{key}"] = wandb.Histogram(
-                np_histogram=np.histogram(stats[key])
-            )
+    data[f"{prefix}/roc"] = wandb.plot.roc_curve(
+        y_true=y_true,
+        y_probas=y_pred,
+        labels=labels,
+    )
+    data[f"{prefix}/pr"] = wandb.plot.pr_curve(
+        y_true=y_true,
+        y_probas=y_pred,
+        labels=labels,
+    )
+    done_keys = ["y_true", "y_pred", "samples"]
+    for key in set(stats).difference(done_keys):
+        val = stats[key]
+        # unbounded histograms
+        if key in ["u_norm", "v_norm", "z_norm", "z_nll"]:
+            val = np.tanh(val)
+            # save v_norm for AUROC computation
+            if key in ["v_norm"]:
+                data[f"{prefix}/{key}"] = val
+            hist = np.histogram(val, bins=100, range=(0.0, 1.0))
+            data[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
+        # bounded histograms
+        elif key == "y_ucty":
+            hist = np.histogram(val, bins=100, range=(0.0, 1.0))
+            data[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
+        # log everything else
         else:
-            data[f"{prefix}/{key}"] = stats[key]
+            data[f"{prefix}/{key}"] = val
 
     return data
 
@@ -83,16 +101,20 @@ def gen_log_metrics(
 def agg_log_metrics(
     log: dict,
 ) -> None:
-    if "train_x_ucty" in log and "test_x_ucty" in log:
-        trn_x_ucty = log["train_x_ucty"]
-        tst_x_ucty = log["test_x_ucty"]
+    prefix = "ood_detection"
+    if "train/v_norm" in log and "test/v_norm" in log:
+        trn_v_norm = log.pop("train/v_norm")
+        tst_v_norm = log.pop("test/v_norm")
+        B_InD = trn_v_norm.shape[0]
+        B_OoD = tst_v_norm.shape[0]
         # binary classification labels for ID and OOD
-        values = np.concatenate([trn_x_ucty, tst_x_ucty], axis=0)
-        values = values / values.max()
-        nID = trn_x_ucty.shape[0]
-        nOD = tst_x_ucty.shape[0]
-        target = np.concatenate([np.zeros(nID), np.ones(nOD)], axis=0)
-        log["auroc"] = roc_auc_score(target, values)
+        LABELS = ["InD", "OoD"]
+        values = np.concatenate([trn_v_norm, tst_v_norm], axis=0)
+        values_2d = np.stack([1.0 - values, values], axis=-1)
+        target = np.concatenate([np.zeros(B_InD), np.ones(B_OoD)], axis=0)
+        log[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
+        log[f"{prefix}/pr"] = wandb.plot.pr_curve(target, values_2d, LABELS)
+        log[f"{prefix}/auroc"] = metrics.roc_auc_score(target, values)
 
 
 def main(config: Config):

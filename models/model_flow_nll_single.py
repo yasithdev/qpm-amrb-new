@@ -226,7 +226,10 @@ def step_model(
         "loss": avg_loss,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "z_pred": np.array(z_pred),
+        "y_ucty": np.array(y_ucty),
         "z_nll": np.array(z_nll),
+        "u_norm": np.array(u_norm),
+        "v_norm": np.array(v_norm),
+        "z_norm": np.array(z_norm),
         "samples": samples,
     }

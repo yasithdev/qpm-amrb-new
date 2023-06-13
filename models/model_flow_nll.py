@@ -208,10 +208,9 @@ def step_model(
         y_true = []
         y_pred = []
         y_ucty = []
-        x_ucty = []
-        u_pred = []
-        v_pred = []
-        z_pred = []
+        u_norm = []
+        v_norm = []
+        z_norm = []
         z_nll = []
         samples = []
 
@@ -226,7 +225,6 @@ def step_model(
             uv_x, _ = flow_x(x, forward=True)
             u_x, v_x = flow.nn.partition(uv_x, sizes["u"][0])
             z_x, _ = flow_u(u_x, forward=True)
-            uX = (v_x).pow(2).flatten(start_dim=1).sum(dim=-1)
 
             # u -> (u x 0) -> x~
             u_z = u_x
@@ -236,27 +234,26 @@ def step_model(
 
             # classifier
             y_x = classifier(x)
-            pY, uY = edl_probs(
-                y_x.detach()
-            )  # pY = belief, uY = disbelief ; sum(pY) + uY = 1
+            # pY = belief, uY = disbelief ; sum(pY) + uY = 1
+            pY, uY = edl_probs(y_x.detach())
 
             # manifold losses
             L_z = -dist_z.log_prob(z_x)
             L_v = -dist_v.log_prob(v_x)
-            L_m = (x - x_z).pow(2).flatten(start_dim=1).sum(dim=-1)
+            L_m = (x - x_z).pow(2).flatten(1).sum(-1)
 
             # classification losses
             # L_y_x = F.cross_entropy(y_x, y) - used EDL alternative
             L_y_x = edl_loss(y_x, y, epoch)
 
             # accumulate predictions
-            u_pred.extend(u_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
-            v_pred.extend(v_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
+            u_norm.extend(u_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+            v_norm.extend(v_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+            z_norm.extend(z_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
-            x_ucty.extend(uX.detach().cpu().numpy())
-            z_pred.extend(z_x.detach().flatten(start_dim=1).pow(2).sum(dim=-1).sqrt().cpu().numpy())
             z_nll.extend(L_z.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_x)
 
@@ -295,10 +292,9 @@ def step_model(
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "y_ucty": np.array(y_ucty),
-        "x_ucty": np.array(x_ucty),
-        "u_pred": np.array(u_pred),
-        "v_pred": np.array(v_pred),
-        "z_pred": np.array(z_pred),
         "z_nll": np.array(z_nll),
+        "u_norm": np.array(u_norm),
+        "v_norm": np.array(v_norm),
+        "z_norm": np.array(z_norm),
         "samples": samples,
     }

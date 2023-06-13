@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-import torch.utils.data
+import torch.nn.functional as F
 import torchinfo
 from tqdm import tqdm
 
@@ -14,12 +14,7 @@ from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
 from .capsnet.deepcaps import MaskCaps
 from .capsnet.drcaps import ConvCapsDR, squash
-from .common import (
-    Functional,
-    gather_samples,
-    get_conv_out_shape,
-    margin_loss,
-)
+from .common import Functional, gather_samples, get_conv_out_shape, margin_loss
 from .resnet import get_decoder
 
 caps_cd_1 = (8, 16)
@@ -170,7 +165,7 @@ def step_model(
         y_true = []
         y_pred = []
         y_nll = []
-        z_pred = []
+        z_norm = []
         samples = []
 
         for x, y in iterable:
@@ -196,13 +191,13 @@ def step_model(
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
-            z_pred.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
+            z_norm.extend(z_x.detach().flatten(start_dim=1).norm(2, -1).cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
             classification_loss = margin_loss(y_z, y)
             mask = y_z.argmax(-1).eq(y.argmax(-1)).nonzero()
-            reconstruction_loss = torch.nn.functional.mse_loss(x_z[mask], x[mask])
+            reconstruction_loss = F.mse_loss(x_z[mask], x[mask])
             l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
@@ -213,9 +208,7 @@ def step_model(
                 optim[0].step()
 
             # save nll
-            nll = torch.nn.functional.nll_loss(
-                y_z.log_softmax(-1), y.argmax(-1), reduction="none"
-            )
+            nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")
             y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
@@ -230,7 +223,7 @@ def step_model(
 
     return {
         "loss": avg_loss,
-        "z_pred": np.array(z_pred),
+        "z_norm": np.array(z_norm),
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "y_nll": np.array(y_nll),
