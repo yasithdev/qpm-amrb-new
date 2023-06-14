@@ -72,7 +72,7 @@ class Config:
         self.tqdm_args = tqdm_args
 
         dir_1 = f"{self.dataset_name}-{self.label_type}"
-        dir_2 = f"{self.cv_mode}-N{self.cv_folds}-K{self.cv_k}"
+        dir_2 = f"{self.cv_mode}-N{self.cv_folds}-K{self.cv_k}-M{self.manifold_d}"
         self.experiment_path = os.path.join(self.experiment_base, dir_1, dir_2)
         self.run_name = f"{dir_1}-{dir_2}"
         self.run_config = {
@@ -82,6 +82,7 @@ class Config:
             "cv_folds": self.cv_folds,
             "cv_k": self.cv_k,
             "model": self.model_name,
+            "manifold_d": self.manifold_d,
         }
 
         if not self.exc_resume:

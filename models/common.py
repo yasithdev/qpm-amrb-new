@@ -386,20 +386,18 @@ class GradientHook(object):
 
 
 def edl_kl(
-    α: torch.Tensor,
+    α̃: torch.Tensor,
 ) -> torch.Tensor:
 
     # function definitions
     lnΓ = torch.lgamma
-    ϝ = torch.digamma  # derivative of lnΓ
+    ψ = torch.digamma  # derivative of lnΓ
     Σ = partial(torch.sum, dim=-1, keepdim=True)
-    K = α.size(-1)
+    K = torch.as_tensor(α̃.size(-1), device=α̃.device)
 
     # logic
-    β = α.new_ones(1, K)
-    lnB = lnΓ(Σ(α)) - Σ(lnΓ(α))
-    lnB_uni = Σ(lnΓ(β)) - lnΓ(Σ(β))
-    kl = Σ((α - β) * (ϝ(α) - ϝ(Σ(α)))) + lnB + lnB_uni
+    Σα̃ = Σ(α̃)
+    kl = lnΓ(Σα̃) - lnΓ(K) - Σ(lnΓ(α̃)) + Σ((α̃ - 1) * (ψ(α̃) - ψ(Σα̃)))
     return kl
 
 
@@ -407,24 +405,29 @@ def edl_loss(
     logits: torch.Tensor,
     target: torch.Tensor,
     epoch: int,
-    τ: int = 10,
+    τ: int = 20,
 ) -> torch.Tensor:
 
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
+    h = lambda x: torch.as_tensor(F.softplus(x))
+    K = logits.size(-1)
 
     # logic
-    α = torch.as_tensor(F.softplus(logits))
     y = target
+    e = h(logits)
+    α = e + 1
     S = Σ(α)
     p = α / S
+    
     λ = min(1, epoch / τ)
+    α̃ = 1 + (1 - y) * e
 
     L_err = Σ((y - p).pow(2))
     L_var = Σ(p * (1 - p) / (S + 1))
-    L_kl = λ * edl_kl(1 + (α - 1) * (1 - y))
+    L_kl = λ * edl_kl(α̃)
 
-    return L_err + L_var + L_kl
+    return L_err + L_var + L_kl.relu()
 
 
 def edl_probs(
@@ -433,12 +436,16 @@ def edl_probs(
 
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
+    h = lambda x: torch.as_tensor(F.softplus(x))
     K = logits.size(-1)
 
     # logic
-    α = torch.as_tensor(F.softplus(logits))
+    e = h(logits)
+    α = e + 1
     S = Σ(α)
-    p = (α - 1) / S
+    p = α / S
+
+    b = e / S
     u = K / S
 
-    return p, u
+    return b, u
