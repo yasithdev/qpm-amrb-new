@@ -101,7 +101,6 @@ if __name__ == "__main__":
     # get dataset info
     config.dataset_info = get_dataset_info(
         dataset_name=config.dataset_name,
-        label_type=config.label_type,
         cv_mode=config.cv_mode,
         data_root=config.data_dir,
     )
@@ -112,7 +111,6 @@ if __name__ == "__main__":
     # initialize data loaders
     config.train_loader, config.test_loader = get_dataset_loaders(
         dataset_name=config.dataset_name,
-        label_type=config.label_type,
         cv_mode=config.cv_mode,
         data_root=config.data_dir,
         batch_size_train=config.batch_size,

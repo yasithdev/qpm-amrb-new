@@ -8,23 +8,21 @@ if __name__ == "__main__":
 
     api = wandb.Api()
 
-    datasets = ["AMRB2"]
-    label_types = ["strain", "species"]
+    datasets = ["AMRB2_strain", "AMRB2_species"]
     cv_modes = ["leave-out", "k-fold"]
     models = ["resnet", "drcaps"]
 
     summary_df = pd.DataFrame()
 
-    combinations = itertools.product(datasets, label_types, models, cv_modes)
+    combinations = itertools.product(datasets, models, cv_modes)
 
     pd.set_option("expand_frame_repr", False)
 
-    for (dataset, label_type, model, cv_mode) in combinations:
+    for (dataset, model, cv_mode) in combinations:
         runs: List[wandb.apis.public.Run] = api.runs(
             path="yasith/qpm-amrb-v3",
             filters={
                 "config.dataset": dataset,
-                "config.label_type": label_type,
                 "config.model": model,
                 "config.cv_mode": cv_mode,
             },
@@ -57,14 +55,13 @@ if __name__ == "__main__":
 
             instance_df = df.loc[sorted(locs), [*min_metrics, *max_metrics]]
             instance_df["dataset"] = dataset
-            instance_df["label_type"] = label_type
             instance_df["model"] = model
             instance_df["cv_mode"] = cv_mode
             instance_df["cv_k"] = cv_k
             instance_df.index.name = "step"
             instance_df = instance_df.reset_index()
             instance_df = instance_df.set_index(
-                ["dataset", "label_type", "model", "cv_mode", "cv_k", "step"]
+                ["dataset", "model", "cv_mode", "cv_k", "step"]
             )
             instance_df = instance_df.dropna(axis=0)
 

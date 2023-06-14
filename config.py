@@ -29,7 +29,6 @@ class Config:
         cv_k: int,
         cv_folds: int,
         cv_mode: str,
-        label_type: str,
         data_dir: str,
         dataset_name: str,
         model_name: str,
@@ -52,7 +51,6 @@ class Config:
         self.cv_k = cv_k
         self.cv_folds = cv_folds
         self.cv_mode = cv_mode
-        self.label_type = label_type
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.model_name = model_name
@@ -71,13 +69,12 @@ class Config:
         self.device = device
         self.tqdm_args = tqdm_args
 
-        dir_1 = f"{self.dataset_name}-{self.label_type}"
+        dir_1 = self.dataset_name
         dir_2 = f"{self.cv_mode}-N{self.cv_folds}-K{self.cv_k}-M{self.manifold_d}"
         self.experiment_path = os.path.join(self.experiment_base, dir_1, dir_2)
         self.run_name = f"{dir_1}-{dir_2}"
         self.run_config = {
             "dataset": self.dataset_name,
-            "label_type": self.label_type,
             "cv_mode": self.cv_mode,
             "cv_folds": self.cv_folds,
             "cv_k": self.cv_k,
@@ -129,9 +126,6 @@ def load_config() -> Config:
 
     data_dir = getenv("DATA_DIR")
     dataset_name, cv_k = getenv("DATASET_NAME").rsplit(".", maxsplit=1)
-    label_type = "target"
-    if dataset_name.startswith("AMRB2"):
-        dataset_name, label_type = dataset_name.rsplit("_", maxsplit=1)
     cv_k = int(cv_k)
     cv_folds = int(getenv("CV_FOLDS"))
     cv_mode = getenv("CV_MODE")
@@ -160,7 +154,6 @@ def load_config() -> Config:
         cv_k=cv_k,
         cv_folds=cv_folds,
         cv_mode=cv_mode,
-        label_type=label_type,
         data_dir=data_dir,
         dataset_name=dataset_name,
         model_name=model_name,

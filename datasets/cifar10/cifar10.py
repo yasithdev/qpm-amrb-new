@@ -14,7 +14,7 @@ class CIFAR10Dataset(torchvision.datasets.VisionDataset):
         cv_k: int,
         cv_folds: int,
         cv_mode: Literal["k-fold", "leave-out"],
-        split_frac: float = 0.8,
+        split_frac: float = 0.6,
         # projection params
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,

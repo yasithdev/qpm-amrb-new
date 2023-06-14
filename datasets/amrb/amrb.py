@@ -20,7 +20,7 @@ class AMRBDataset(torchvision.datasets.VisionDataset):
         cv_folds: int,
         cv_mode: Literal["k-fold", "leave-out"],
         label_type: Literal["class", "type", "strain", "gram"],
-        split_frac: float = 0.8,
+        split_frac: float = 0.6,
         # projection params
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,

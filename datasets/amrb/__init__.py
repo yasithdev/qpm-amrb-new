@@ -12,14 +12,14 @@ from .amrb import AMRBDataset
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 def create_data_loaders(
+    version: int,
+    label_type: Literal["class", "type", "strain", "gram"],
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    version: int,
     cv_k: int,
     cv_folds: int,
     cv_mode: Literal["k-fold", "leave-out"],
-    label_type: Literal["class", "type", "strain", "gram"],
     **kwargs,
 ) -> Tuple[DataLoader, DataLoader]:
 
@@ -69,9 +69,9 @@ def create_data_loaders(
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 def get_info(
-    data_root: str,
     version: Literal[1, 2],
     label_type: Literal["class", "type", "strain", "gram"],
+    data_root: str,
     cv_mode: Literal["k-fold", "leave-out"],
     **kwargs,
 ) -> dict:

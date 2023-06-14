@@ -107,7 +107,6 @@ if __name__ == "__main__":
         dataset_name=config.dataset_name,
         data_root=config.data_dir,
         cv_mode=config.cv_mode,
-        label_type=config.label_type,
     )
     # get image dims
     config.image_chw = get_dataset_chw(
@@ -122,7 +121,6 @@ if __name__ == "__main__":
         cv_k=config.cv_k,
         cv_folds=config.cv_folds,
         cv_mode=config.cv_mode,
-        label_type=config.label_type,
     )
     config.init_labels()
 
