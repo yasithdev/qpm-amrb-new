@@ -136,10 +136,8 @@ def load_model_and_optimizer(
     )
 
     # set up optimizer
-    optim = torch.optim.AdamW(
-        params=model.parameters(),
-        lr=config.optim_lr,
-    )
+    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, (optim,)
 
@@ -241,11 +239,11 @@ def step_model(
             # manifold losses
             L_z = -dist_z.log_prob(z_x)
             L_v = -dist_v.log_prob(v_x)
-            L_m = (x - x_z).pow(2).flatten(1).sum(-1)
+            L_x = (x - x_z).pow(2).flatten(1).sum(-1)
 
             # classification losses
-            # L_y_x = F.cross_entropy(y_x, y) - used EDL alternative
-            L_y_x = edl_loss(y_z, y, epoch)
+            # L_y_z = F.cross_entropy(y_x, y) - used EDL alternative
+            L_y_z = edl_loss(y_z, y, epoch)
 
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
@@ -261,8 +259,8 @@ def step_model(
 
             # compute minibatch loss
             ß = 1e-3
-            # L_minibatch = L_z.mean() + (ß * L_v.mean()) + L_m.mean() + L_y_x.mean() # Σ_i[Σ_n(L_{n,i})/N]
-            L_minibatch = (L_z + (ß * L_v) + L_m + L_y_x).mean()  # Σ_n[Σ_i(L_{n,i})]/N
+            # L_minibatch = L_z.mean() + (ß * L_v.mean()) + L_m.mean() + L_y_z.mean() # Σ_i[Σ_n(L_{n,i})/N]
+            L_minibatch = (L_z + (ß * L_v) + L_x + L_y_z).mean()  # Σ_n[Σ_i(L_{n,i})]/N
 
             # backward pass (if optimizer is given)
             if optim:
@@ -277,10 +275,10 @@ def step_model(
             # logging
             log_stats = {
                 "Loss(mb)": f"{L_minibatch:.4f}",
-                "Loss(z)": f"{L_z.mean():.4f}",
+                "Loss(x)": f"{L_x.mean():.4f}",
+                "Loss(y)": f"{L_y_z.mean():.4f}",
                 "Loss(v)": f"{L_v.mean():.4f}",
-                "Loss(m)": f"{L_m.mean():.4f}",
-                "Loss(y)": f"{L_y_x.mean():.4f}",
+                "Loss(z)": f"{L_z.mean():.4f}",
             }
             iterable.set_postfix(log_stats)
 

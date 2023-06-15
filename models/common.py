@@ -367,13 +367,13 @@ def edl_loss(
     p = α / S
 
     λ = min(1, epoch / τ)
-    α̃ = 1 + (1 - y) * e
+    α̃ = y + (1 - y) * α
 
     L_err = Σ((y - p).pow(2))
     L_var = Σ(p * (1 - p) / (S + 1))
     L_kl = λ * edl_kl(α̃)
 
-    return L_err + L_var + L_kl.relu()
+    return L_err + L_var + L_kl
 
 
 def edl_probs(

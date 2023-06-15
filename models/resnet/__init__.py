@@ -31,7 +31,7 @@ def get_encoder(
             stride=2,
         ),
         # (B, d/4, h/2, w/2)
-        torch.nn.GroupNorm(d // 4, d // 4),
+        torch.nn.GroupNorm(1, d // 4),
         # (B, d/4, h/2, w/2)
         torch.nn.ReLU(),
         # (B, d/4, h/2, w/2)
@@ -74,7 +74,7 @@ def get_encoder(
             kernel_size=(h // 8, w // 8),
         ),
         # (B, d, 1, 1)
-        torch.nn.GroupNorm(d, d),
+        torch.nn.GroupNorm(1, d),
         # (B, d, 1, 1)
     )
 

@@ -107,6 +107,7 @@ def load_model_and_optimizer(
         }
     )
 
+    # set up optimizer
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
     optim = torch.optim.AdamW(**optim_config)
 
@@ -200,25 +201,29 @@ def step_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            # classification_loss = margin_loss(y_z, y) - replaced with evidential loss
-            classification_loss = edl_loss(y_z, y, epoch).mean()
+            # L_y_z = margin_loss(y_z, y) - replaced with evidential loss
+            L_y_z = edl_loss(y_z, y, epoch)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
-            reconstruction_loss = F.mse_loss(x_z[mask], x[mask])
-            l = 0.9
-            minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
+            L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
+            l = 0.999
+            L_minibatch = (l * L_y_z + (1 - l) * L_x_z).mean()
 
             # backward pass
             if optim:
                 (optim_gd,) = optim
                 optim_gd.zero_grad()
-                minibatch_loss.backward()
+                L_minibatch.backward()
                 optim_gd.step()
 
             # accumulate sum loss
-            sum_loss += minibatch_loss.item() * config.batch_size
+            sum_loss += L_minibatch.item() * config.batch_size
 
             # logging
-            log_stats = {"Loss(mb)": f"{minibatch_loss.item():.4f}"}
+            log_stats = {
+                "Loss(mb)": f"{L_minibatch:.4f}",
+                "Loss(x)": f"{L_x_z.mean():.4f}",
+                "Loss(y)": f"{L_y_z.mean():.4f}",
+            }
             iterable.set_postfix(log_stats)
 
     # post-step

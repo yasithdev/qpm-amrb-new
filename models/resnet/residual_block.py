@@ -49,7 +49,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(self.hidden_channels, self.hidden_channels),  # type: ignore
+            self.Norm(1, self.hidden_channels),  # type: ignore
         )
 
         args = {}
@@ -66,7 +66,7 @@ class ResidualBlock(torch.nn.Module):
                 bias=False,
                 **args,
             ),
-            self.Norm(self.hidden_channels, self.hidden_channels),  # type: ignore
+            self.Norm(1, self.hidden_channels),  # type: ignore
         )
 
         # 1x1 convolution layer
@@ -78,7 +78,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(self.out_channels, self.out_channels),  # type: ignore
+            self.Norm(1, self.out_channels),  # type: ignore
         )
 
         # if stride != 1, match identity to x using stridexstride convolution
@@ -91,7 +91,7 @@ class ResidualBlock(torch.nn.Module):
                     stride=self.stride,
                     bias=False,
                 ),
-                self.Norm(self.out_channels, self.out_channels),  # type: ignore
+                self.Norm(1, self.out_channels),  # type: ignore
             )
 
     def forward(
