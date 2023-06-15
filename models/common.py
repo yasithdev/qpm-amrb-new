@@ -294,32 +294,6 @@ def get_gradient_ratios(
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-def compute_flow_shapes(
-    config: Config,
-) -> Tuple[int, ...]:
-
-    assert config.image_chw
-    assert config.dataset_info
-
-    k0, k1 = 4, 2
-
-    # ambient (x) flow configuration
-    c0, h0, w0 = config.image_chw
-    c1, h1, w1 = c0 * k0 * k0, h0 // k0, w0 // k0
-    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
-
-    # manifold (m) flow configuration
-    d = config.manifold_d
-    num_bins = 10
-
-    # categorical configuration
-    num_labels = config.dataset_info["num_train_labels"]
-    return (k0, k1, c0, c1, c2, d, h2, w2, num_bins, num_labels)
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------
 class GradientHook(object):
     def __init__(
         self,
@@ -420,4 +394,4 @@ def edl_probs(
     b = e / S
     u = K / S
 
-    return b, u
+    return p, u

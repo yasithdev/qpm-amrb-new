@@ -22,7 +22,7 @@ def describe_model(
 
 
 def step_model(
-    model: torch.nn.Module,
+    model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,

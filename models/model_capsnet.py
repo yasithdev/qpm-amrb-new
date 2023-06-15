@@ -13,7 +13,14 @@ from config import Config
 from .capsnet.caps import ConvCaps2D, FlattenCaps, LinearCapsDR, squash
 from .capsnet.common import conv_to_caps
 from .capsnet.deepcaps import MaskCaps
-from .common import Functional, gather_samples, get_conv_out_shape, margin_loss
+from .common import (
+    Functional,
+    edl_loss,
+    edl_probs,
+    gather_samples,
+    get_conv_out_shape,
+    margin_loss,
+)
 from .resnet import get_decoder
 
 caps_cd_1 = (8, 16)
@@ -160,8 +167,7 @@ def step_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
-        y_nll = []
-        z_norm = []
+        y_ucty = []
         samples = []
 
         for x, y in iterable:
@@ -175,24 +181,28 @@ def step_model(
             y_z: torch.Tensor
             x_z: torch.Tensor
 
-            # - encoder / classifier -
+            # encoder
             z_x = encoder(x)
-            y_z, z_x = classifier(z_x)
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
 
-            # - decoder -
+            # classifier
+            y_z, z_x = classifier(z_x)
+            pY, uY = edl_probs(y_z.detach())
+
+            # decoder
             x_z = decoder(z_x[..., None, None])
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
-            z_norm.extend(z_x.detach().flatten(start_dim=1).norm(2, -1).cpu().numpy())
+            y_pred.extend(pY.detach().cpu().numpy())
+            y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = margin_loss(y_z, y)
-            mask = y_z.argmax(-1).eq(y.argmax(-1)).nonzero()
+            # classification_loss = margin_loss(y_z, y) - replaced with evidential loss
+            classification_loss = edl_loss(y_z, y, epoch)
+            mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             reconstruction_loss = F.mse_loss(x_z[mask], x[mask])
             l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
@@ -203,10 +213,6 @@ def step_model(
                 optim_gd.zero_grad()
                 minibatch_loss.backward()
                 optim_gd.step()
-
-            # save nll
-            nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")
-            y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
@@ -220,9 +226,8 @@ def step_model(
 
     return {
         "loss": avg_loss,
-        "z_norm": np.array(z_norm),
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "y_nll": np.array(y_nll),
+        "y_ucty": np.array(y_ucty),
         "samples": samples,
     }

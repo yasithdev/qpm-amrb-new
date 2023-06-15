@@ -8,7 +8,7 @@ from tqdm import tqdm
 from config import Config
 
 from . import flow
-from .common import compute_flow_shapes, gather_samples, edl_loss, edl_probs
+from .common import edl_loss, edl_probs, gather_samples
 from .flow.util import decode_mask
 
 
@@ -17,10 +17,20 @@ def load_model_and_optimizer(
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
 
     assert config.image_chw
+    assert config.dataset_info
+
     C, H, W = config.image_chw
     CHW = C * H * W
     D = config.manifold_d
-    (k0, k1, _, c1, c2, _, h2, w2, num_bins, num_labels) = compute_flow_shapes(config)
+    num_bins = 10
+
+    # ambient (x) flow configuration
+    k0, k1 = 4, 2
+    c1, h1, w1 = C * k0 * k0, H // k0, W // k0
+    c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
+
+    # categorical configuration
+    num_labels = config.dataset_info["num_train_labels"]
 
     # spatial flow
     x1_mask = torch.zeros(c1).bool()
@@ -138,9 +148,13 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
+
+    assert config.image_chw
+
     B = config.batch_size
     D = config.manifold_d
     (C, H, W) = config.image_chw
+
     torchinfo.summary(model["flow_x"], input_size=(B, C, H, W), depth=5)
     torchinfo.summary(model["flow_u"], input_size=(B, D), depth=5)
     torchinfo.summary(model["classifier"], input_size=(B, C, H, W), depth=5)
@@ -222,7 +236,6 @@ def step_model(
 
             # classifier
             y_z = classifier(z_x)
-            # pY = belief, uY = disbelief ; sum(pY) + uY = 1
             pY, uY = edl_probs(y_z.detach())
 
             # manifold losses
@@ -278,9 +291,9 @@ def step_model(
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
         "y_ucty": np.array(y_ucty),
+        "samples": samples,
         "z_nll": np.array(z_nll),
         "u_norm": np.array(u_norm),
         "v_norm": np.array(v_norm),
         "z_norm": np.array(z_norm),
-        "samples": samples,
     }

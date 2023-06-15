@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from config import Config
 
-from .common import gather_samples
+from .common import gather_samples, edl_probs, edl_loss
 from .resnet import get_decoder, get_encoder
 
 
@@ -58,25 +58,23 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
+
     assert config.image_chw
-    B, C, H, W = (config.batch_size, *config.image_chw)
+
+    B = config.batch_size
     D = config.manifold_d
+    (C, H, W) = config.image_chw
 
-    enc_in_size = (B, C, H, W)
-    enc_out_size = (B, D, 1, 1)
-    cls_in_size = enc_out_size
-    dec_in_size = enc_out_size
-
-    torchinfo.summary(model["encoder"], input_size=enc_in_size, depth=5)
-    torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
-    torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
+    torchinfo.summary(model["encoder"], input_size=(B, C, H, W), depth=5)
+    torchinfo.summary(model["classifier"], input_size=(B, D, 1, 1), depth=5)
+    torchinfo.summary(model["decoder"], input_size=(B, D, 1, 1), depth=5)
 
 
 def step_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
-    optim: Optional[Tuple[torch.optim.Optimizer, ...]],
+    optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
 
@@ -108,8 +106,7 @@ def step_model(
         y: torch.Tensor
         y_true = []
         y_pred = []
-        y_nll = []
-        z_norm = []
+        y_ucty = []
         samples = []
 
         for x, y in iterable:
@@ -119,22 +116,33 @@ def step_model(
             y = y.float().to(config.device)
 
             # forward pass
-            z_x: torch.Tensor = encoder(x)
-            y_z: torch.Tensor = classifier(z_x)
+            z_x: torch.Tensor
+            y_z: torch.Tensor
+            x_z: torch.Tensor
+
+            # encoder
+            z_x = encoder(x)
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
-            x_z: torch.Tensor = decoder(z_x)
+
+            # classifier
+            y_z, z_x = classifier(z_x)
+            pY, uY = edl_probs(y_z.detach())
+
+            # decoder
+            x_z = decoder(z_x[..., None, None])
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
-            y_pred.extend(y_z.detach().softmax(-1).cpu().numpy())
-            z_norm.extend(z_x.detach().flatten(start_dim=1).cpu().numpy())
+            y_pred.extend(pY.detach().cpu().numpy())
+            y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            classification_loss = F.cross_entropy(y_z, y, label_smoothing=0.1)
+            # classification_loss = F.cross_entropy(y_z, y, label_smoothing=0.1) - replaced with evidential loss
+            classification_loss = edl_loss(y_z, y, epoch)
             reconstruction_loss = F.mse_loss(x_z, x)
-            l = 0.8
+            l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
 
             # backward pass
@@ -143,10 +151,6 @@ def step_model(
                 optim_gd.zero_grad()
                 minibatch_loss.backward()
                 optim_gd.step()
-
-            # save nll
-            nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")
-            y_nll.extend(nll.detach().cpu().numpy())
 
             # accumulate sum loss
             sum_loss += minibatch_loss.item() * config.batch_size
@@ -162,7 +166,6 @@ def step_model(
         "loss": avg_loss,
         "y_true": np.array(y_true),
         "y_pred": np.array(y_pred),
-        "y_nll": np.array(y_nll),
-        "z_norm": np.array(z_norm),
+        "y_ucty": np.array(y_ucty),
         "samples": samples,
     }
