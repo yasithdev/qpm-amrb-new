@@ -11,7 +11,7 @@ from config import Config
 from . import flow
 from .common import compute_flow_shapes, gather_samples, edl_loss, edl_probs
 from .flow.util import decode_mask
-from .resnet.residual_block import get_encoder
+from .resnet import get_encoder
 
 
 def compute_sizes(config: Config) -> dict:
@@ -122,6 +122,7 @@ def load_model_and_optimizer(
             input_chw=config.image_chw,
             num_features=num_labels,
         ),
+        torch.nn.Flatten(),
     )
 
     model = torch.nn.ModuleDict(

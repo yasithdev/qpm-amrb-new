@@ -2,7 +2,6 @@ from typing import Tuple
 
 import torch
 
-from ..common import Functional
 from .residual_block import ResidualBlock
 
 
@@ -19,79 +18,64 @@ def get_encoder(
     """
     (c, h, w) = input_chw
     d = num_features
-
-    rh = 8 - (h % 8)
-    rw = 8 - (w % 8)
-    ph1, pw1 = rh // 2, rw // 2
-    ph2, pw2 = rh - ph1, rw - pw1
+    assert h % 8 == 0
+    assert w % 8 == 0
 
     model = torch.nn.Sequential(
-        # zero-pad for consistency
-        torch.nn.ZeroPad2d((pw1, pw2, ph1, ph2)),
-        # (B, C, H, W)
+        # (B, c, h, w)
         torch.nn.Conv2d(
             in_channels=c,
             out_channels=d // 4,
             kernel_size=7,
             padding=3,
             stride=2,
-            bias=False,
         ),
-        # (B, D/4, H/2, W/2)
-        torch.nn.BatchNorm2d(
-            num_features=d // 4,
-        ),
-        # (B, D/4, H/2, W/2)
+        # (B, d/4, h/2, w/2)
+        torch.nn.GroupNorm(d // 4, d // 4),
+        # (B, d/4, h/2, w/2)
         torch.nn.ReLU(),
-        # (B, D/4, H/2, W/2)
+        # (B, d/4, h/2, w/2)
         ResidualBlock(
             in_channels=d // 4,
             hidden_channels=d // 4,
             out_channels=d // 4,
             stride=1,
             conv=torch.nn.Conv2d,
-            norm=torch.nn.BatchNorm2d,
         ),
-        # (B, D/4, H/2, W/2)
+        # (B, d/4, h/2, w/2)
         ResidualBlock(
             in_channels=d // 4,
             hidden_channels=d // 4,
             out_channels=d // 2,
             stride=2,
             conv=torch.nn.Conv2d,
-            norm=torch.nn.BatchNorm2d,
         ),
-        # (B, D/2, H/4, W/4)
+        # (B, d/2, h/4, w/4)
         ResidualBlock(
             in_channels=d // 2,
             hidden_channels=d // 2,
             out_channels=d // 2,
             stride=1,
             conv=torch.nn.Conv2d,
-            norm=torch.nn.BatchNorm2d,
         ),
-        # (B, D/2, H/4, W/4)
+        # (B, d/2, h/4, w/4)
         ResidualBlock(
             in_channels=d // 2,
             hidden_channels=d // 2,
             out_channels=d,
             stride=2,
             conv=torch.nn.Conv2d,
-            norm=torch.nn.BatchNorm2d,
         ),
-        # (B, D, H/8, W/8)
+        # (B, d, h/8, w/8)
         torch.nn.Conv2d(
             in_channels=d,
             out_channels=d,
             groups=d,
-            kernel_size=((h + rh) // 8, (w + rw) // 8),
-            bias=False,
+            kernel_size=(h // 8, w // 8),
         ),
-        # (B, D, 1, 1)
-        torch.nn.BatchNorm2d(
-            num_features=d,
-        ),
-        # (B, D, 1, 1)
+        # (B, d, 1, 1)
+        torch.nn.GroupNorm(d, d),
+        # (B, d, 1, 1)
     )
 
     return model
@@ -109,11 +93,8 @@ def get_decoder(
     """
     d = num_features
     (c, h, w) = output_chw
-
-    rh = 8 - (h % 8)
-    rw = 8 - (w % 8)
-    ph1, pw1 = rh // 2, rw // 2
-    ph2, pw2 = rh - ph1, rw - pw1
+    assert h % 8 == 0
+    assert w % 8 == 0
 
     model = torch.nn.Sequential(
         # (B, D, 1, 1)
@@ -121,7 +102,7 @@ def get_decoder(
             in_channels=d,
             out_channels=d,
             groups=d,
-            kernel_size=((h + rh) // 8 + 1, (w + rw) // 8 + 1),
+            kernel_size=(h // 8, w // 8),
         ),
         # (B, D, H/8, W/8)
         ResidualBlock(
@@ -130,7 +111,6 @@ def get_decoder(
             out_channels=d // 2,
             stride=2,
             conv=torch.nn.ConvTranspose2d,
-            norm=torch.nn.BatchNorm2d,
         ),
         # (B, D/2, H/4, W/4)
         ResidualBlock(
@@ -139,7 +119,6 @@ def get_decoder(
             out_channels=d // 2,
             stride=1,
             conv=torch.nn.ConvTranspose2d,
-            norm=torch.nn.BatchNorm2d,
         ),
         # (B, D/2, H/4, W/4)
         ResidualBlock(
@@ -148,7 +127,6 @@ def get_decoder(
             out_channels=d // 4,
             stride=2,
             conv=torch.nn.ConvTranspose2d,
-            norm=torch.nn.BatchNorm2d,
         ),
         # (B, D/4, H/2, W/2)
         ResidualBlock(
@@ -157,7 +135,6 @@ def get_decoder(
             out_channels=d // 4,
             stride=1,
             conv=torch.nn.ConvTranspose2d,
-            norm=torch.nn.BatchNorm2d,
         ),
         # (B, D/4, H/2, W/2)
         torch.nn.ConvTranspose2d(
@@ -166,9 +143,9 @@ def get_decoder(
             kernel_size=7,
             padding=3,
             stride=2,
+            output_padding=1,
         ),
         # (B, C, H, W)
-        Functional(lambda x: x[..., ph1 : -ph2 - 1, pw1 : -pw2 - 1]),
         # crop for consistency
     )
     return model
