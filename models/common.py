@@ -17,34 +17,6 @@ from config import Config
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def get_classifier(
-    in_features: int,
-    out_features: int,
-) -> torch.nn.Module:
-    """
-    Simple classifier with a dense layer + softmax activation
-
-    :param in_features: number of input channels (D)
-    :param out_features: number of output features (L)
-    :return: model that transforms (B, D, 1, 1) -> (B, L)
-    """
-    d = in_features
-
-    model = torch.nn.Sequential(
-        # (B, D, 1, 1)
-        torch.nn.Flatten(),
-        # (B, D)
-        torch.nn.Linear(in_features=d, out_features=out_features),
-        # (B, L)
-        # torch.nn.Softmax(dim=1),
-        # (B, L)
-    )
-    return model
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
 def load_saved_state(
     model: torch.nn.Module,
     optim: Tuple[torch.optim.Optimizer, ...],
@@ -339,12 +311,12 @@ def compute_flow_shapes(
     c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
     # manifold (m) flow configuration
-    cm = config.manifold_d // h2 // w2
+    d = config.manifold_d
     num_bins = 10
 
     # categorical configuration
     num_labels = config.dataset_info["num_train_labels"]
-    return (k0, k1, c0, c1, c2, cm, h2, w2, num_bins, num_labels)
+    return (k0, k1, c0, c1, c2, d, h2, w2, num_bins, num_labels)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -419,7 +391,7 @@ def edl_loss(
     α = e + 1
     S = Σ(α)
     p = α / S
-    
+
     λ = min(1, epoch / τ)
     α̃ = 1 + (1 - y) * e
 

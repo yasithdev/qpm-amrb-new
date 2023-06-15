@@ -91,7 +91,8 @@ class Pad(FlowTransform):
 
         B, C = z.size(0), z.size(1)
         return z.narrow(dim=1, start=0, length=C - self.padding), z.new_zeros(B)
-    
+
+
 class Proj(FlowTransform):
     def __init__(
         self,
@@ -248,8 +249,8 @@ def partition(
     z: torch.Tensor,
     u_dims: int,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    u = z.narrow(dim=1, start=0, length=u_dims)
-    v = z.narrow(dim=1, start=u_dims, length=z.size(1) - u_dims)
+    u = z[:, :u_dims]
+    v = z[:, u_dims:]
     return u, v
 
 

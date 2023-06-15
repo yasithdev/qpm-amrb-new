@@ -22,7 +22,6 @@ conv_kernel_hw = (9, 9)
 caps_kernel_hw = (3, 3)
 conv_stride = 1
 caps_stride = 2
-out_caps_c = 16
 
 
 def load_model_and_optimizer(
@@ -32,7 +31,7 @@ def load_model_and_optimizer(
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    out_caps_d = config.dataset_info["num_train_labels"]
+    num_labels = config.dataset_info["num_train_labels"]
 
     # compute hw shapes of conv
     (h0, w0) = config.image_chw[1:]
@@ -44,7 +43,9 @@ def load_model_and_optimizer(
     (h4, w4) = get_conv_out_shape(
         h1, caps_kh, caps_stride, blocks=3
     ), get_conv_out_shape(w1, caps_kw, caps_stride, blocks=3)
+    manifold_d = config.manifold_d
 
+    # (B,C,H,W)->(B,D,K)
     encoder = torch.nn.Sequential(
         torch.nn.Conv2d(
             in_channels=config.image_chw[0],
@@ -78,15 +79,16 @@ def load_model_and_optimizer(
         FlattenCaps(),
         LinearCapsDR(
             in_capsules=(caps_cd_2[0], caps_cd_2[1] * h4 * w4),
-            out_capsules=(out_caps_c, out_caps_d),
+            out_capsules=(manifold_d, num_labels),
         ),
         Functional(squash),
     )
 
+    # (B,D,K)->[(B,K),(B,D)]
     classifier = MaskCaps()
 
     decoder = get_decoder(
-        num_features=out_caps_c,
+        num_features=manifold_d,
         output_chw=config.image_chw,
     )
 
@@ -112,18 +114,14 @@ def describe_model(
     assert config.dataset_info
     assert config.image_chw
 
-    B, C, H, W = (config.batch_size, *config.image_chw)
-    enc_in_size = (B, C, H, W)
+    B = config.batch_size
+    D = config.manifold_d
+    K = config.dataset_info["num_train_labels"]
+    (C, H, W) = config.image_chw
 
-    c, n = 16, config.dataset_info["num_train_labels"]
-    enc_out_size = (B, c, n)
-
-    cls_in_size = enc_out_size
-    dec_in_size = (B, c, 1, 1)
-
-    torchinfo.summary(model["encoder"], input_size=enc_in_size, depth=5)
-    torchinfo.summary(model["classifier"], input_size=cls_in_size, depth=5)
-    torchinfo.summary(model["decoder"], input_size=dec_in_size, depth=5)
+    torchinfo.summary(model["encoder"], input_size=(B, C, H, W), depth=5)
+    torchinfo.summary(model["classifier"], input_size=(B, D, K), depth=5)
+    torchinfo.summary(model["decoder"], input_size=(B, D, 1, 1), depth=5)
 
 
 def step_model(
@@ -201,9 +199,10 @@ def step_model(
 
             # backward pass
             if optim:
-                optim[0].zero_grad()
+                (optim_gd,) = optim
+                optim_gd.zero_grad()
                 minibatch_loss.backward()
-                optim[0].step()
+                optim_gd.step()
 
             # save nll
             nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")

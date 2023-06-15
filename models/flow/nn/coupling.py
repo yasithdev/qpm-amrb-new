@@ -156,6 +156,7 @@ class RQSCoupling(CouplingTransform):
         min_w: float = 1e-2,
         min_h: float = 1e-2,
         min_d: float = 1e-2,
+        spatial: bool = True,
     ) -> None:
 
         nI = len(i_channels)
@@ -168,12 +169,23 @@ class RQSCoupling(CouplingTransform):
         nW = num_bins
         nH = num_bins
         nD = num_bins - 1
+        nParams = nT * (nW + nH + nD)
 
-        coupling_net = nets.Conv2DResNet(
-            in_channels=nI,
-            out_channels=nT * (nW + nH + nD),
-            hidden_channels=nI,
-        )
+        if spatial:
+            coupling_net = nets.Conv2DResNet(
+                in_channels=nI,
+                out_channels=nParams,
+                hidden_channels=nI,
+            )
+        else:
+            coupling_net = torch.nn.Sequential(
+                torch.nn.Linear(nI, nParams),
+                torch.nn.LayerNorm(nParams),
+                torch.nn.Tanh(),
+                torch.nn.Linear(nParams, nParams),
+                torch.nn.LayerNorm(nParams),
+                torch.nn.Tanh(),
+            )
 
         super().__init__(
             i_channels=i_channels,
@@ -202,18 +214,14 @@ class RQSCoupling(CouplingTransform):
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
+        nW, nH, nD = self.nW, self.nH, self.nD
+
         # rearrange params
         params = einops.rearrange(
-            params,
-            "B (C P) H W -> B C H W P",
-            C=data.size(1),
-            P=self.nH + self.nW + self.nD,
+            params, "B (C P) ... -> B C ... P", C=data.size(1), P=nW + nH + nD
         )
-        w, h, d = einops.unpack(
-            tensor=params,
-            packed_shapes=[(self.nW,), (self.nH,), (self.nD,)],
-            pattern="B C H W *",
-        )
+        indices = np.cumsum([nW, nH, nD])
+        w, h, d = params.tensor_split(indices, dim=-1)
 
         # constant-pad d for outer data
         const = np.log(np.exp(1 - self.min_d) - 1)
@@ -239,7 +247,7 @@ class RQSCoupling(CouplingTransform):
                 "d": d[idx_inner, :],
                 "inverse": inverse,
             }
-            
+
             output[idx_inner], logabsdet[idx_inner] = self.spline(**kwargs)
             logabsdet = einops.reduce(logabsdet, "b ... -> b", reduction="sum")
 

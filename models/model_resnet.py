@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from config import Config
 
-from .common import gather_samples, get_classifier
+from .common import gather_samples
 from .resnet import get_decoder, get_encoder
 
 
@@ -20,25 +20,24 @@ def load_model_and_optimizer(
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    num_features = 128
+    num_labels = config.dataset_info["num_train_labels"]
 
-    # BCHW -> BD11
+    # (B, C, H, W) -> (B, D, 1, 1)
     encoder = get_encoder(
         input_chw=config.image_chw,
-        num_features=num_features,
+        num_features=config.manifold_d,
     )
 
-    # BD11 -> BCHW
+    # (B, D, 1, 1) -> (B, C, H, W)
     decoder = get_decoder(
-        num_features=num_features,
+        num_features=config.manifold_d,
         output_chw=config.image_chw,
     )
 
-    # BD11 -> BL
-    num_labels = config.dataset_info["num_train_labels"]
-    classifier = get_classifier(
-        in_features=num_features,
-        out_features=num_labels,
+    # (B, D, 1, 1) -> (B, K)
+    classifier = torch.nn.Sequential(
+        torch.nn.Flatten(),
+        torch.nn.Linear(config.manifold_d, num_labels),
     )
 
     model = torch.nn.ModuleDict(
@@ -50,7 +49,7 @@ def load_model_and_optimizer(
     )
 
     optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.Adam(**optim_config)
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, (optim,)
 
@@ -61,9 +60,10 @@ def describe_model(
 ) -> None:
     assert config.image_chw
     B, C, H, W = (config.batch_size, *config.image_chw)
+    D = config.manifold_d
 
     enc_in_size = (B, C, H, W)
-    enc_out_size = (B, 128, 1, 1)
+    enc_out_size = (B, D, 1, 1)
     cls_in_size = enc_out_size
     dec_in_size = enc_out_size
 
@@ -139,9 +139,10 @@ def step_model(
 
             # backward pass
             if optim:
-                optim[0].zero_grad()
+                (optim_gd,) = optim
+                optim_gd.zero_grad()
                 minibatch_loss.backward()
-                optim[0].step()
+                optim_gd.step()
 
             # save nll
             nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")

@@ -109,17 +109,17 @@ class MaskCaps(torch.nn.Module):
 
     The latent only contain features from the highest-norm capsule.
 
-    Op: (B, C, D) -> [logits, latent]
+    Op: (B, D, K) -> [logits, latent]
 
-    logits: (B, D)
-    latent: (B, C)
+    logits: (B, K)
+    latent: (B, D)
 
     Terms
     -----
     B: Batch Size
 
-    C: Input capsule channels
-    D: Input capsule count
+    D: Input capsule channels
+    K: Input capsule count
 
     """
 
@@ -132,13 +132,11 @@ class MaskCaps(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        (B, C, _) = x.size()
-        # Compute logits -> (B, D)
-        logits = torch.norm(x, p=2, dim=1)
-        # Generate index to extract capsule (B, C, 1)
-        index = torch.argmax(logits, dim=1).view(B, 1, 1).repeat(1, C, 1)
-        # Extract capsule -> (B, C, 1)
-        extracted = torch.gather(x, dim=2, index=index)
-        # (B, C, 1) -> (B, C)
-        latent = extracted.view(B, C)
-        return logits, latent
+        (B, D, K) = x.size()
+        # Compute logits: (B,D,K)->(B,1,K)
+        logits = torch.as_tensor(x.norm(p=2, dim=1, keepdim=True))
+        # Get capsule indices (B,1,K)->(B,1,1)->(B,D,1)
+        index = logits.argmax(dim=2, keepdim=True).repeat(1, D, 1)
+        # Extract capsule -> (B,D,K) -> (B,D,1)
+        latent = x.gather(dim=2, index=index)
+        return logits.view(B, K), latent.view(B, D)

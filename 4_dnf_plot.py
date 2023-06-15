@@ -7,21 +7,7 @@ import models.flow as flow
 from config import Config, load_config
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 from models import get_model_optimizer_and_step
-from models.common import compute_flow_shapes, load_saved_state
-
-
-def compute_sizes(config: Config) -> dict:
-    assert config.image_chw
-    C, H, W = config.image_chw
-    (_, _, _, _, c2, cm, h2, w2, _, _) = compute_flow_shapes(config)
-
-    return {
-        "x": (C, H, W),
-        "uv": (c2, h2, w2),
-        "u": (cm, h2, w2),
-        "v": (c2 - cm, h2, w2),
-        "z": (cm * h2 * w2),
-    }
+from models.common import load_saved_state
 
 
 def main(config: Config):
@@ -71,9 +57,8 @@ def main(config: Config):
         x = x0 + e
 
         # x -> (u x v) -> u -> z
-        sizes = compute_sizes(config)
         uv_x, _ = flow_x(x, forward=True)
-        u_x, v_x = flow.nn.partition(uv_x, sizes["u"][0])
+        u_x, v_x = flow.nn.partition(uv_x, config.manifold_d)
         z_x, _ = flow_u(u_x, forward=True)
         uX = (v_x).pow(2).flatten(start_dim=1).sum(dim=-1)
 

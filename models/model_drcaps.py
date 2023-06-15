@@ -203,9 +203,10 @@ def step_model(
 
             # backward pass
             if optim:
-                optim[0].zero_grad()
+                (optim_gd,) = optim
+                optim_gd.zero_grad()
                 minibatch_loss.backward()
-                optim[0].step()
+                optim_gd.step()
 
             # save nll
             nll = F.nll_loss(y_z.log_softmax(-1), y.argmax(-1), reduction="none")
