@@ -4,13 +4,14 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchinfo
 from tqdm import tqdm
 
 from config import Config
 
-from .capsnet.caps import ConvCapsDR, FlattenCaps, LinearCapsDR, squash
+
+from .resnet import ResidualBlock
+from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
 from .capsnet.deepcaps import MaskCaps
 from .common import (
@@ -18,17 +19,9 @@ from .common import (
     edl_loss,
     edl_probs,
     gather_samples,
-    get_conv_out_shape,
     margin_loss,
 )
 from .resnet import get_decoder
-
-caps_cd_1 = (8, 16)
-caps_cd_2 = (8, 32)
-conv_kernel_hw = (9, 9)
-caps_kernel_hw = (3, 3)
-conv_stride = 1
-caps_stride = 2
 
 
 def load_model_and_optimizer(
@@ -41,54 +34,41 @@ def load_model_and_optimizer(
     num_labels = config.dataset_info["num_train_labels"]
 
     # compute hw shapes of conv
-    (h0, w0) = config.image_chw[1:]
-    (conv_kh, conv_kw) = conv_kernel_hw
-    (caps_kh, caps_kw) = caps_kernel_hw
-    (h1, w1) = get_conv_out_shape(h0, conv_kh, conv_stride), get_conv_out_shape(
-        w0, conv_kw, conv_stride
-    )
-    (h4, w4) = get_conv_out_shape(
-        h1, caps_kh, caps_stride, blocks=3
-    ), get_conv_out_shape(w1, caps_kw, caps_stride, blocks=3)
+    (C, H, W) = config.image_chw
     manifold_d = config.manifold_d
 
     # (B,C,H,W)->(B,D,K)
     encoder = torch.nn.Sequential(
-        torch.nn.Conv2d(
-            in_channels=config.image_chw[0],
-            out_channels=caps_cd_1[0] * caps_cd_1[1],
-            kernel_size=conv_kernel_hw,
-            stride=conv_stride,
+        # (B,C,H,W)->(B,32,H/2,W/2)
+        ResidualBlock(
+            in_channels=C,
+            hidden_channels=C * 4,
+            out_channels=C * 4,
+            stride=2,
+            conv=torch.nn.Conv2d,
         ),
-        Functional(partial(conv_to_caps, out_capsules=caps_cd_1)),
-        Functional(squash),
-        ConvCapsDR(
-            in_capsules=caps_cd_1,
-            out_capsules=caps_cd_1,
-            kernel_size=caps_kernel_hw,
-            stride=caps_stride,
+        # (B,32,H/2,W/2) -> (B,64,H/4,W/4)
+        ResidualBlock(
+            in_channels=C * 4,
+            hidden_channels=C * 8,
+            out_channels=C * 8,
+            stride=2,
+            conv=torch.nn.Conv2d,
         ),
-        Functional(squash),
-        ConvCapsDR(
-            in_capsules=caps_cd_1,
-            out_capsules=caps_cd_1,
-            kernel_size=caps_kernel_hw,
-            stride=caps_stride,
+        # (B,64,H/4,W/4) -> (B,128,H/8,W/8)
+        ResidualBlock(
+            in_channels=C * 8,
+            hidden_channels=C * 16,
+            out_channels=C * 16,
+            stride=2,
+            conv=torch.nn.Conv2d,
         ),
-        Functional(squash),
-        ConvCapsDR(
-            in_capsules=caps_cd_1,
-            out_capsules=caps_cd_2,
-            kernel_size=caps_kernel_hw,
-            stride=caps_stride,
-        ),
-        Functional(squash),
+        Functional(partial(conv_to_caps, out_capsules=(16, C))),
         FlattenCaps(),
         LinearCapsDR(
-            in_capsules=(caps_cd_2[0], caps_cd_2[1] * h4 * w4),
+            in_capsules=(16, C * H * W // 64),
             out_capsules=(manifold_d, num_labels),
         ),
-        Functional(squash),
     )
 
     # (B,D,K)->[(B,K),(B,D)]

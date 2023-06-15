@@ -23,13 +23,6 @@ from .common import (
 )
 from .resnet import get_decoder
 
-caps_cd_1 = (8, 16)
-caps_cd_2 = (8, 32)
-conv_kernel_hw = (9, 9)
-caps_kernel_hw = (3, 3)
-conv_stride = 1
-caps_stride = 2
-
 
 def load_model_and_optimizer(
     config: Config,
@@ -39,56 +32,67 @@ def load_model_and_optimizer(
     assert config.image_chw is not None
 
     num_labels = config.dataset_info["num_train_labels"]
+    kernel_conv = (9, 9)
+    kernel_caps = (3, 3)
+    stride_conv = 1
+    stride_caps = 2
 
-    # compute hw shapes of conv
-    (h0, w0) = config.image_chw[1:]
-    (conv_kh, conv_kw) = conv_kernel_hw
-    (caps_kh, caps_kw) = caps_kernel_hw
-    (h1, w1) = get_conv_out_shape(h0, conv_kh, conv_stride), get_conv_out_shape(
-        w0, conv_kw, conv_stride
-    )
-    (h4, w4) = get_conv_out_shape(
-        h1, caps_kh, caps_stride, blocks=3
-    ), get_conv_out_shape(w1, caps_kw, caps_stride, blocks=3)
+    # compute output shapes at each layer
+    (c, h, w) = config.image_chw
+    (c1, d1, h1, w1) = 8, 16, h // stride_conv, w // stride_conv
+    (c2, d2, h2, w2) = 8, 32, h1 // stride_caps, w1 // stride_caps
+    (c3, d3, h3, w3) = 8, 32, h2 // stride_caps, w2 // stride_caps
+    (c4, d4, h4, w4) = 8, 32, h3 // stride_caps, w3 // stride_caps
+
     manifold_d = config.manifold_d
 
     # (B,C,H,W)->(B,D,K)
     encoder = torch.nn.Sequential(
-        torch.nn.Conv2d(
-            in_channels=config.image_chw[0],
-            out_channels=caps_cd_1[0] * caps_cd_1[1],
-            kernel_size=conv_kernel_hw,
-            stride=conv_stride,
+        # (B,C,H,W)->(B,c1*d1,h1,w1)
+        torch.nn.Sequential(
+            torch.nn.Conv2d(
+                in_channels=c,
+                out_channels=c1 * d1,
+                kernel_size=kernel_conv,
+                stride=stride_conv,
+            ),
+            # (B,c1*d1,h1,w1)->(B,c1,d1,h1,w1)
+            Functional(partial(conv_to_caps, out_capsules=(c1, d1))),
+            # Functional(squash),
+            torch.nn.GroupNorm(1, c1),
         ),
-        Functional(partial(conv_to_caps, out_capsules=caps_cd_1)),
-        Functional(squash),
+        # (B,c1,d1,h1,w1)->(B,c2,d2,h2,w2)
+        torch.nn.Sequential(
+            ConvCaps2D(
+                in_capsules=(c1, d1),
+                out_capsules=(c2, d2),
+                kernel_size=kernel_caps,
+                stride=stride_caps,
+            ),
+            # Functional(squash),
+            torch.nn.GroupNorm(1, c2),
+        ),
         ConvCaps2D(
-            in_capsules=caps_cd_1,
-            out_capsules=caps_cd_1,
-            kernel_size=caps_kernel_hw,
-            stride=caps_stride,
+            in_capsules=(c2, d2),
+            out_capsules=(c3, d3),
+            kernel_size=kernel_caps,
+            stride=stride_caps,
         ),
-        Functional(squash),
-        ConvCaps2D(
-            in_capsules=caps_cd_1,
-            out_capsules=caps_cd_1,
-            kernel_size=caps_kernel_hw,
-            stride=caps_stride,
-        ),
-        Functional(squash),
+        # Functional(squash),
+        torch.nn.GroupNorm(num_groups=1, num_channels=caps_cd_1[0]),
         ConvCaps2D(
             in_capsules=caps_cd_1,
             out_capsules=caps_cd_2,
             kernel_size=caps_kernel_hw,
             stride=caps_stride,
         ),
-        Functional(squash),
+        # Functional(squash),
+        torch.nn.GroupNorm(num_groups=1, num_channels=caps_cd_2[0]),
         FlattenCaps(),
         LinearCapsDR(
             in_capsules=(caps_cd_2[0], caps_cd_2[1] * h4 * w4),
             out_capsules=(manifold_d, num_labels),
         ),
-        Functional(squash),
     )
 
     # (B,D,K)->[(B,K),(B,D)]

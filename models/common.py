@@ -154,10 +154,10 @@ def get_conv_out_shape(
     stride: int = 1,
     padding: int = 0,
     dilation: int = 1,
-    blocks: int = 1,
+    n: int = 1,
 ) -> int:
     size_o = input_size
-    for _ in range(blocks):
+    for _ in range(n):
         size_o = (size_o + 2 * padding - dilation * (kernel_size - 1) - 1) // stride + 1
     return size_o
 

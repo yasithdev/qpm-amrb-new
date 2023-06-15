@@ -40,17 +40,14 @@ def load_model_and_optimizer(
     assert config.image_chw is not None
 
     num_labels = config.dataset_info["num_train_labels"]
+    S = get_conv_out_shape
 
     # compute hw shapes of conv
     (h0, w0) = config.image_chw[1:]
     (conv_kh, conv_kw) = conv_kernel_hw
     (caps_kh, caps_kw) = caps_kernel_hw
-    (h1, w1) = get_conv_out_shape(h0, conv_kh, conv_stride), get_conv_out_shape(
-        w0, conv_kw, conv_stride
-    )
-    (h4, w4) = get_conv_out_shape(
-        h1, caps_kh, caps_stride, blocks=3
-    ), get_conv_out_shape(w1, caps_kw, caps_stride, blocks=3)
+    (h1, w1) = S(h0, conv_kh, conv_stride), S(w0, conv_kw, conv_stride)
+    (h4, w4) = S(h1, caps_kh, caps_stride, n=3), S(w1, caps_kw, caps_stride, n=3)
     manifold_d = config.manifold_d
 
     # (B,C,H,W)->(B,D,K)

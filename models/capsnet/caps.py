@@ -138,36 +138,34 @@ class LinearCapsDR(torch.nn.Module):
     """
     Linear Capsule Layer with Dynamic Routing.
 
-    Op: (B, C, D) -> (B, c, d)
+    Op: (B, C, i) -> (B, c, j)
 
     Terms
     -----
     B: Batch Size
 
     C: Input capsule channels
-    D: Input capsule count
+    i: Input capsule count
 
     c: Output capsule channels
-    d: Output capsule count
+    j: Output capsule count
 
     """
 
     def __init__(
         self,
-        in_capsules: Tuple[int, int],  # (C, D)
-        out_capsules: Tuple[int, int],  # (c, d)
+        in_capsules: Tuple[int, int],  # (C, i)
+        out_capsules: Tuple[int, int],  # (c, j)
         routing_iters: int = 3,
     ):
         super().__init__()
         self.in_capsules = in_capsules
         self.out_capsules = out_capsules
         self.routing_iters = routing_iters
-        C, D = in_capsules
-        c, d = out_capsules
-        # weights (c, d, C, D)
-        self.weight = torch.nn.Parameter(torch.randn(c, d, C, D))
-        # log prior (d, D)
-        self.prior = torch.nn.Parameter(torch.zeros(d, D))
+        C, i = in_capsules
+        c, j = out_capsules
+        # weights (j, i, c, C)
+        self.weight = torch.nn.Parameter(torch.randn(j, i, c, C))
         self.nc = c ** 0.5
 
     def forward(
@@ -175,18 +173,22 @@ class LinearCapsDR(torch.nn.Module):
         x: torch.Tensor,
     ) -> torch.Tensor:
         B = x.size(0)
-        # prediction tensor u_{j|i} (B, c, d, D)
-        u = squash(torch.einsum("BCD,cdCD->BcdD", x, self.weight))
-        # coupling logits (B, d, D)
-        b = self.prior.tile(B, 1, 1)
-        # initial capsule output (B, c, d)
-        v = squash(torch.einsum("BcdD,BdD->Bcd", u, b.softmax(dim=1)))
+        # input tensor (BCi...) -> (B...iC)
+        x = einops.rearrange(x, 'B C i ... -> B ... i C')
+        # prediction tensor u_{j|i} (...jic)
+        u = torch.einsum("...iC,jicC->...jic", x, self.weight)
+        # coupling logits (...ji)
+        b = x.new_zeros(*u.size()[-3:-1])
         # dynamic routing
-        for _ in range(self.routing_iters - 1):
-            # add agreement to coupling logits: dot product of v with each u (B, d, D)
-            b = b + torch.einsum("Bcd,BcdD->BdD", v, u) / self.nc
-            # update capsule output
-            v = torch.einsum("BcdD,BdD->Bcd", u, b.softmax(dim=1))
+        for _ in range(self.routing_iters):
+            c = b.softmax(dim=-2)
+            # initial capsule output (...jc)
+            s = torch.einsum("...jic,...ji->...jc", u, c)
+            v = squash(s, dim=-2)
+            # add agreement to coupling logits: dot product of v with each u (...ji)
+            b = b + torch.einsum("...jc,...jic->...ji", v, u)
+        # output tensor
+        v = einops.rearrange(v, "B ... j c -> B c j ...")
         return v
 
 
