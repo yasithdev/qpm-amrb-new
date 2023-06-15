@@ -201,7 +201,7 @@ def step_model(
 
             # calculate loss
             # classification_loss = margin_loss(y_z, y) - replaced with evidential loss
-            classification_loss = edl_loss(y_z, y, epoch)
+            classification_loss = edl_loss(y_z, y, epoch).mean()
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             reconstruction_loss = F.mse_loss(x_z[mask], x[mask])
             l = 0.9

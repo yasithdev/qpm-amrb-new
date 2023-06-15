@@ -248,15 +248,16 @@ def step_model(
             L_y_x = edl_loss(y_z, y, epoch)
 
             # accumulate predictions
-            u_norm.extend(u_x.detach().flatten(1).norm(2, -1).cpu().numpy())
-            v_norm.extend(v_x.detach().flatten(1).norm(2, -1).cpu().numpy())
-            z_norm.extend(z_x.detach().flatten(1).norm(2, -1).cpu().numpy())
-
             y_true.extend(y.detach().argmax(-1).cpu().numpy())
             y_pred.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
-            z_nll.extend(L_z.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
+
+            # accumulate extra predictions
+            u_norm.extend(u_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+            v_norm.extend(v_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+            z_norm.extend(z_x.detach().flatten(1).norm(2, -1).cpu().numpy())
+            z_nll.extend(L_z.detach().cpu().numpy())
 
             # compute minibatch loss
             ß = 1e-3
@@ -292,8 +293,8 @@ def step_model(
         "y_pred": np.array(y_pred),
         "y_ucty": np.array(y_ucty),
         "samples": samples,
-        "z_nll": np.array(z_nll),
         "u_norm": np.array(u_norm),
         "v_norm": np.array(v_norm),
         "z_norm": np.array(z_norm),
+        "z_nll": np.array(z_nll),
     }

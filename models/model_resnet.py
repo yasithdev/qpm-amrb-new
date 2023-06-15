@@ -125,11 +125,11 @@ def step_model(
             logging.debug(f"encoder: ({x.size()}) -> ({z_x.size()})")
 
             # classifier
-            y_z, z_x = classifier(z_x)
+            y_z = classifier(z_x)
             pY, uY = edl_probs(y_z.detach())
 
             # decoder
-            x_z = decoder(z_x[..., None, None])
+            x_z = decoder(z_x)
             logging.debug(f"decoder: ({z_x.size()}) -> ({x_z.size()})")
 
             # accumulate predictions
@@ -140,7 +140,7 @@ def step_model(
 
             # calculate loss
             # classification_loss = F.cross_entropy(y_z, y, label_smoothing=0.1) - replaced with evidential loss
-            classification_loss = edl_loss(y_z, y, epoch)
+            classification_loss = edl_loss(y_z, y, epoch).mean()
             reconstruction_loss = F.mse_loss(x_z, x)
             l = 0.9
             minibatch_loss = l * classification_loss + (1 - l) * reconstruction_loss
