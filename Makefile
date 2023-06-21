@@ -25,7 +25,9 @@ srun-fasrc:
 # BATCH JOBS
 # ==========
 
-RUN_ARGS = srun ${WAHAB_PROD_ARGS}
+RUN_ARGS = 
+
+x = srun ${WAHAB_PROD_ARGS}
 
 # == [BENCHMARK] MNIST kfold ==
 umapx-mnist-kfold:

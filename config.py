@@ -7,6 +7,7 @@ from typing import Tuple, Optional, List
 import torch
 from dotenv import load_dotenv
 from torch.utils.data import DataLoader
+import datetime
 
 
 def get_best_device():
@@ -69,10 +70,11 @@ class Config:
         self.device = device
         self.tqdm_args = tqdm_args
 
+        time = str(datetime.datetime.now())[-14:].replace(":", "-")
         dir_1 = self.dataset_name
-        dir_2 = f"{self.cv_mode}-N{self.cv_folds}-K{self.cv_k}-M{self.manifold_d}"
+        dir_2 = f"{self.cv_mode}-N{self.cv_folds}-K{self.cv_k}-M{self.manifold_d}_{time}"
         self.experiment_path = os.path.join(self.experiment_base, dir_1, dir_2)
-        self.run_name = f"{dir_1}-{dir_2}"
+        self.run_name = f"{dir_1}-{dir_2}_{time}"
         self.run_config = {
             "dataset": self.dataset_name,
             "cv_mode": self.cv_mode,

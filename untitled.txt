@@ -1,0 +1,5 @@
+make CV_K=4 NOTES=Edl_loss_0.5 train-amrb2_species-kfold-rescaps
+
+make CUDA_VISIBLE_DEVICES=2 CV_K=4 NOTES=margin_loss_0.999 train-amrb2_species-kfold-rescaps
+
+make CV_K=4 NOTES=margin_loss_0.999_MANIFOLD_DIM_200 train-amrb2_species-kfold-rescaps

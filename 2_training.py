@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 from sklearn import metrics
 
-from config import Config, load_config
+from config import Config, load_config, getenv
 from models import get_model_optimizer_and_step
 from models.common import load_saved_state, save_state, gen_epoch_acc
 
@@ -223,9 +223,10 @@ if __name__ == "__main__":
     import wandb.plot
 
     wandb.init(
-        project="ood_flows",
+        project="ood_capsule",
         name=config.run_name,
         config=config.run_config,
+        notes = getenv("NOTES"),
     )
 
     main(config)

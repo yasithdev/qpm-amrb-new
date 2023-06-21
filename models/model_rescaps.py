@@ -181,11 +181,11 @@ def step_model(
             gather_samples(samples, x, y, x_z, y_z)
 
             # calculate loss
-            # L_y_z = margin_loss(y_z, y) - replaced with evidential loss
+            #L_y_z = margin_loss(y_z, y)# - replaced with evidential loss
             L_y_z = edl_loss(y_z, y, epoch)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
-            L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
-            l = 0.999
+            L_x_z = abs(x_z[mask] - x[mask]).flatten(1).mean(-1)
+            l = 0.8
             L_minibatch = (l * L_y_z + (1 - l) * L_x_z).mean()
 
             # backward pass
