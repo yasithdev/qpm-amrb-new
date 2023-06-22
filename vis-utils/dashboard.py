@@ -78,6 +78,9 @@ st.sidebar.header("CapsNet Latent Dimension Visualizer")
 mode = st.sidebar.selectbox('Choose data split', ['train', 'test'])
 n_batches = st.sidebar.slider('Number of batches', 0, 10, 3)
 filter_only_correct = st.sidebar.checkbox('Filter only correct predictions')
+st.sidebar.markdown("""---""")
+st.sidebar.subheader(":blue[Moving] in the latent space")
+pos = st.sidebar.slider('Position', 0, 49, 0)
 
 if mode == 'train':
     loader = train_loader
@@ -182,6 +185,9 @@ with st.expander("Inter-Class Variance w.r.t Position (using :blue[all] vectors)
     st.title('Inter-Class Variance w.r.t Position (using :blue[all] vectors)')
     pos_variance = torch.var(all_target_prototypes, dim = 0).reshape(50,1)
     pos_variance_np = pos_variance.numpy()
+    
+    st.write(torch.std(all_target_prototypes, dim = 0).reshape(50,1))
+    st.write(torch.std(all_target_prototypes, dim = 0).reshape(50,1).max())
 
     fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
                             y=pos_variance_np.flatten(),
@@ -193,11 +199,119 @@ with st.expander("Inter-Class Variance w.r.t Position (using :blue[all] vectors)
 
     st.plotly_chart(fig3,  use_container_width=True)
     
-with st.expander(":blue[Moving] in the latent space"):
+with st.expander("Inter-Class :green[pair] variance w.r.t. position"):
     
-    st.sidebar.markdown("""---""")
-    st.sidebar.subheader(":blue[Moving] in the latent space")
-    pos = st.sidebar.slider('Position', 0, 49, 0)
+    st.title('Inter-Class :green[pair] variance w.r.t. position')
+    selected_classes = st.multiselect('Select classes', [0,1,2,3], default=[0,1])
+    
+    pair_tensors = []
+
+    for idx, (x,y) in enumerate(loader):
+
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        
+        pos_to_extract = y.argmax(dim = 1).unsqueeze(-1).unsqueeze(-1).expand(-1, 50, -1)
+        
+        target_prototypes = z_x.gather(dim = 2, index = pos_to_extract).detach().cpu()
+        
+        
+        #append
+        
+        for i in selected_classes:
+            
+            #select only the target prototypes of the selected class
+            selected_indices = y.argmax(dim = 1) == i
+            
+            considered = target_prototypes[selected_indices]
+            
+            #get the corresponding predictions of the selected class
+            pred_indices = pY.argmax(dim = 1)[selected_indices]
+            
+            if(filter_only_correct):
+                #filter only the correct predictions
+                correct_indices = pred_indices == y.argmax(dim = 1)[selected_indices]
+                pair_tensors.append(considered[correct_indices])
+            else:
+                pair_tensors.append(considered)
+                
+        if(idx == n_batches):
+            break
+    
+    pair_tensors = torch.cat(pair_tensors, dim=0)
+    
+    pos_variance = torch.var(pair_tensors, dim = 0).reshape(50,1)
+    pos_variance_np = pos_variance.numpy()
+    
+    st.write(torch.std(pair_tensors, dim = 0).reshape(50,1))
+    st.write(torch.std(pair_tensors, dim = 0).reshape(50,1).max())
+
+    fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
+                            y=pos_variance_np.flatten(),
+                            name='Variance')])  # use flatten to convert 2D array to 1D
+
+    fig3.update_layout(title_text='Inter-Class Variance w.r.t Position',
+                    xaxis_title='Position',
+                    yaxis_title='Variance')
+
+    st.plotly_chart(fig3,  use_container_width=True)
+   
+ 
+with st.expander(":blue[Move] from one bacteria to another"):
+    st.header(":blue[Move] from one bacteria to another")
+    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3])
+    
+    rem_bac = [0,1,2,3]
+    rem_bac.remove(b_1)
+    b_2 = st.selectbox('Select bacteria 2', rem_bac)
+    
+    bac1_latents = 0
+    bac2_latents = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        
+        x_z = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        bac1_latents = sel_z_x[y.argmax(dim = 1) == b_1]
+        bac2_latents = sel_z_x[y.argmax(dim = 1) == b_2]
+
+        break
+    
+    st.write(bac1_latents.shape)
+    
+    num_images = 5
+    constants = torch.linspace(-0.5, 0.5, 3)
+    fig_move_in_latent = make_subplots(rows=num_images, cols = constants.shape[0], subplot_titles=[f"Δ {constants[i].item()}" for i in range(constants.shape[0])])
+
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j, constant in enumerate(constants):
+            
+            perturbed_sel_z_x = bac1_latents.clone()
+            perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+
+            img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            fig_move_in_latent.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
+                row=i+1, col=j+1
+            )
+    # Set the overall height of the figure
+    fig_move_in_latent.update_layout(height=200*num_images)  # Adjust as needed
+
+    st.plotly_chart(fig_move_in_latent, use_container_width=True)
+    
+    
+    
+    
+with st.expander(":blue[Moving] in the latent space"):
     
     st.write(f"Position {pos}")
     
@@ -210,7 +324,7 @@ with st.expander(":blue[Moving] in the latent space"):
         break
     
     num_images = 10
-    constants = torch.linspace(-1, 1, 11)
+    constants = torch.linspace(-0.5, 0.5, 7)
     st.write(sel_z_x.max(), sel_z_x.min())
     fig = make_subplots(rows=num_images, cols = constants.shape[0])
 
@@ -218,7 +332,6 @@ with st.expander(":blue[Moving] in the latent space"):
     
     for i in range(num_images):
         for j, constant in enumerate(constants):
-            img_mod = img + constant.item()  # Add the constant
             
             perturbed_sel_z_x = sel_z_x.clone()
             perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
@@ -228,7 +341,7 @@ with st.expander(":blue[Moving] in the latent space"):
             img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
             
             fig.add_trace(
-                go.Heatmap(z = img, zmin = 0, zmax = 1, colorscale='Viridis', showscale=False),
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
                 row=i+1, col=j+1
             )
     # Set the overall height of the figure
