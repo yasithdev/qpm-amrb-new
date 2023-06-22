@@ -270,30 +270,104 @@ with st.expander(":blue[Move] from one bacteria to another"):
     bac1_latents = 0
     bac2_latents = 0
     
+    b1_labels = 0
+    b2_labels = 0
+    
     for idx, (x,y) in enumerate(loader):
         z_x = encoder(x.float())
         y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
         
         x_z = decoder(sel_z_x[..., None, None])
         
         #select user picked bacteria latent representations
-        bac1_latents = sel_z_x[y.argmax(dim = 1) == b_1]
-        bac2_latents = sel_z_x[y.argmax(dim = 1) == b_2]
+        b1_indices = []
+        b1_count = 0
+        b2_indices = []
+        b2_count = 0 
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+                b1_count += 1
+            else:
+                b1_indices.append(False)
+                
+            if(y.argmax(dim = 1)[i] == b_2 and pY.argmax(dim = 1)[i] == b_2):
+                b2_indices.append(True)
+                b2_count += 1
+            else:
+                b2_indices.append(False)
+                
+        s_length = min(b1_count, b2_count)
+        st.write(s_length)
+        
+        bac1_latents = sel_z_x[b1_indices][:s_length]
+        bac2_latents = sel_z_x[b2_indices][:s_length]
+        
+        b1_labels = y[b1_indices][:s_length]
+        b2_labels = y[b2_indices][:s_length]
 
         break
     
-    st.write(bac1_latents.shape)
+    diff = bac2_latents - bac1_latents
     
-    num_images = 5
-    constants = torch.linspace(-0.5, 0.5, 3)
-    fig_move_in_latent = make_subplots(rows=num_images, cols = constants.shape[0], subplot_titles=[f"Δ {constants[i].item()}" for i in range(constants.shape[0])])
+    num_images = diff.shape[0]
+    sweep = 10
+    
+    header =  [] #[f"original class {b_1}"] + [f"Δ {i}" for i in range(sweep)] +  [f"mix {b_2}"] +  [f"original class {b_2}"]
+    
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+3):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+                labels = b1_labels
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+                perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            z_x_ = encoder(x_z)
+            y_z_, _ = classifier(z_x_)
+            pY_, uY_ = edl_probs(y_z_.detach())
+            
+            st.write(x_z.shape)
+            
+            pred_class = pY_.argmax(dim = 1)[i]
+            gt_class = labels.argmax(dim = 1)[i]
+            
+            header.append(f"pred {pred_class} gt {gt_class}")
+
+    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+3, subplot_titles = header)
 
     # Add each image as a Heatmap to the subplots
     for i in range(num_images):
-        for j, constant in enumerate(constants):
+        for j in range(sweep+3):
             
-            perturbed_sel_z_x = bac1_latents.clone()
-            perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
             
             x_z = decoder(perturbed_sel_z_x[..., None, None])
 
