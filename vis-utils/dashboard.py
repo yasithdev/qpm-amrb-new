@@ -2,6 +2,7 @@ import torch
 import sys
 sys.path.append("../")
 from config import *
+import numpy as np
 import streamlit as st
 import plotly.express as px
 import matplotlib.pyplot as plt
@@ -65,6 +66,9 @@ def load_stuff(PATH):
     
     return encoder, classifier, decoder, train_loader, test_loader
 
+np.random.seed(42)
+torch.random.manual_seed(42)
+    
 base_dir = "../experiments/ood_flows/AMRB2_species/"
 models = os.listdir(base_dir)
 models = [model for model in models if model != ".ipynb_checkpoints"]
@@ -76,11 +80,11 @@ encoder, classifier, decoder, train_loader, test_loader = load_stuff(base_dir + 
 st.sidebar.header("CapsNet Latent Dimension Visualizer")
 
 mode = st.sidebar.selectbox('Choose data split', ['train', 'test'])
-n_batches = st.sidebar.slider('Number of batches', 0, 10, 3)
+n_batches = st.sidebar.slider('Number of batches', 0, 10, 7)
 filter_only_correct = st.sidebar.checkbox('Filter only correct predictions')
 st.sidebar.markdown("""---""")
 st.sidebar.subheader(":blue[Moving] in the latent space")
-pos = st.sidebar.slider('Position', 0, 49, 0)
+pos = st.sidebar.slider('Position', 0, 49, 11)
 
 if mode == 'train':
     loader = train_loader
@@ -202,7 +206,7 @@ with st.expander("Inter-Class Variance w.r.t Position (using :blue[all] vectors)
 with st.expander("Inter-Class :green[pair] variance w.r.t. position"):
     
     st.title('Inter-Class :green[pair] variance w.r.t. position')
-    selected_classes = st.multiselect('Select classes', [0,1,2,3], default=[0,1])
+    selected_classes = st.multiselect('Select classes', [0,1,2,3], default=[1,3])
     
     pair_tensors = []
 
@@ -247,6 +251,9 @@ with st.expander("Inter-Class :green[pair] variance w.r.t. position"):
     
     st.write(torch.std(pair_tensors, dim = 0).reshape(50,1))
     st.write(torch.std(pair_tensors, dim = 0).reshape(50,1).max())
+    
+    st.write("Position-wise mean")
+    st.write(torch.mean(pair_tensors, dim = 0).reshape(50,1))
 
     fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
                             y=pos_variance_np.flatten(),
@@ -259,13 +266,147 @@ with st.expander("Inter-Class :green[pair] variance w.r.t. position"):
     st.plotly_chart(fig3,  use_container_width=True)
    
  
-with st.expander(":blue[Move] from one bacteria to another"):
+with st.expander(":blue[Move] from one bacteria to another (one position)"):
     st.header(":blue[Move] from one bacteria to another")
-    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3])
+    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3], index = 1)
     
     rem_bac = [0,1,2,3]
     rem_bac.remove(b_1)
     b_2 = st.selectbox('Select bacteria 2', rem_bac)
+    
+    bac1_latents = 0
+    bac2_latents = 0
+    
+    bac_2_original_img = 0
+    
+    b1_labels = 0
+    b2_labels = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        x_z = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        b1_count = 0
+        b2_indices = []
+        b2_count = 0 
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+                b1_count += 1
+            else:
+                b1_indices.append(False)
+                
+            if(y.argmax(dim = 1)[i] == b_2 and pY.argmax(dim = 1)[i] == b_2):
+                b2_indices.append(True)
+                b2_count += 1
+            else:
+                b2_indices.append(False)
+                
+        s_length = min(b1_count, b2_count)
+        st.write(s_length)
+        
+        bac1_latents = sel_z_x[b1_indices][:s_length]
+        bac2_latents = sel_z_x[b2_indices][:s_length]
+        
+        b1_labels = y[b1_indices][:s_length]
+        b2_labels = y[b2_indices][:s_length]
+        
+        bac_2_original_img = x[b2_indices][:s_length]
+
+        break
+    
+    diff = bac2_latents - bac1_latents
+    
+    num_images = diff.shape[0]
+    sweep = 10
+    
+    header =  [] #[f"original class {b_1}"] + [f"Δ {i}" for i in range(sweep)] +  [f"mix {b_2}"] +  [f"original class {b_2}"]
+    st.write(f"position chosen for moving in the latent space -> {pos}")
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+3):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+                labels = b1_labels
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            if(j == sweep+1):
+                x_z = bac_2_original_img.float()
+            
+            z_x_ = encoder(x_z)
+            y_z_, _ = classifier(z_x_)
+            pY_, uY_ = edl_probs(y_z_.detach())
+            
+            pred_class = pY_.argmax(dim = 1)[i]
+            gt_class = labels.argmax(dim = 1)[i]
+            
+            header.append(f"pred {pred_class} gt {gt_class}")
+
+    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+3, subplot_titles = header)
+
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+3):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                #perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            if(j == sweep+1):
+                x_z = bac_2_original_img.float()
+
+            img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            fig_move_in_latent.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
+                row=i+1, col=j+1
+            )
+    # Set the overall height of the figure
+    fig_move_in_latent.update_layout(height=200*num_images)  # Adjust as needed
+
+    st.plotly_chart(fig_move_in_latent, use_container_width=True)
+    
+
+with st.expander(":blue[Move] from one bacteria to another (all positions)"):
+    st.header(":blue[Move] from one bacteria to another")
+    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3], key = "task1", index = 1)
+    
+    rem_bac = [0,1,2,3]
+    rem_bac.remove(b_1)
+    b_2 = st.selectbox('Select bacteria 2', rem_bac, key = "task2")
     
     bac1_latents = 0
     bac2_latents = 0
@@ -316,24 +457,20 @@ with st.expander(":blue[Move] from one bacteria to another"):
     sweep = 10
     
     header =  [] #[f"original class {b_1}"] + [f"Δ {i}" for i in range(sweep)] +  [f"mix {b_2}"] +  [f"original class {b_2}"]
-    
+    st.write(f"moving all positions in the latent space ")
     # Add each image as a Heatmap to the subplots
     for i in range(num_images):
-        for j in range(sweep+3):
+        for j in range(sweep+2):
             
             if(j == 0):
                 perturbed_sel_z_x = bac1_latents.clone()
                 labels = b1_labels
             
-            if(j > 0 and j < sweep+1):
-                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            if(j > 0 and j < sweep + 1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x = perturbed_sel_z_x + diff/sweep*j
             
             if(j == sweep+1):
-                perturbed_sel_z_x = bac2_latents.clone()
-                labels = b2_labels
-                perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
-            
-            if(j == sweep+2):
                 perturbed_sel_z_x = bac2_latents.clone()
                 labels = b2_labels
             
@@ -343,30 +480,25 @@ with st.expander(":blue[Move] from one bacteria to another"):
             y_z_, _ = classifier(z_x_)
             pY_, uY_ = edl_probs(y_z_.detach())
             
-            st.write(x_z.shape)
-            
             pred_class = pY_.argmax(dim = 1)[i]
             gt_class = labels.argmax(dim = 1)[i]
             
             header.append(f"pred {pred_class} gt {gt_class}")
 
-    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+3, subplot_titles = header)
+    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+2, subplot_titles = header)
 
     # Add each image as a Heatmap to the subplots
     for i in range(num_images):
-        for j in range(sweep+3):
+        for j in range(sweep+2):
             
             if(j == 0):
                 perturbed_sel_z_x = bac1_latents.clone()
             
             if(j > 0 and j < sweep+1):
-                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x = perturbed_sel_z_x + diff/sweep*j
             
             if(j == sweep+1):
-                perturbed_sel_z_x = bac2_latents.clone()
-                perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
-            
-            if(j == sweep+2):
                 perturbed_sel_z_x = bac2_latents.clone()
             
             x_z = decoder(perturbed_sel_z_x[..., None, None])
@@ -383,23 +515,42 @@ with st.expander(":blue[Move] from one bacteria to another"):
     st.plotly_chart(fig_move_in_latent, use_container_width=True)
     
     
-    
-    
 with st.expander(":blue[Moving] in the latent space"):
     
     st.write(f"Position {pos}")
     
+    b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "task one bac", index = 3)
+    
+    start_val = float(st.text_input("Start value", -0.5, key = "start"))
+    end_val   = float(st.text_input("End value", 0.5, key = "end"))
+    steps = int(st.text_input("Steps", 8, key = "steps"))
+    
+    bac1_latents = 0
     
     for idx, (x,y) in enumerate(loader):
         z_x = encoder(x.float())
         y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
         
-        x_z = decoder(sel_z_x[..., None, None])
+        #select user picked bacteria latent representations
+        b1_indices = []
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+            else:
+                b1_indices.append(False)
+        
+        bac1_latents = sel_z_x[b1_indices][:s_length]
+        
+        b1_labels = y[b1_indices][:s_length]
+
         break
     
-    num_images = 10
-    constants = torch.linspace(-0.5, 0.5, 7)
+    num_images = bac1_latents.shape[0]
+    constants = torch.linspace(start_val, end_val, steps)
     st.write(sel_z_x.max(), sel_z_x.min())
+    st.write(bac1_latents.shape)
     fig = make_subplots(rows=num_images, cols = constants.shape[0])
 
     # Add each image as a Heatmap to the subplots
@@ -407,7 +558,7 @@ with st.expander(":blue[Moving] in the latent space"):
     for i in range(num_images):
         for j, constant in enumerate(constants):
             
-            perturbed_sel_z_x = sel_z_x.clone()
+            perturbed_sel_z_x = bac1_latents.clone()
             perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
             
             x_z = decoder(perturbed_sel_z_x[..., None, None])
