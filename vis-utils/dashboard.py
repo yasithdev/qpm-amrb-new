@@ -3,6 +3,7 @@ import sys
 sys.path.append("../")
 from config import *
 import numpy as np
+import cv2
 import streamlit as st
 import plotly.express as px
 import matplotlib.pyplot as plt
@@ -520,6 +521,7 @@ with st.expander(":blue[Moving] in the latent space"):
     st.write(f"Position {pos}")
     
     b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "task one bac", index = 3)
+    bool_show_area = st.checkbox('show area')
     
     start_val = float(st.text_input("Start value", -0.5, key = "start"))
     end_val   = float(st.text_input("End value", 0.5, key = "end"))
@@ -541,9 +543,9 @@ with st.expander(":blue[Moving] in the latent space"):
             else:
                 b1_indices.append(False)
         
-        bac1_latents = sel_z_x[b1_indices][:s_length]
+        bac1_latents = sel_z_x[b1_indices]
         
-        b1_labels = y[b1_indices][:s_length]
+        b1_labels = y[b1_indices]
 
         break
     
@@ -562,8 +564,35 @@ with st.expander(":blue[Moving] in the latent space"):
             perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
             
             x_z = decoder(perturbed_sel_z_x[..., None, None])
-
             img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            
+            if(bool_show_area):
+                # Find contours in the image
+                img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+                # Find binary image
+                _, thresh = cv2.threshold(img_8bit, 50, 255, cv2.THRESH_BINARY)
+
+                # Find contours in the binary image
+                contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                
+                for contour in contours:
+                    # Calculate contour area
+                    area = cv2.contourArea(contour)
+
+                    # Draw contour on the original image
+                    cv2.drawContours(img, [contour], -1, (255, 0, 0), 1)
+
+                    # Calculate the center of the contour to place the text
+                    # M = cv2.moments(contour)
+                    # cx = int(M['m10'] / M['m00'])
+                    # cy = int(M['m01'] / M['m00'])
+
+                    # # Add text showing area
+                    # cv2.putText(img, f'Area: {area}', (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            
             
             fig.add_trace(
                 go.Heatmap(z = img, colorscale='Viridis', showscale=False),
