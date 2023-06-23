@@ -522,6 +522,7 @@ with st.expander(":blue[Moving] in the latent space"):
     
     b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "task one bac", index = 3)
     bool_show_area = st.checkbox('show area')
+    show_diff = st.checkbox('show difference')
     
     start_val = float(st.text_input("Start value", -0.5, key = "start"))
     end_val   = float(st.text_input("End value", 0.5, key = "end"))
@@ -556,6 +557,7 @@ with st.expander(":blue[Moving] in the latent space"):
     fig = make_subplots(rows=num_images, cols = constants.shape[0])
 
     # Add each image as a Heatmap to the subplots
+    original_img = decoder(bac1_latents.clone()[..., None, None])
     
     for i in range(num_images):
         for j, constant in enumerate(constants):
@@ -592,12 +594,19 @@ with st.expander(":blue[Moving] in the latent space"):
                     # # Add text showing area
                     # cv2.putText(img, f'Area: {area}', (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-            
-            
-            fig.add_trace(
+            if(show_diff):
+                img = (original_img[i].squeeze().detach().cpu().numpy() - img)
+                
+                fig.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False, zmin = -0.1, zmax = 0.1),
+                row=i+1, col=j+1
+                )
+            else:
+                fig.add_trace(
                 go.Heatmap(z = img, colorscale='Viridis', showscale=False),
                 row=i+1, col=j+1
-            )
+                )
+            
     # Set the overall height of the figure
     fig.update_layout(height=200*num_images)  # Adjust as needed
 
