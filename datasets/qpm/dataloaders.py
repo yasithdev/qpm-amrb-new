@@ -45,7 +45,7 @@ def get_bacteria_dataloaders(
     torch.manual_seed(torch_seed)
     # transforms.ToPILImage(),
     my_transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Resize((img_size, img_size))]
+        [transforms.ToTensor(), transforms.Resize((img_size, img_size), antialias=True)]
     )
 
     train_data = bacteria_dataset(
