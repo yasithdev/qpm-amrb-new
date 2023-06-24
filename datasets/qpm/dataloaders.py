@@ -45,7 +45,7 @@ def get_bacteria_dataloaders(
     torch.manual_seed(torch_seed)
     # transforms.ToPILImage(),
     my_transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Resize((img_size, img_size), antialias=True)]
+        [transforms.ToTensor(), transforms.Resize((img_size, img_size), antialias=False)]
     )
 
     train_data = bacteria_dataset(
@@ -73,12 +73,9 @@ def get_bacteria_dataloaders(
         batch_size=train_batch_size,
         shuffle=True,
         drop_last=True,
-        num_workers=2,
     )
-    # val_loader   = DataLoader(val_data, batch_size  = 32, shuffle=True, drop_last= True, num_workers=2)
-    test_loader = DataLoader(
-        test_data, batch_size=test_batch_size, shuffle=True, drop_last=True, num_workers=2
-    )
+    # val_loader   = DataLoader(val_data, batch_size  = 32, shuffle=True, drop_last= True)
+    test_loader = DataLoader(test_data, batch_size=test_batch_size, shuffle=True, drop_last=True)
 
     return train_loader, test_loader
 
@@ -101,7 +98,7 @@ def get_bacteria_dataloaders(
 #     my_transform= transforms.Compose([transforms.ToTensor(), transforms.Resize((img_size, img_size))])
 
 #     test_data  = bacteria_dataset_selective(data_dir=data_dir, type_= 'test',  transform = my_transform, label_type = label_type, expand_channels = expand_channels, isolate_class = isolate_class)
-#     test_loader  = DataLoader(test_data, batch_size = test_batch_size, shuffle=True, drop_last= True, num_workers=2)
+#     test_loader  = DataLoader(test_data, batch_size = test_batch_size, shuffle=True, drop_last= True)
 
 #     dataset_sizes = {'test': len(test_loader)}
 

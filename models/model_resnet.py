@@ -144,7 +144,7 @@ def step_model(
             L_y_z = edl_loss(y_z, y, epoch, τ=50)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
-            l = 0.01
+            l = 1.0
             L_minibatch = (L_y_z + l * L_x_z).mean()
 
             # backward pass
