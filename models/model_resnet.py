@@ -49,8 +49,8 @@ def load_model_and_optimizer(
     )
 
     # set up optimizer
-    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
-    optim = torch.optim.AdamW(**optim_config)
+    optim_config = {"params": model.parameters(), "lr": config.optim_lr, "momentum": config.optim_m}
+    optim = torch.optim.SGD(**optim_config, weight_decay=0.1)
 
     return model, (optim,)
 
@@ -141,11 +141,11 @@ def step_model(
 
             # calculate loss
             # L_y_z = margin_loss(y_z, y) - replaced with evidential loss
-            L_y_z = edl_loss(y_z, y, epoch)
+            L_y_z = edl_loss(y_z, y, epoch, τ=50)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
-            l = 0.999
-            L_minibatch = (l * L_y_z + (1 - l) * L_x_z).mean()
+            l = 0.01
+            L_minibatch = (L_y_z + l * L_x_z).mean()
 
             # backward pass
             if optim:

@@ -8,6 +8,8 @@ WAHAB_PROD_ARGS = ${WAHAB_ARGS} --partition=gpu
 FASRC_TEST_ARGS = ${FASRC_ARGS} --partition=gpu_test
 FASRC_PROD_ARGS = ${FASRC_ARGS} --partition=gpu
 
+RUN_ARGS = srun ${WAHAB_PROD_ARGS}
+
 # ================
 # INTERACTIVE JOBS
 # ================
@@ -20,12 +22,12 @@ srun-fasrc-test:
 	srun ${FASRC_TEST_ARGS} --pty bash
 srun-fasrc:
 	srun ${FASRC_PROD_ARGS} --pty bash
+srun-jupyter-server:
+	${RUN_ARGS} jupyter server --port=8888 --no-browser --ip=0.0.0.0
 
 # ==========
 # BATCH JOBS
 # ==========
-
-RUN_ARGS = srun ${WAHAB_PROD_ARGS}
 
 # == [BENCHMARK] MNIST kfold ==
 umapx-mnist-kfold:
@@ -65,7 +67,7 @@ umapz-cifar10-leaveout-%:
 umapx-amrb2_species-kfold:
 	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10               ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_species-kfold-%:
-	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=512 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_species-kfold-%:
 	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
 
@@ -73,7 +75,7 @@ umapz-amrb2_species-kfold-%:
 umapx-amrb2_species-leaveout:
 	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=4                ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_species-leaveout-%:
-	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_species-leaveout-%:
 	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
 
@@ -81,7 +83,7 @@ umapz-amrb2_species-leaveout-%:
 umapx-amrb2_strain-kfold:
 	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10               ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_strain-kfold-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=512 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_strain-kfold-%:
 	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
 
@@ -89,6 +91,14 @@ umapz-amrb2_strain-kfold-%:
 umapx-amrb2_strain-leaveout:
 	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=19                ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_strain-leaveout-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_strain-leaveout-%:
 	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
+
+# == [ACTUAL] QPM_species kfold ==
+umapx-qpm_species-kfold:
+	DATASET_NAME=QPM_species.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10               ${RUN_ARGS} python -u 1_umap_x.py
+train-qpm_species-kfold-%:
+	DATASET_NAME=QPM_species.$${CV_K} MANIFOLD_D=512 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+umapz-qpm_species-kfold-%:
+	DATASET_NAME=QPM_species.$${CV_K} MANIFOLD_D=50 CV_MODE=k-fold    CV_FOLDS=10 MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py

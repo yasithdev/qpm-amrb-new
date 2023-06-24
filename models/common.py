@@ -351,7 +351,8 @@ def edl_loss(
     logits: torch.Tensor,
     target: torch.Tensor,
     epoch: int,
-    τ: int = 20,
+    τ: int = 50,
+    λ_max: float = 0.25,
 ) -> torch.Tensor:
 
     # function definitions
@@ -366,7 +367,7 @@ def edl_loss(
     S = Σ(α)
     p = α / S
 
-    λ = min(1, epoch / τ)
+    λ = min(λ_max, epoch / τ)
     α̃ = y + (1 - y) * α
 
     L_err = Σ((y - p).pow(2))

@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Literal, Tuple
+from typing import Tuple
 
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
@@ -13,13 +13,13 @@ from .amrb import AMRBDataset
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 def create_data_loaders(
     version: int,
-    label_type: Literal["class", "type", "strain", "gram"],
+    label_type: str,
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
     cv_k: int,
     cv_folds: int,
-    cv_mode: Literal["k-fold", "leave-out"],
+    cv_mode: str,
     **kwargs,
 ) -> Tuple[DataLoader, DataLoader]:
 
@@ -27,7 +27,7 @@ def create_data_loaders(
     transform = Compose(
         [
             ToTensor(),
-            AddGaussianNoise(mean=0.0, std=0.01),
+            AddGaussianNoise(mean=0.0, std=0.001),
         ]
     )
 
@@ -69,10 +69,10 @@ def create_data_loaders(
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 def get_info(
-    version: Literal[1, 2],
-    label_type: Literal["class", "type", "strain", "gram"],
+    version: int,
+    label_type: str,
     data_root: str,
-    cv_mode: Literal["k-fold", "leave-out"],
+    cv_mode: str,
     **kwargs,
 ) -> dict:
 
