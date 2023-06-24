@@ -81,7 +81,7 @@ encoder, classifier, decoder, train_loader, test_loader = load_stuff(base_dir + 
 st.sidebar.header("CapsNet Latent Dimension Visualizer")
 
 mode = st.sidebar.selectbox('Choose data split', ['train', 'test'])
-n_batches = st.sidebar.slider('Number of batches', 0, 10, 7)
+n_batches = st.sidebar.slider('Number of batches', 0, 100, 7)
 filter_only_correct = st.sidebar.checkbox('Filter only correct predictions')
 st.sidebar.markdown("""---""")
 st.sidebar.subheader(":blue[Moving] in the latent space")
@@ -524,9 +524,9 @@ with st.expander(":blue[Moving] in the latent space"):
     bool_show_area = st.checkbox('show area')
     show_diff = st.checkbox('show difference')
     
-    start_val = float(st.text_input("Start value", -0.5, key = "start"))
-    end_val   = float(st.text_input("End value", 0.5, key = "end"))
-    steps = int(st.text_input("Steps", 8, key = "steps"))
+    start_val = float(st.text_input("Start value", -0.15, key = "start"))
+    end_val   = float(st.text_input("End value", 0.15, key = "end"))
+    steps = int(st.text_input("Steps", 9, key = "steps"))
     
     bac1_latents = 0
     
@@ -548,9 +548,16 @@ with st.expander(":blue[Moving] in the latent space"):
         
         b1_labels = y[b1_indices]
 
-        break
+        if(b_1 != 0):
+            break
+        else:
+            if(idx > 5):
+                break
     
     num_images = bac1_latents.shape[0]
+    
+    num_images = int(st.slider("number of examples to plot", 1, bac1_latents.shape[0], value = 3))
+    
     constants = torch.linspace(start_val, end_val, steps)
     st.write(sel_z_x.max(), sel_z_x.min())
     st.write(bac1_latents.shape)
@@ -561,6 +568,7 @@ with st.expander(":blue[Moving] in the latent space"):
     
     for i in range(num_images):
         for j, constant in enumerate(constants):
+            showscale = i == num_images - 1 and j == constants.shape[0] - 1
             
             perturbed_sel_z_x = bac1_latents.clone()
             perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
@@ -574,7 +582,7 @@ with st.expander(":blue[Moving] in the latent space"):
                 img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
 
                 # Find binary image
-                _, thresh = cv2.threshold(img_8bit, 50, 255, cv2.THRESH_BINARY)
+                _, thresh = cv2.threshold(img_8bit, 15, 255, cv2.THRESH_BINARY)
 
                 # Find contours in the binary image
                 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -591,14 +599,16 @@ with st.expander(":blue[Moving] in the latent space"):
                     # cx = int(M['m10'] / M['m00'])
                     # cy = int(M['m01'] / M['m00'])
 
-                    # # Add text showing area
-                    # cv2.putText(img, f'Area: {area}', (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    # Add text showing area
+                    #cv2.putText(img, f'Area: {area}', (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                    
+                    st.write(f"{i},{j} -> area = {area}")
 
             if(show_diff):
                 img = (original_img[i].squeeze().detach().cpu().numpy() - img)
                 
                 fig.add_trace(
-                go.Heatmap(z = img, colorscale='Viridis', showscale=False, zmin = -0.1, zmax = 0.1),
+                go.Heatmap(z = img, colorscale='Viridis', showscale=showscale, zmin = -0.1, zmax = 0.1),
                 row=i+1, col=j+1
                 )
             else:
