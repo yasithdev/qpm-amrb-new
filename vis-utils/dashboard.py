@@ -81,7 +81,7 @@ encoder, classifier, decoder, train_loader, test_loader = load_stuff(base_dir + 
 st.sidebar.header("CapsNet Latent Dimension Visualizer")
 
 mode = st.sidebar.selectbox('Choose data split', ['train', 'test'])
-n_batches = st.sidebar.slider('Number of batches', 0, 100, 7)
+n_batches = st.sidebar.slider('Number of batches', 0, 400, 150)
 filter_only_correct = st.sidebar.checkbox('Filter only correct predictions')
 st.sidebar.markdown("""---""")
 st.sidebar.subheader(":blue[Moving] in the latent space")
@@ -131,11 +131,12 @@ max_variance = 0
 
 for i in range(0,4):
     mean_vector = all_target_prototypes[all_y.argmax(dim = 1) == i].mean(axis = 0)
+        
     class_means.append(mean_vector)
     
     img = all_target_prototypes[all_y.argmax(dim = 1) == i].detach().cpu()
     img = img.reshape(img.shape[0],img.shape[1])
-    
+        
     # Add the image as a subplot
     fig.add_trace(
         go.Heatmap(z=img, zmin=-1, zmax=1, showscale=False),
@@ -556,7 +557,7 @@ with st.expander(":blue[Moving] in the latent space"):
     
     num_images = bac1_latents.shape[0]
     
-    num_images = int(st.slider("number of examples to plot", 1, bac1_latents.shape[0], value = 3))
+    num_images = int(st.slider("number of examples to plot", 1, bac1_latents.shape[0], value = 5))
     
     constants = torch.linspace(start_val, end_val, steps)
     st.write(sel_z_x.max(), sel_z_x.min())
@@ -622,3 +623,132 @@ with st.expander(":blue[Moving] in the latent space"):
 
     st.plotly_chart(fig, use_container_width=True)
             
+
+with st.expander("Visualization of images"):
+    
+    
+    
+    b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "select bac to visualize", index = 3)
+    bool_show_area = st.checkbox('show area', key = "show area in image")
+    
+    bac1_images = 0
+    recon_images = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        img_ = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+            else:
+                b1_indices.append(False)
+        
+        bac1_images = x[b1_indices]
+        recon_images = img_[b1_indices]
+        b1_labels = y[b1_indices]
+
+        if(b_1 != 0):
+            break
+        else:
+            if(idx > 5):
+                break
+    
+    areas = []
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        img_ = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        for i in range(y.shape[0]):
+            
+            img = img_[i].squeeze().detach().cpu().numpy()
+            
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+            
+                img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+                # Find binary image
+                _, thresh = cv2.threshold(img_8bit, 70, 255, cv2.THRESH_BINARY)
+
+                # Find contours in the binary image
+                contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                
+                for contour in contours:
+                    # Calculate contour area
+                    area = cv2.contourArea(contour)
+                    areas.append(area)
+
+        if(idx == 500):
+            break
+    
+    areas = np.array(areas)
+    st.write(f"total area = {areas.sum()}, mean area = {areas.mean()}, variance = {areas.var()}, std = {areas.std()}")
+    
+    num_images = bac1_images.shape[0]
+    
+    num_images = int(st.slider("number of examples to plot", 1, bac1_images.shape[0], value = min(3, bac1_images.shape[0]), key ="img viz"))
+    
+    st.write(bac1_images.shape)
+    #fig = make_subplots(rows = 2, cols = num_images)
+    
+    # Plotly subplot setup
+    fig = make_subplots(rows = num_images, cols = 2)
+
+    # Add each image from the batch to the subplot
+    for i in range(num_images):
+        
+        img = bac1_images[i].squeeze().detach().cpu().numpy()
+        recon_img = recon_images[i].squeeze().detach().cpu().numpy()
+        
+        if(bool_show_area):
+                # Find contours in the image
+            img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+            # Find binary image
+            _, thresh = cv2.threshold(img_8bit, 70, 255, cv2.THRESH_BINARY)
+
+            # Find contours in the binary image
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                # Calculate contour area
+                area = cv2.contourArea(contour)
+
+                # Draw contour on the original image
+                cv2.drawContours(img, [contour], -1, (255, 0, 0), 1)
+                
+                # st.write(f"{i},{j} -> area = {area}")
+    
+        
+        fig.add_trace(
+            go.Heatmap(
+                z = img, # Remove the channel dimension
+                colorscale='Viridis',    # Use grayscale colors
+                showscale=False,        # Hide the color scale
+            ),
+            row = i+1, col = 1
+        )
+        
+        fig.add_trace(
+            go.Heatmap(
+                z = recon_img, # Remove the channel dimension
+                colorscale='Viridis',    # Use grayscale colors
+                showscale=False,        # Hide the color scale
+            ),
+            row = i+1, col = 2
+        )
+
+    fig.update_layout(height=200*num_images, width = 200)
+
+    # Show the plot in Streamlit
+    st.plotly_chart(fig)
