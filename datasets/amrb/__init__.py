@@ -1,107 +1,65 @@
-import json
-import logging
-import os
-from typing import Tuple
+from typing import Optional, Tuple
 
+import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
 
-from ..transforms import AddGaussianNoise
-from .amrb import AMRBDataset
+from ..transforms import AddGaussianNoise, TileChannels2d, ZeroPad2D
+from .amrb import create_datasets
+from .amrb import get_targets as __get_targets
 
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
+def get_targets(
+    target_label: str,
+    version: str,
+    data_root: str,
+    ood: list = [],
+    **kwargs,
+) -> Tuple[set, set, list]:
+    return __get_targets(data_root, int(version), target_label, ood)[:3]
+
+
 def create_data_loaders(
-    version: int,
-    label_type: str,
+    target_label: str,
+    version: str,
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    cv_k: int,
-    cv_folds: int,
-    cv_mode: str,
+    ood: list = [],
     **kwargs,
-) -> Tuple[DataLoader, DataLoader]:
-
+) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
     # define transforms
     transform = Compose(
         [
             ToTensor(),
-            AddGaussianNoise(mean=0.0, std=0.001),
+            AddGaussianNoise(mean=0.0, std=0.01),
         ]
     )
-
-    # load AMRB data
-    train_loader = DataLoader(
-        dataset=AMRBDataset(
-            data_root=data_root,
-            version=version,
-            # query params
-            train=True,
-            cv_k=cv_k,
-            cv_folds=cv_folds,
-            cv_mode=cv_mode,
-            label_type=label_type,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_train,
+    ind_targets, *_ = get_targets(target_label, version, data_root, ood)
+    target_transform = Compose(
+        [
+            lambda x: torch.tensor(x),
+            lambda x: F.one_hot(x, len(ind_targets)),
+        ]
+    )
+    train_dataset, test_dataset, ood_dataset = create_datasets(
+        data_root=data_root,
+        version=int(version),
+        target_label=target_label,
+        ood=ood,
+        transform=transform,
+        target_transform=target_transform,
     )
 
-    test_loader = DataLoader(
-        dataset=AMRBDataset(
-            data_root=data_root,
-            version=version,
-            # query params
-            train=False,
-            cv_k=cv_k,
-            cv_folds=cv_folds,
-            cv_mode=cv_mode,
-            label_type=label_type,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_test,
-    )
+    train_loader = DataLoader(train_dataset, batch_size=batch_size_train)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size_test)
+    ood_loader = None
+    if ood_dataset is not None:
+        ood_loader = DataLoader(ood_dataset, batch_size=batch_size_test)
 
-    return train_loader, test_loader
+    return train_loader, test_loader, ood_loader
 
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-def get_info(
-    version: int,
-    label_type: str,
-    data_root: str,
-    cv_mode: str,
-    **kwargs,
-) -> dict:
-
-    src_info_path = os.path.join(data_root, f"AMRB{version}", "info.json")
-    logging.info(f"Dataset info: {src_info_path}")
-    with open(src_info_path, "r") as f:
-        src_info: dict = json.load(f)["strains"]
-
-    # ignore non-sequenced strains
-    strain_labels = [x for x in src_info if src_info[x]["sequenced"] == True]
-
-    # select the target labels
-    if label_type == "strain":
-        target_labels = strain_labels
-    else:
-        target_labels = [src_info[slabel][label_type] for slabel in strain_labels]
-
-    num_labels = len(set(target_labels))
-
-    if cv_mode == "leave-out":
-        return {
-            "num_train_labels": num_labels - 1,
-            "num_test_labels": 1,
-        }
-    else:
-        return {
-            "num_train_labels": num_labels,
-            "num_test_labels": num_labels,
-        }
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------
+def get_shape():
+    return (1, 40, 40)

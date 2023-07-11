@@ -16,8 +16,8 @@ def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
 
-    assert config.image_chw
-    assert config.dataset_info
+    assert config.dataset_info is not None
+    assert config.image_chw is not None
 
     C, H, W = config.image_chw
     CHW = C * H * W
@@ -30,7 +30,8 @@ def load_model_and_optimizer(
     c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
     # categorical configuration
-    num_labels = config.dataset_info["num_train_labels"]
+    ind_targets, ood_targets, targets = config.dataset_info
+    num_labels = len(ind_targets)
 
     # spatial flow
     x1_mask = torch.zeros(c1).bool()

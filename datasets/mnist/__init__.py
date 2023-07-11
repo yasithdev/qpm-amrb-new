@@ -1,83 +1,60 @@
-from typing import Literal, Tuple
+from typing import Optional, Tuple
 
+import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, ToTensor
 
 from ..transforms import AddGaussianNoise, ZeroPad2D
-from .mnist import MNISTDataset
+from .mnist import create_datasets
+from .mnist import get_targets as __get_targets
+
+
+def get_targets(
+    ood: list = [],
+    **kwargs,
+) -> Tuple[set, set, list]:
+    return __get_targets(ood)
 
 
 def create_data_loaders(
     batch_size_train: int,
     batch_size_test: int,
     data_root: str,
-    cv_k: int,
-    cv_folds: int,
-    cv_mode: Literal["k-fold", "leave-out"],
+    ood: list = [],
     **kwargs,
-) -> Tuple[DataLoader, DataLoader]:
-
+) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
     # define transforms
     transform = Compose(
         [
             ToTensor(),
-            ZeroPad2D(h1=2,h2=2,w1=2,w2=2),
+            ZeroPad2D(h1=2, h2=2, w1=2, w2=2),  # 28 x 28 -> 32 x 32
             AddGaussianNoise(mean=0.0, std=0.01),
         ]
     )
-
-    # load MNIST data
-    train_loader = DataLoader(
-        dataset=MNISTDataset(
-            data_root=data_root,
-            # query params
-            train=True,
-            cv_k=cv_k,
-            cv_folds=cv_folds,
-            cv_mode=cv_mode,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_train,
+    ind_targets, ood_targets, targets = get_targets(ood)
+    target_transform = Compose(
+        [
+            lambda x: targets.index(x),
+            lambda x: torch.tensor(x),
+            lambda x: F.one_hot(x, len(ind_targets)),
+        ]
+    )
+    train_dataset, test_dataset, ood_dataset = create_datasets(
+        data_root=data_root,
+        ood=ood,
+        transform=transform,
+        target_transform=target_transform,
     )
 
-    test_loader = DataLoader(
-        dataset=MNISTDataset(
-            data_root=data_root,
-            # query params
-            train=False,
-            cv_k=cv_k,
-            cv_folds=cv_folds,
-            cv_mode=cv_mode,
-            # projection params
-            transform=transform,
-        ),
-        batch_size=batch_size_test,
-    )
+    train_loader = DataLoader(train_dataset, batch_size=batch_size_train)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size_test)
+    ood_loader = None
+    if ood_dataset is not None:
+        ood_loader = DataLoader(ood_dataset, batch_size=batch_size_test)
 
-    return train_loader, test_loader
+    return train_loader, test_loader, ood_loader
 
 
-# --------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-def get_info(
-    cv_mode: Literal["k-fold", "leave-out"],
-    **kwargs,
-) -> dict:
-
-    num_labels = 10
-
-    if cv_mode == "leave-out":
-        return {
-            "num_train_labels": num_labels - 1,
-            "num_test_labels": 1,
-        }
-    else:
-        return {
-            "num_train_labels": num_labels,
-            "num_test_labels": num_labels,
-        }
-
-
-# --------------------------------------------------------------------------------------------------------------------------------------------------
+def get_shape():
+    return (1, 32, 32)

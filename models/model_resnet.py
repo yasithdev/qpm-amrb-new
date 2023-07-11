@@ -3,7 +3,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchinfo
 from tqdm import tqdm
 
@@ -20,7 +19,8 @@ def load_model_and_optimizer(
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    num_labels = config.dataset_info["num_train_labels"]
+    ind_targets, ood_targets, targets = config.dataset_info
+    num_labels = len(ind_targets)
 
     # (B, C, H, W) -> (B, D, 1, 1)
     encoder = get_encoder(
@@ -49,8 +49,8 @@ def load_model_and_optimizer(
     )
 
     # set up optimizer
-    optim_config = {"params": model.parameters(), "lr": config.optim_lr, "momentum": config.optim_m}
-    optim = torch.optim.SGD(**optim_config, weight_decay=0.1)
+    optim_config = {"params": model.parameters(), "lr": config.optim_lr}
+    optim = torch.optim.AdamW(**optim_config)
 
     return model, (optim,)
 
@@ -141,7 +141,7 @@ def step_model(
 
             # calculate loss
             # L_y_z = margin_loss(y_z, y) - replaced with evidential loss
-            L_y_z = edl_loss(y_z, y, epoch, τ=50)
+            L_y_z = edl_loss(y_z, y, epoch)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
             l = 1.0

@@ -30,3 +30,13 @@ class ZeroPad2D(object):
         return self.__class__.__name__ + "(H={0},{1}, W={2}{3})".format(
             self.h1, self.h2, self.w1, self.w2
         )
+
+class TileChannels2d(object):
+    def __init__(self, repeats: int):
+        self.repeats = repeats
+
+    def __call__(self, tensor: torch.Tensor):
+        return tensor.tile((self.repeats, 1, 1))
+
+    def __repr__(self):
+        return self.__class__.__name__ + "(repeats={0})".format(self.repeats)

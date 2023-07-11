@@ -73,38 +73,6 @@ class bacteria_dataset(torch.utils.data.Dataset):
         self.type_ = type_
         self.expand_channels = expand_channels
         self.one_hot = one_hot
-        if label_type == "strain":
-            self.labels = [
-                'Acinetobacter_K12-21_301',
-                'Acinetobacter_K48-42_304',
-                'Acinetobacter_K55-13_305',
-                'Acinetobacter_K57-06_307',
-                'Acinetobacter_K71-71_311',
-                'E_coli_101',
-                'E_coli_102',
-                'E_coli_104',
-                'E_coli_A2-39',
-                'E_coli_CCUG_17620',
-                'E_coli_K12',
-                'E_coli_NCTC_13441',
-                'K_pneumoniae_210',
-                'K_pneumoniae_211',
-                'K_pneumoniae_212',
-                'K_pneumoniae_240',
-                'K_pneumoniae_A2-23',
-                'S_aureus_CCUG_35600',
-                'S_aureus_NCTC_8325'
-            ]
-        elif label_type == "species":
-            self.labels = [
-                'Acinetobacter',
-                'B subtilis',
-                'E. coli',
-                'K. pneumoniae',
-                'S. aureus',
-            ]
-        else:
-            raise ValueError(f"Unknown label_type: {label_type}")
 
         all_dirs = sorted(
             glob.glob(f"{data_dir}/QPM_{type_}/*/*"),

@@ -25,7 +25,6 @@ class ResidualBlock(torch.nn.Module):
         norm=torch.nn.BatchNorm2d,
         activation=F.leaky_relu,
     ) -> None:
-
         super().__init__()
 
         # class names for convolution and normalization
@@ -49,7 +48,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(self.hidden_channels),  # type: ignore
+            self.Norm(self.hidden_channels),
         )
 
         args = {}
@@ -66,7 +65,7 @@ class ResidualBlock(torch.nn.Module):
                 bias=False,
                 **args,
             ),
-            self.Norm(self.hidden_channels),  # type: ignore
+            self.Norm(self.hidden_channels),
         )
 
         # 1x1 convolution layer
@@ -78,7 +77,7 @@ class ResidualBlock(torch.nn.Module):
                 stride=1,
                 bias=False,
             ),
-            self.Norm(self.out_channels),  # type: ignore
+            self.Norm(self.out_channels),
         )
 
         # if stride != 1, match identity to x using stridexstride convolution
@@ -91,7 +90,7 @@ class ResidualBlock(torch.nn.Module):
                     stride=self.stride,
                     bias=False,
                 ),
-                self.Norm(self.out_channels),  # type: ignore
+                self.Norm(self.out_channels),
             )
 
     def forward(

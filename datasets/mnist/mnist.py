@@ -1,91 +1,74 @@
-import random
-from typing import Callable, Literal, Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import torchvision
 
+from ..in_memory_dataset import InMemoryDataset
 
-class MNISTDataset(torchvision.datasets.VisionDataset):
-    def __init__(
-        self,
-        data_root: str,
-        # query params
-        train: bool,
-        cv_k: int,
-        cv_folds: int,
-        cv_mode: Literal["k-fold", "leave-out"],
-        split_frac: float = 0.6,
-        # projection params
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None,
-    ) -> None:
-        # load original dataset
-        src_train = torchvision.datasets.MNIST(
-            root=data_root,
-            train=True,
-            download=True,
-        )
-        src_test = torchvision.datasets.MNIST(
-            root=data_root,
-            train=False,
-            download=True,
-        )
-        # combine train and test data into dict form
-        dataset_all = {}
-        for dataset in [src_train, src_test]:
-            for (img, target) in dataset:
-                if target in dataset_all:
-                    dataset_all[target].append(img)
-                else:
-                    dataset_all[target] = [img]
-        targets = sorted(dataset_all)
-        one_hot_targets = np.eye(len(targets), dtype=np.float32)
-        # if set to k-fold crossval mode
-        if cv_mode == "k-fold":
-            dataset_sub = {}
-            for target in targets:
-                images = dataset_all[target]
-                shift = int(len(images) * cv_k / cv_folds)
-                pivot = int(len(images) * split_frac)
-                images = images[shift:] + images[:shift]
-                dataset_sub[target] = images[:pivot] if train else images[pivot:]
-            self.labels = targets
-        # if set to leave-out crossval mode
-        elif cv_mode == "leave-out":
-            assert cv_folds == len(targets)
-            # drop cv_k'th target
-            leave_out_target = targets.pop(cv_k)
-            one_hot_targets = np.delete(one_hot_targets, cv_k, axis=1)
-            if train:
-                dataset_sub = {t: dataset_all[t] for t in targets}
-                self.labels = targets
-            else:
-                dataset_sub = {leave_out_target: dataset_all[leave_out_target]}
-                self.labels = [leave_out_target]
+
+def get_targets(
+    ood: list = [],
+) -> Tuple[set, set, list]:
+    targets = list(range(10))
+    ood_targets = set(ood)
+    ind_targets = set(targets).difference(ood_targets)
+    targets = sorted(ind_targets) + sorted(ood_targets)
+    return ind_targets, ood_targets, targets
+
+
+def create_datasets(
+    data_root: str,
+    ood: list = [],
+    transform: Optional[Callable] = None,
+    target_transform: Optional[Callable] = None,
+) -> Tuple[InMemoryDataset, InMemoryDataset, Optional[InMemoryDataset]]:
+    ind_targets, ood_targets, _ = get_targets(ood)
+
+    ood_x = []
+    ood_y = []
+
+    ds_train = torchvision.datasets.MNIST(
+        root=data_root,
+        train=True,
+        download=True,
+    )
+    train_x = []
+    train_y = []
+    for x, y in ds_train:
+        if y in ood_targets:
+            ood_x.append(x)
+            ood_y.append(y)
         else:
-            raise NotImplementedError(f"Unsupported cv_mode: {cv_mode}")
-        # create final dataset
-        dataset_final = []
-        for target in dataset_sub:
-            for image in dataset_sub[target]:
-                dataset_final.append((image, one_hot_targets[target].copy()))
-        random.shuffle(dataset_final)
-        # assign object variables
-        self.dataset = dataset_final
-        self.transform = transform
-        self.target_transform = target_transform
+            train_x.append(x)
+            train_y.append(y)
 
-    def __getitem__(self, index: int):
+    test_x = []
+    test_y = []
+    ds_test = torchvision.datasets.MNIST(
+        root=data_root,
+        train=False,
+        download=True,
+    )
+    for x, y in ds_test:
+        if y in ood_targets:
+            ood_x.append(x)
+            ood_y.append(y)
+        else:
+            test_x.append(x)
+            test_y.append(y)
 
-        img, target = self.dataset[index]
+    ood_dataset = None
+    if len(ood_x) > 0:
+        ood_x = np.stack(ood_x, axis=0)
+        ood_y = np.stack(ood_y, axis=0)
+        ood_dataset = InMemoryDataset(ood_x, ood_y, transform)
+    
+    train_x = np.stack(train_x, axis=0)
+    train_y = np.stack(train_y, axis=0)
+    train_dataset = InMemoryDataset(train_x, train_y, transform, target_transform)
+    
+    test_x = np.stack(test_x, axis=0)
+    test_y = np.stack(test_y, axis=0)
+    test_dataset = InMemoryDataset(test_x, test_y, transform, target_transform)
 
-        if self.transform is not None:
-            img = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return img, target
-
-    def __len__(self) -> int:
-        return len(self.dataset)
+    return train_dataset, test_dataset, ood_dataset

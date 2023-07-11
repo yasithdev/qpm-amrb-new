@@ -15,6 +15,7 @@ def get_bacteria_dataloaders(
     expand_channels=True,
     data_dir="/home/pjaya001/datasets",
     one_hot=False,
+    ood: list = [],
 ):
     """
     Function to return train, validation QPM dataloaders
@@ -45,7 +46,10 @@ def get_bacteria_dataloaders(
     torch.manual_seed(torch_seed)
     # transforms.ToPILImage(),
     my_transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Resize((img_size, img_size), antialias=False)]
+        [
+            transforms.ToTensor(),
+            transforms.Resize((img_size, img_size), antialias=True),  # type: ignore
+        ]
     )
 
     train_data = bacteria_dataset(
@@ -75,9 +79,13 @@ def get_bacteria_dataloaders(
         drop_last=True,
     )
     # val_loader   = DataLoader(val_data, batch_size  = 32, shuffle=True, drop_last= True)
-    test_loader = DataLoader(test_data, batch_size=test_batch_size, shuffle=True, drop_last=True)
+    test_loader = DataLoader(
+        test_data, batch_size=test_batch_size, shuffle=True, drop_last=True
+    )
 
-    return train_loader, test_loader
+    ood_loader = None
+
+    return train_loader, test_loader, ood_loader
 
 
 # def get_bacteria_eval_dataloaders(img_size, test_batch_size ,torch_seed=10, label_type = "class", expand_channels = False, data_dir= '/n/holyscratch01/wadduwage_lab/ramith/bacteria_processed', isolate_class = False):

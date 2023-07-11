@@ -16,44 +16,35 @@ from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 
 def gen_log_metrics(
     stats: Dict[str, np.ndarray],
-    prefix: Literal["train", "test"],
+    prefix: Literal["train", "test", "ood"],
     config: Config,
     step: int,
 ) -> dict:
 
     data = {}
-    labels = config.labels
+    assert config.dataset_info is not None
+    ind_targets, ood_targets, targets = config.dataset_info
     mode = config.cv_mode
-    assert labels
 
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
-    K = len(labels)
+    K = len(ind_targets)
     IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
     y_ucty = stats.get("y_ucty", zero_ucty)
     samples = stats["samples"]
 
-    # update y_pred and y_true for leave-out mode
-    if mode == "leave-out":
-        y_pred = np.concatenate([y_pred, y_ucty], axis=-1)
-        if prefix == "test":
-            y_true = np.full((B,), fill_value=K - 1)
-
     # log targets
-    if mode == "leave-out" and prefix == "test":
-        targets = [IMG(x, caption=labels[K - 1]) for x, _, _, _ in samples]
-    else:
-        targets = [IMG(x, caption=labels[y]) for x, y, _, _ in samples]
-    data[f"{prefix}/targets"] = targets
+    inputs = [IMG(x, caption=targets[y]) for x, y, _, _ in samples]
+    data[f"{prefix}/inputs"] = inputs
 
     # log estimates
-    estimates = [IMG(xz, caption=labels[yz]) for _, _, xz, yz in samples]
-    data[f"{prefix}/estimates"] = estimates
+    reconstructions = [IMG(xz, caption=targets[yz]) for _, _, xz, yz in samples]
+    data[f"{prefix}/reconstructions"] = reconstructions
 
     # log top-k acc and confusion matrix
-    acc1, acc2, acc3 = gen_epoch_acc(y_pred, y_true, np.arange(K))  # type: ignore
+    acc1, acc2, acc3 = gen_epoch_acc(y_pred.tolist(), y_true.tolist(), np.arange(K).tolist())
     tqdm.write(
         f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
     )
@@ -61,20 +52,20 @@ def gen_log_metrics(
     data[f"{prefix}/acc2"] = acc2
     data[f"{prefix}/acc3"] = acc3
     data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-        probs=y_pred,  # type: ignore
-        y_true=y_true,  # type: ignore
-        class_names=labels,
+        probs=y_pred.tolist(),
+        y_true=y_true.tolist(),
+        class_names=targets,
         title=f"Confusion Matrix ({prefix})",
     )
     data[f"{prefix}/roc"] = wandb.plot.roc_curve(
         y_true=y_true,
         y_probas=y_pred,
-        labels=labels,
+        labels=targets,
     )
     data[f"{prefix}/pr"] = wandb.plot.pr_curve(
         y_true=y_true,
         y_probas=y_pred,
-        labels=labels,
+        labels=targets,
     )
     done_keys = ["y_true", "y_pred", "samples"]
     for key in set(stats).difference(done_keys):
@@ -121,7 +112,6 @@ def main(config: Config):
 
     assert config.train_loader
     assert config.test_loader
-    assert config.labels
 
     model, optim, step = get_model_optimizer_and_step(config)
 
@@ -201,23 +191,21 @@ if __name__ == "__main__":
     config.dataset_info = get_dataset_info(
         dataset_name=config.dataset_name,
         data_root=config.data_dir,
-        cv_mode=config.cv_mode,
+        ood=config.ood,
     )
     # get image dims
     config.image_chw = get_dataset_chw(
         dataset_name=config.dataset_name,
     )
     # initialize data loaders
-    config.train_loader, config.test_loader = get_dataset_loaders(
+    config.train_loader, config.test_loader, config.ood_loader = get_dataset_loaders(
         dataset_name=config.dataset_name,
         batch_size_train=config.batch_size,
         batch_size_test=config.batch_size,
         data_root=config.data_dir,
-        cv_k=config.cv_k,
-        cv_folds=config.cv_folds,
-        cv_mode=config.cv_mode,
+        ood=config.ood,
     )
-    config.init_labels()
+    config.print_labels()
 
     import wandb
     import wandb.plot

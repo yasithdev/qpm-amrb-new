@@ -14,24 +14,18 @@ from .resnet import ResidualBlock
 from .capsnet.caps import FlattenCaps, LinearCapsDR
 from .capsnet.common import conv_to_caps
 from .capsnet.deepcaps import MaskCaps
-from .common import (
-    Functional,
-    edl_loss,
-    edl_probs,
-    gather_samples,
-    margin_loss,
-)
+from .common import Functional, edl_loss, edl_probs, gather_samples
 from .resnet import get_decoder
 
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
-
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    num_labels = config.dataset_info["num_train_labels"]
+    ind_targets, ood_targets, targets = config.dataset_info
+    num_labels = len(ind_targets)
 
     # compute hw shapes of conv
     (C, H, W) = config.image_chw
@@ -98,13 +92,13 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
-
     assert config.dataset_info
     assert config.image_chw
 
+    ind_targets, ood_targets, targets = config.dataset_info
     B = config.batch_size
     D = config.manifold_d
-    K = config.dataset_info["num_train_labels"]
+    K = len(ind_targets)
     (C, H, W) = config.image_chw
 
     torchinfo.summary(model["encoder"], input_size=(B, C, H, W), depth=5)
@@ -119,7 +113,6 @@ def step_model(
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-
     # pre-step
     if optim:
         data_loader = config.train_loader
@@ -152,7 +145,6 @@ def step_model(
         samples = []
 
         for x, y in iterable:
-
             # cast x and y to float
             x = x.float().to(config.device)
             y = y.float().to(config.device)

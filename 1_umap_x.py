@@ -13,7 +13,9 @@ def main(config: Config):
 
     assert config.train_loader
     assert config.test_loader
-    assert config.labels
+    assert config.dataset_info is not None
+
+    ind_targets, ood_targets, targets = config.dataset_info
 
     x_trn = []
     y_trn = []
@@ -53,7 +55,7 @@ def main(config: Config):
         x=x_trn,
         y=y_trn,
         out_path=os.path.join(config.experiment_path, f"preview.trn.pdf"),
-        labels=config.train_loader.dataset.labels,  # type: ignore
+        labels=sorted(ind_targets),
     )
 
     logging.info("Plotting testing samples")
@@ -61,7 +63,7 @@ def main(config: Config):
         x=x_tst,
         y=y_tst,
         out_path=os.path.join(config.experiment_path, f"preview.tst.pdf"),
-        labels=config.test_loader.dataset.labels,  # type: ignore
+        labels=sorted(ind_targets),
     )
 
     # ----------------------------------
@@ -73,7 +75,7 @@ def main(config: Config):
         y=y_trn.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
-        labels=config.train_loader.dataset.labels,  # type: ignore
+        labels=sorted(ind_targets),
     )
 
     logging.info("Plotting UMAP projection of testing samples")
@@ -82,7 +84,7 @@ def main(config: Config):
         y=y_tst.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
-        labels=config.test_loader.dataset.labels,  # type: ignore
+        labels=sorted(ind_targets),
     )
 
 
@@ -105,7 +107,7 @@ if __name__ == "__main__":
         dataset_name=config.dataset_name,
     )
     # initialize data loaders
-    config.train_loader, config.test_loader = get_dataset_loaders(
+    config.train_loader, config.test_loader, config.ood_loader = get_dataset_loaders(
         dataset_name=config.dataset_name,
         batch_size_train=config.batch_size,
         batch_size_test=config.batch_size,
@@ -114,6 +116,6 @@ if __name__ == "__main__":
         cv_folds=config.cv_folds,
         cv_mode=config.cv_mode,
     )
-    config.init_labels()
+    config.print_labels()
 
     main(config)

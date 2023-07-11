@@ -3,26 +3,24 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torchinfo
-from tqdm import tqdm
-
 from torchvision.models.resnet import resnet18
+from tqdm import tqdm
 
 from config import Config
 
-from .common import gather_samples, edl_probs, edl_loss
-from .resnet import get_decoder, get_encoder
+from .common import edl_loss, edl_probs, gather_samples
+from .resnet import get_decoder
 
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
-
     assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    num_labels = config.dataset_info["num_train_labels"]
+    ind_targets, ood_targets, targets = config.dataset_info
+    num_labels = len(ind_targets)
 
     # (B, C, H, W) -> (B, D, 1, 1)
     encoder = resnet18()
@@ -48,7 +46,11 @@ def load_model_and_optimizer(
     )
 
     # set up optimizer
-    optim_config = {"params": model.parameters(), "lr": config.optim_lr, "momentum": config.optim_m}
+    optim_config = {
+        "params": model.parameters(),
+        "lr": config.optim_lr,
+        "momentum": config.optim_m,
+    }
     optim = torch.optim.SGD(**optim_config, weight_decay=0.1)
 
     return model, (optim,)
@@ -58,8 +60,7 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
-
-    assert config.image_chw
+    assert config.image_chw is not None
 
     B = config.batch_size
     D = config.manifold_d
@@ -77,7 +78,6 @@ def step_model(
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-
     # pre-step
     if optim:
         data_loader = config.train_loader
@@ -110,7 +110,6 @@ def step_model(
         samples = []
 
         for x, y in iterable:
-
             # cast x and y to float
             x = x.float().to(config.device)
             y = y.float().to(config.device)
@@ -140,7 +139,7 @@ def step_model(
 
             # calculate loss
             # L_y_z = margin_loss(y_z, y) - replaced with evidential loss
-            L_y_z = edl_loss(y_z, y, epoch, τ=50)
+            L_y_z = edl_loss(y_z, y, epoch)
             mask = pY.argmax(-1).eq(y.argmax(-1)).nonzero()
             L_x_z = (x_z[mask] - x[mask]).pow(2).flatten(1).mean(-1)
             l = 0.8

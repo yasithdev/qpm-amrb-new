@@ -10,7 +10,6 @@ from torch.utils.data import DataLoader
 
 
 def get_best_device():
-
     from torch.backends import cuda, mps
 
     # check for cuda
@@ -39,10 +38,11 @@ class Config:
         optim_m: float,
         train_epochs: int,
         exc_resume: bool,
-        dataset_info: Optional[dict],
+        dataset_info: Optional[Tuple[set, set, list]],
         image_chw: Optional[Tuple[int, int, int]],
         train_loader: Optional[DataLoader],
         test_loader: Optional[DataLoader],
+        ood_loader: Optional[DataLoader],
         labels: Optional[List],
         device: str,
         tqdm_args: dict,
@@ -65,7 +65,8 @@ class Config:
         self.dataset_info = dataset_info
         self.train_loader = train_loader
         self.test_loader = test_loader
-        self.labels = labels
+        self.ood_loader = ood_loader
+        self.ood = [] if cv_mode == "k-fold" else [cv_k]
         self.device = device
         self.tqdm_args = tqdm_args
 
@@ -86,26 +87,13 @@ class Config:
             shutil.rmtree(self.experiment_path, ignore_errors=True)
         os.makedirs(self.experiment_path, exist_ok=True)
 
-    def init_labels(
+    def print_labels(
         self,
     ) -> None:
-        assert self.train_loader
-        assert self.test_loader
-
-        train_labels = list(self.train_loader.dataset.labels)  # type: ignore
-        test_labels = list(self.test_loader.dataset.labels)  # type: ignore
-
-        if self.cv_mode == "leave-out":
-            logging.info(f"Labels (train): {train_labels}")
-            logging.info(f"Labels (test): {test_labels}")
-            assert set(train_labels).isdisjoint(test_labels)
-            labels = [*train_labels, *test_labels]
-        else:
-            assert set(train_labels) == set(test_labels)
-            labels = train_labels
-            logging.info(f"Labels (train, test): {train_labels}")
-
-        self.labels = labels
+        assert self.dataset_info is not None
+        ind_targets, ood_targets = self.dataset_info[:2]
+        logging.info(f"Labels (train, test): {ind_targets}")
+        logging.info(f"Labels (ood): {ood_targets}")
 
 
 def getenv(key: str, default="") -> str:
@@ -117,7 +105,6 @@ def getenv(key: str, default="") -> str:
 
 
 def load_config() -> Config:
-
     load_dotenv()
 
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -169,6 +156,7 @@ def load_config() -> Config:
         image_chw=None,
         train_loader=None,
         test_loader=None,
+        ood_loader=None,
         labels=None,
         device=device,
         # hardcoded params

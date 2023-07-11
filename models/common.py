@@ -23,7 +23,6 @@ def load_saved_state(
     config: Config,
     epoch: Optional[int] = None,
 ) -> None:
-
     if epoch is not None:
         model_filename = f"{config.model_name}_model_e{epoch}.pth"
         optim_filename = f"{config.model_name}_optim_e{epoch}.pth"
@@ -248,7 +247,6 @@ def gather_samples(
     y_x: torch.Tensor,
     num_samples: int = 5,
 ) -> None:
-
     pattern = "c h w -> h w c"
 
     if len(samples) < num_samples:
@@ -284,7 +282,6 @@ def get_gradient_ratios(
     lossB: torch.Tensor,
     x_f: torch.Tensor,
 ) -> torch.Tensor:
-
     grad = torch.autograd.grad
     grad_lossA_xf = grad(torch.sum(lossA), x_f, retain_graph=True)[0]
     grad_lossB_xf = grad(torch.sum(lossB), x_f, retain_graph=True)[0]
@@ -334,7 +331,6 @@ class GradientHook(object):
 def edl_kl(
     α̃: torch.Tensor,
 ) -> torch.Tensor:
-
     # function definitions
     lnΓ = torch.lgamma
     ψ = torch.digamma  # derivative of lnΓ
@@ -351,13 +347,13 @@ def edl_loss(
     logits: torch.Tensor,
     target: torch.Tensor,
     epoch: int,
-    τ: int = 50,
-    λ_max: float = 0.25,
+    q: int = 10,
+    τ: int = 10,
+    λ_max: float = 1.0,
 ) -> torch.Tensor:
-
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
-    h = lambda x: torch.as_tensor(F.softplus(x))
+    h = lambda x: torch.as_tensor(F.relu(x))
     K = logits.size(-1)
 
     # logic
@@ -367,7 +363,8 @@ def edl_loss(
     S = Σ(α)
     p = α / S
 
-    λ = min(λ_max, epoch / τ)
+    # wait for q epochs, then anneal λ from 0 -> λ_max over τ epochs
+    λ = min(λ_max, max(epoch - q, 0) / τ)
     α̃ = y + (1 - y) * α
 
     L_err = Σ((y - p).pow(2))
@@ -380,10 +377,9 @@ def edl_loss(
 def edl_probs(
     logits: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
-    h = lambda x: torch.as_tensor(F.softplus(x))
+    h = lambda x: torch.as_tensor(F.relu(x))
     K = logits.size(-1)
 
     # logic
