@@ -1,8 +1,7 @@
 import glob
+
 import numpy as np
-import torch
-import torch.utils.data
-import torch.nn.functional as F
+from torch.utils.data import Dataset
 
 ### Species level mapping
 # 0 => Acinetobacter
@@ -37,7 +36,7 @@ species_mapping_dict = {
 }
 
 
-class bacteria_dataset(torch.utils.data.Dataset):
+class bacteria_dataset(Dataset):
     """
     A standard dataset class to get the bacteria dataset
 
@@ -45,6 +44,7 @@ class bacteria_dataset(torch.utils.data.Dataset):
         data_dir   : data directory which contains data hierarchy
         type_      : whether dataloader if train/ val
         transform  : torchvision.transforms
+        target_transform  : torchvision.transforms
         label_type : There are multiple types of classification in bacteria dataset
                      therefore, specify which label you need as follows:
                         | label_type              | Description
@@ -54,8 +54,6 @@ class bacteria_dataset(torch.utils.data.Dataset):
                         | 'gram_strain'           | Gram Positive (1) / Gram Negative (0)
                         | 'species'               | Species (0-4)
         balance_data    : If true, dataset will be balanced by the minimum class count (default: False)
-        expand_channels : If true, bacteria image will be copied to 3 channels  (default: False)
-                          (used for some predefined backbones which need RGB images)
     """
 
     def __init__(
@@ -63,21 +61,31 @@ class bacteria_dataset(torch.utils.data.Dataset):
         data_dir: str,
         type_="train",
         transform=None,
+        target_transform=None,
         label_type="class",
         balance_data=False,
-        expand_channels=False,
-        one_hot=False,
     ):
         self.transform = transform
+        self.target_transform = target_transform
         self.label_type = label_type
         self.type_ = type_
-        self.expand_channels = expand_channels
-        self.one_hot = one_hot
 
-        all_dirs = sorted(
-            glob.glob(f"{data_dir}/QPM_{type_}/*/*"),
+        train_dirs = sorted(
+            glob.glob(f"{data_dir}/QPM_train/*/*"),
             key=lambda x: int(x.split("/")[-1][:-4]),
         )
+        test_dirs = sorted(
+            glob.glob(f"{data_dir}/QPM_test/*/*"),
+            key=lambda x: int(x.split("/")[-1][:-4]),
+        )
+        if type_ == "train":
+            all_dirs = train_dirs
+        elif type_ == "test":
+            all_dirs = test_dirs
+        elif type_ == "ood":
+            all_dirs = train_dirs + test_dirs
+        else:
+            raise ValueError()
 
         print(f"Dataset type {type_} label type: {label_type}", end=" -> ")
 
@@ -86,7 +94,6 @@ class bacteria_dataset(torch.utils.data.Dataset):
         print(dirs)
 
         for i, x in enumerate(all_dirs):
-
             class_ = int(
                 x.split("/")[-2]
             )  # read strain class, encoded in folder name (x.split('/')[-2])
@@ -151,103 +158,14 @@ class bacteria_dataset(torch.utils.data.Dataset):
             raise Exception("Invalid label type")
 
     def __getitem__(self, idx):
-        data = np.load(self.img_dirs[idx], allow_pickle=True)
-        image = data[0]
+        image, metadata = np.load(self.img_dirs[idx], allow_pickle=True)
 
-        label = self.__getclass_(data[1], self.label_type)
+        label = self.__getclass_(metadata, self.label_type)
 
         if self.transform:
             image = self.transform(image)
 
-        if self.expand_channels:
-            image = image.expand(3, image.shape[1], image.shape[1])
+        if self.target_transform:
+            label = self.target_transform(label)
 
-        if self.one_hot:
-            target = torch.zeros(len(self.labels), dtype=torch.float32)
-            target[label] = 1
-        else:
-            target = label
-
-        return image, target
-
-
-# class bacteria_dataset_selective(torch.utils.data.Dataset):
-#     '''
-#         A standard dataset class to get the bacteria dataset
-
-#         Args:
-#             data_dir  : data directory which contains data hierarchy
-#             type_     : whether dataloader if train/ val
-#             transform : torchvision.transforms
-#     '''
-
-#     def __init__(self, data_dir='datasets/bacteria_np', type_= 'train', transform= None, label_type = "class", expand_channels = False, isolate_class = False):
-#         self.transform= transform
-#         self.label_type = label_type
-#         self.type_ = type_
-#         self.expand_channels = expand_channels
-
-#         #load dictionary which contains metadata of all bacteria images
-#         with open('/n/home12/ramith/FYP/bacteria-classification/saved_dictionary.pkl', 'rb') as f:
-#             global_dict = pickle.load(f)
-
-#         #get all image paths in 'train', 'val' or 'test' folder
-#         all_dirs = sorted(glob.glob(f'{data_dir}/{type_}/*/*'), key= lambda x: int(x.split('/')[-1][:-4]))
-
-#         print(f"Dataset type {type_}; dataloader will have label type: {label_type}", end = " -> ")
-#         print(f"All files = {len(all_dirs)}")
-
-
-#         img_dirs_filtered = []
-
-#         for i,x in enumerate(all_dirs):
-#             #data  = np.load(x, allow_pickle=True)[1]
-#             class_ = global_dict[x.split('/')[-1]]['class'] #always batching will be done along the same strain class
-#             #class_ = self.__getclass_(data, self.label_type)
-
-#             if(class_ == isolate_class): # only select the class needed
-#                 img_dirs_filtered.append(x)
-
-#         self.img_dirs = img_dirs_filtered
-
-#         print(f"Loaded {len(self.img_dirs)} images only from class {isolate_class}")
-
-
-#     def __len__(self):
-#         return len(self.img_dirs)
-
-#     def __getclass_(self, meta_data, label_type):
-#         if(label_type == 'class'):
-#             return meta_data[0]
-
-#         elif(label_type == 'antibiotic_resistant'):
-#             '''
-#                 Dataset wild_type equals to class 1
-#                 antibiotic_resistance is when class is => not wild_type
-#             '''
-#             antibiotic_resistance = int(not(meta_data[1]))
-#             return antibiotic_resistance
-
-#         elif(label_type == 'gram_strain'):
-#             return meta_data[2]
-
-#         elif(label_type == 'species'):
-#             return species_mapping_dict[meta_data[0]] #map class to species
-
-#         else:
-#             raise Exception("Invalid label type")
-
-#     def __getitem__(self, idx):
-#         data  = np.load(self.img_dirs[idx], allow_pickle=True)
-#         image = data[0]
-
-
-#         label = self.__getclass_(data[1], self.label_type)
-
-#         if self.transform:
-#             image = self.transform(image)
-
-#         if(self.expand_channels):
-#             image = image.expand(3, image.shape[1], image.shape[1])
-
-#         return image, label
+        return image, label

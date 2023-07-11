@@ -12,7 +12,6 @@ def get_model_optimizer_and_step(
 
     # load requested module, if available
     assert config.image_chw
-    assert config.dataset_info
 
     try:
         module = importlib.__import__(

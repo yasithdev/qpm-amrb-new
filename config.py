@@ -38,12 +38,11 @@ class Config:
         optim_m: float,
         train_epochs: int,
         exc_resume: bool,
-        dataset_info: Optional[Tuple[set, set, list]],
         image_chw: Optional[Tuple[int, int, int]],
         train_loader: Optional[DataLoader],
         test_loader: Optional[DataLoader],
         ood_loader: Optional[DataLoader],
-        labels: Optional[List],
+        labels: Optional[List[str]],
         device: str,
         tqdm_args: dict,
     ) -> None:
@@ -62,11 +61,11 @@ class Config:
         self.optim_m = optim_m
         self.train_epochs = train_epochs
         self.exc_resume = exc_resume
-        self.dataset_info = dataset_info
         self.train_loader = train_loader
         self.test_loader = test_loader
         self.ood_loader = ood_loader
         self.ood = [] if cv_mode == "k-fold" else [cv_k]
+        self.labels = labels
         self.device = device
         self.tqdm_args = tqdm_args
 
@@ -87,13 +86,21 @@ class Config:
             shutil.rmtree(self.experiment_path, ignore_errors=True)
         os.makedirs(self.experiment_path, exist_ok=True)
 
+    def get_ind_labels(self) -> List[str]:
+        assert self.labels
+        ind_labels = [x for i, x in self.labels if i not in self.ood]
+        return ind_labels
+
+    def get_ood_labels(self) -> List[str]:
+        assert self.labels
+        ood_labels = [x for i, x in self.labels if i in self.ood]
+        return ood_labels
+
     def print_labels(
         self,
     ) -> None:
-        assert self.dataset_info is not None
-        ind_targets, ood_targets = self.dataset_info[:2]
-        logging.info(f"Labels (train, test): {ind_targets}")
-        logging.info(f"Labels (ood): {ood_targets}")
+        logging.info(f"Labels (train, test): {self.get_ind_labels()}")
+        logging.info(f"Labels (ood): {self.get_ood_labels()}")
 
 
 def getenv(key: str, default="") -> str:
@@ -152,7 +159,6 @@ def load_config() -> Config:
         train_epochs=train_epochs,
         exc_resume=exc_resume,
         # derived params
-        dataset_info=None,
         image_chw=None,
         train_loader=None,
         test_loader=None,

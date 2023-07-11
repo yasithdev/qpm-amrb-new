@@ -15,11 +15,9 @@ from .resnet import get_decoder, get_encoder
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
-
-    assert config.dataset_info is not None
     assert config.image_chw is not None
 
-    ind_targets, ood_targets, targets = config.dataset_info
+    ind_targets = config.get_ind_labels()
     num_labels = len(ind_targets)
 
     # (B, C, H, W) -> (B, D, 1, 1)
@@ -59,8 +57,7 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
-
-    assert config.image_chw
+    assert config.image_chw is not None
 
     B = config.batch_size
     D = config.manifold_d
@@ -75,21 +72,25 @@ def step_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
+    prefix: str,
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-
     # pre-step
-    if optim:
+    if prefix == "TRN":
         data_loader = config.train_loader
         assert data_loader
         model.train()
-        prefix = "TRN"
-    else:
+    elif prefix == "TST":
         data_loader = config.test_loader
         assert data_loader
         model.eval()
-        prefix = "TST"
+    elif prefix == "OOD":
+        data_loader = config.ood_loader
+        assert data_loader
+        model.eval()
+    else:
+        raise ValueError()
 
     size = len(data_loader.dataset)  # type: ignore
     sum_loss = 0
@@ -111,7 +112,6 @@ def step_model(
         samples = []
 
         for x, y in iterable:
-
             # cast x and y to float
             x = x.float().to(config.device)
             y = y.float().to(config.device)
@@ -148,7 +148,8 @@ def step_model(
             L_minibatch = (L_y_z + l * L_x_z).mean()
 
             # backward pass
-            if optim:
+            if prefix == "TRN":
+                assert optim is not None
                 (optim_gd,) = optim
                 optim_gd.zero_grad()
                 L_minibatch.backward()

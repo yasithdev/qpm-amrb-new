@@ -5,17 +5,13 @@ import numpy as np
 import torch
 
 from config import Config, load_config
-from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+from datasets import init_labels, init_shape, init_dataloaders
 from vis import gen_umap, plot_samples
 
 
 def main(config: Config):
-
     assert config.train_loader
     assert config.test_loader
-    assert config.dataset_info is not None
-
-    ind_targets, ood_targets, targets = config.dataset_info
 
     x_trn = []
     y_trn = []
@@ -55,7 +51,7 @@ def main(config: Config):
         x=x_trn,
         y=y_trn,
         out_path=os.path.join(config.experiment_path, f"preview.trn.pdf"),
-        labels=sorted(ind_targets),
+        labels=config.get_ind_labels(),
     )
 
     logging.info("Plotting testing samples")
@@ -63,7 +59,7 @@ def main(config: Config):
         x=x_tst,
         y=y_tst,
         out_path=os.path.join(config.experiment_path, f"preview.tst.pdf"),
-        labels=sorted(ind_targets),
+        labels=config.get_ind_labels(),
     )
 
     # ----------------------------------
@@ -75,7 +71,7 @@ def main(config: Config):
         y=y_trn.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.trn.png"),
         title=f"UMAP: {n_trn} Training Samples",
-        labels=sorted(ind_targets),
+        labels=config.get_ind_labels(),
     )
 
     logging.info("Plotting UMAP projection of testing samples")
@@ -84,38 +80,22 @@ def main(config: Config):
         y=y_tst.astype(np.int32).argmax(-1),
         out_path=os.path.join(config.experiment_path, f"umap.tst.png"),
         title=f"UMAP: {n_tst} Testing Samples)",
-        labels=sorted(ind_targets),
+        labels=config.get_ind_labels(),
     )
 
 
 if __name__ == "__main__":
-
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.random.manual_seed(42)
 
     config = load_config()
 
-    # get dataset info
-    config.dataset_info = get_dataset_info(
-        dataset_name=config.dataset_name,
-        data_root=config.data_dir,
-        cv_mode=config.cv_mode,
-    )
-    # get image dims
-    config.image_chw = get_dataset_chw(
-        dataset_name=config.dataset_name,
-    )
-    # initialize data loaders
-    config.train_loader, config.test_loader, config.ood_loader = get_dataset_loaders(
-        dataset_name=config.dataset_name,
-        batch_size_train=config.batch_size,
-        batch_size_test=config.batch_size,
-        data_root=config.data_dir,
-        cv_k=config.cv_k,
-        cv_folds=config.cv_folds,
-        cv_mode=config.cv_mode,
-    )
+    # initialize data attributes and loaders
+    init_labels(config)
+    init_shape(config)
+    init_dataloaders(config)
+
     config.print_labels()
 
     main(config)

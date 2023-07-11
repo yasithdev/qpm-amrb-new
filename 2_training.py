@@ -1,17 +1,16 @@
 import logging
 import os
+from typing import Dict, Literal
 
-from typing import Literal, Dict
 import numpy as np
 import torch
-from tqdm import tqdm
 from sklearn import metrics
+from tqdm import tqdm
 
 from config import Config, load_config
+from datasets import init_dataloaders, init_labels, init_shape
 from models import get_model_optimizer_and_step
-from models.common import load_saved_state, save_state, gen_epoch_acc
-
-from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+from models.common import gen_epoch_acc, load_saved_state, save_state
 
 
 def gen_log_metrics(
@@ -20,31 +19,32 @@ def gen_log_metrics(
     config: Config,
     step: int,
 ) -> dict:
+    assert config.ood
 
     data = {}
-    assert config.dataset_info is not None
-    ind_targets, ood_targets, targets = config.dataset_info
-    mode = config.cv_mode
+    ind_labels = config.get_ind_labels()
 
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
-    K = len(ind_targets)
+    K = len(ind_labels)
     IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
     y_ucty = stats.get("y_ucty", zero_ucty)
     samples = stats["samples"]
 
     # log targets
-    inputs = [IMG(x, caption=targets[y]) for x, y, _, _ in samples]
+    inputs = [IMG(x, caption=ind_labels[y]) for x, y, _, _ in samples]
     data[f"{prefix}/inputs"] = inputs
 
     # log estimates
-    reconstructions = [IMG(xz, caption=targets[yz]) for _, _, xz, yz in samples]
+    reconstructions = [IMG(xz, caption=ind_labels[yz]) for _, _, xz, yz in samples]
     data[f"{prefix}/reconstructions"] = reconstructions
 
     # log top-k acc and confusion matrix
-    acc1, acc2, acc3 = gen_epoch_acc(y_pred.tolist(), y_true.tolist(), np.arange(K).tolist())
+    acc1, acc2, acc3 = gen_epoch_acc(
+        y_pred.tolist(), y_true.tolist(), np.arange(K).tolist()
+    )
     tqdm.write(
         f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
     )
@@ -52,20 +52,20 @@ def gen_log_metrics(
     data[f"{prefix}/acc2"] = acc2
     data[f"{prefix}/acc3"] = acc3
     data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-        probs=y_pred.tolist(),
-        y_true=y_true.tolist(),
-        class_names=targets,
+        probs=y_pred,  # type: ignore
+        y_true=y_true,  # type: ignore
+        class_names=ind_labels,
         title=f"Confusion Matrix ({prefix})",
     )
     data[f"{prefix}/roc"] = wandb.plot.roc_curve(
         y_true=y_true,
         y_probas=y_pred,
-        labels=targets,
+        labels=ind_labels,
     )
     data[f"{prefix}/pr"] = wandb.plot.pr_curve(
         y_true=y_true,
         y_probas=y_pred,
-        labels=targets,
+        labels=ind_labels,
     )
     done_keys = ["y_true", "y_pred", "samples"]
     for key in set(stats).difference(done_keys):
@@ -109,7 +109,6 @@ def agg_log_metrics(
 
 
 def main(config: Config):
-
     assert config.train_loader
     assert config.test_loader
 
@@ -131,7 +130,6 @@ def main(config: Config):
     artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
     for epoch in range(config.train_epochs + 1):
-
         epoch_stats: dict = {}
 
         # training loop
@@ -180,35 +178,22 @@ def main(config: Config):
 
 
 if __name__ == "__main__":
-
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.manual_seed(42)
 
     config = load_config()
 
-    # get dataset info
-    config.dataset_info = get_dataset_info(
-        dataset_name=config.dataset_name,
-        data_root=config.data_dir,
-        ood=config.ood,
-    )
-    # get image dims
-    config.image_chw = get_dataset_chw(
-        dataset_name=config.dataset_name,
-    )
-    # initialize data loaders
-    config.train_loader, config.test_loader, config.ood_loader = get_dataset_loaders(
-        dataset_name=config.dataset_name,
-        batch_size_train=config.batch_size,
-        batch_size_test=config.batch_size,
-        data_root=config.data_dir,
-        ood=config.ood,
-    )
+    # initialize data attributes and loaders
+    init_labels(config)
+    init_shape(config)
+    init_dataloaders(config)
+
     config.print_labels()
 
-    import wandb
     import wandb.plot
+
+    import wandb
 
     wandb.init(
         project="ood_flows",

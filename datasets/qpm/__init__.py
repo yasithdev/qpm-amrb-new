@@ -1,15 +1,16 @@
-from typing import Optional, Tuple
+from typing import List, Tuple
 
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import Dataset
+from torchvision.transforms import Compose, ToTensor
 
-from .dataloaders import get_bacteria_dataloaders
+from ..transforms import create_target_transform
+from .qpm import bacteria_dataset
 
 
 def get_targets(
     target_label: str,
-    ood: list = [],
-    **kwargs,
-) -> Tuple[set, set, list]:
+) -> List[str]:
     strains = [
         "Acinetobacter",
         "B_subtilis",
@@ -46,31 +47,42 @@ def get_targets(
         targets = strains
     else:
         raise NotImplementedError()
-    ood_targets = set([targets[i] for i in ood])
-    ind_targets = set(targets).difference(ood_targets)
-    targets = sorted(ind_targets) + sorted(ood_targets)
-    return ind_targets, ood_targets, targets
+    return targets
 
 
-def create_data_loaders(
-    target_label: str,
-    batch_size_train: int,
-    batch_size_test: int,
-    data_root: str,
-    ood: list,
-    **kwargs,
-) -> Tuple[DataLoader, DataLoader, Optional[DataLoader]]:
-    train_loader, test_loader, ood_loader = get_bacteria_dataloaders(
-        label_type=target_label,
-        data_dir=data_root,
-        train_batch_size=batch_size_train,
-        test_batch_size=batch_size_test,
-        expand_channels=False,
-        one_hot=False,
-        ood=ood,
-    )
-    return train_loader, test_loader, ood_loader
-
-
-def get_shape():
+def get_shape() -> Tuple[int, int, int]:
     return (3, 224, 224)
+
+
+def get_datasets(
+    target_label: str,
+    data_root: str,
+    ood: List[int],
+) -> Tuple[Dataset, Dataset]:
+    transform = Compose(
+        [
+            ToTensor(),
+            lambda x: torch.as_tensor(x).expand(3, -1, -1),
+            transforms.Resize((224, 224), antialias=True),  # type: ignore
+        ]
+    )
+    targets = get_targets(target_label=target_label)
+    target_transform = create_target_transform(targets, ood)
+
+    trainset = bacteria_dataset(
+        data_dir=data_root,
+        type_="train",
+        transform=transform,
+        target_transform=target_transform,
+        label_type=target_label,
+        balance_data=False,
+    )
+    testset = bacteria_dataset(
+        data_dir=data_root,
+        type_="test",
+        transform=transform,
+        target_transform=target_transform,
+        label_type=target_label,
+        balance_data=False,
+    )
+    return trainset, testset

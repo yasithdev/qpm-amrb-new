@@ -73,11 +73,11 @@ umapz-amrb2_species-kfold-%:
 
 # == [ACTUAL] AMRB2_species leaveout ==
 umapx-amrb2_species-leaveout:
-	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=4                ${RUN_ARGS} python -u 1_umap_x.py
+	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=5                ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_species-leaveout-%:
-	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=5  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_species-leaveout-%:
-	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=4  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
+	DATASET_NAME=AMRB2_species.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=5  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
 
 # == [ACTUAL] AMRB2_strain kfold ==
 umapx-amrb2_strain-kfold:
@@ -89,11 +89,11 @@ umapz-amrb2_strain-kfold-%:
 
 # == [ACTUAL] AMRB2_strain leaveout ==
 umapx-amrb2_strain-leaveout:
-	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=19                ${RUN_ARGS} python -u 1_umap_x.py
+	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=21                ${RUN_ARGS} python -u 1_umap_x.py
 train-amrb2_strain-leaveout-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
+	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=512 CV_MODE=leave-out CV_FOLDS=21  MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 umapz-amrb2_strain-leaveout-%:
-	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=19  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
+	DATASET_NAME=AMRB2_strain.$${CV_K} MANIFOLD_D=50 CV_MODE=leave-out CV_FOLDS=21  MODEL_NAME=$* ${RUN_ARGS} python -u 3_umap_z.py
 
 # == [ACTUAL] QPM_species kfold ==
 umapx-qpm_species-kfold:
