@@ -1,4 +1,4 @@
-from torch.utils.data import ChainDataset, DataLoader, Dataset, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 
 from config import Config
 
@@ -59,31 +59,35 @@ def __make_dataloaders(
     testset: Dataset,
     config: Config,
 ):
+    ind_labels = config.get_ind_labels()
+    ood_labels = config.get_ood_labels()
+    permuted_idx = ind_labels + ood_labels
+    bsize = config.batch_size
+
     print("Performing ind/ood split")
-    train_ood_idx = []
-    train_ind_idx = []
+    trn_od_idx = []
+    trn_id_idx = []
     for idx, (_, target) in enumerate(trainset):  # type: ignore
-        if target in config.ood:
-            train_ood_idx.append(idx)
+        if permuted_idx[target] in ood_labels:
+            trn_od_idx.append(idx)
         else:
-            train_ind_idx.append(idx)
-    test_ood_idx = []
-    test_ind_idx = []
+            trn_id_idx.append(idx)
+    tst_od_idx = []
+    tst_id_idx = []
     for idx, (_, target) in enumerate(testset):  # type: ignore
-        if target in config.ood:
-            test_ood_idx.append(idx)
+        if permuted_idx[target] in ood_labels:
+            tst_od_idx.append(idx)
         else:
-            test_ind_idx.append(idx)
+            tst_id_idx.append(idx)
     print("Performed ind/ood split")
 
-    train_oodset = Subset(trainset, train_ood_idx)
-    trainset = Subset(trainset, train_ind_idx)
-    test_oodset = Subset(testset, test_ood_idx)
-    testset = Subset(testset, test_ind_idx)
-    oodset = ChainDataset([train_oodset, test_oodset])
+    trn = Subset(trainset, trn_id_idx)
+    tst = Subset(testset, tst_id_idx)
+    ood = ConcatDataset([Subset(trainset, trn_od_idx), Subset(testset, tst_od_idx)])
 
-    train_loader = DataLoader(trainset, batch_size=config.batch_size, shuffle=True)
-    test_loader = DataLoader(testset, batch_size=config.batch_size)
-    ood_loader = DataLoader(oodset, batch_size=config.batch_size)
+    trn_loader = DataLoader(trn, bsize, shuffle=True, drop_last=True)
+    tst_loader = DataLoader(tst, bsize, drop_last=True)
+    ood_loader = DataLoader(ood, bsize, drop_last=True)
 
-    return train_loader, test_loader, ood_loader
+    print(len(trn_loader) * bsize, len(tst_loader) * bsize, len(ood_loader) * bsize)
+    return trn_loader, tst_loader, ood_loader

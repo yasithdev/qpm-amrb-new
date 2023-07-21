@@ -171,22 +171,22 @@ def step_model(
     **kwargs,
 ) -> dict:
     # pre-step
-    if prefix == "TRN":
+    if prefix == "train":
         data_loader = config.train_loader
-        assert data_loader
+        assert data_loader is not None
         model.train()
-    elif prefix == "TST":
+    elif prefix == "test/ind":
         data_loader = config.test_loader
-        assert data_loader
+        assert data_loader is not None
         model.eval()
-    elif prefix == "OOD":
+    elif prefix == "test/ood":
         data_loader = config.ood_loader
-        assert data_loader
+        assert data_loader is not None
         model.eval()
     else:
         raise ValueError()
 
-    size = len(data_loader.dataset)  # type: ignore
+    size = 0
     sum_loss = 0
 
     # step
@@ -224,7 +224,7 @@ def step_model(
         for x, y in iterable:
             # cast x and y to float
             x = x.float().to(config.device)
-            y = y.float().to(config.device)
+            y = y.long().to(config.device)
             B = x.size(0)
 
             # x -> (u x v) -> u -> z
@@ -252,7 +252,7 @@ def step_model(
             L_y_z = edl_loss(y_z, y, epoch)
 
             # accumulate predictions
-            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_true.extend(y.detach().cpu().numpy())
             y_pred.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
@@ -269,7 +269,7 @@ def step_model(
             L_minibatch = (L_z + (ß * L_v) + L_x + L_y_z).mean()  # Σ_n[Σ_i(L_{n,i})]/N
 
             # backward pass (if optimizer is given)
-            if prefix == "TRN":
+            if prefix == "train":
                 assert optim is not None
                 (optim_gd,) = optim
                 optim_gd.zero_grad()
@@ -277,7 +277,8 @@ def step_model(
                 optim_gd.step()
 
             # accumulate sum loss
-            sum_loss += L_minibatch.item() * config.batch_size
+            sum_loss += L_minibatch.item() * B
+            size += B
 
             # logging
             log_stats = {
@@ -290,7 +291,7 @@ def step_model(
             iterable.set_postfix(log_stats)
 
     # post-step
-    avg_loss = sum_loss / size
+    avg_loss = sum_loss / max(size, 1)
 
     return {
         "loss": avg_loss,

@@ -15,18 +15,20 @@ from models.common import gen_epoch_acc, load_saved_state, save_state
 
 def gen_log_metrics(
     stats: Dict[str, np.ndarray],
-    prefix: Literal["train", "test", "ood"],
+    prefix: Literal["train", "test/ind", "test/ood"],
     config: Config,
     step: int,
 ) -> dict:
-    assert config.ood
-
     data = {}
     ind_labels = config.get_ind_labels()
 
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
+
+    if B == 0:
+        return data
+
     K = len(ind_labels)
     IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
@@ -42,31 +44,34 @@ def gen_log_metrics(
     data[f"{prefix}/reconstructions"] = reconstructions
 
     # log top-k acc and confusion matrix
-    acc1, acc2, acc3 = gen_epoch_acc(
-        y_pred.tolist(), y_true.tolist(), np.arange(K).tolist()
-    )
-    tqdm.write(
-        f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
-    )
-    data[f"{prefix}/acc1"] = acc1
-    data[f"{prefix}/acc2"] = acc2
-    data[f"{prefix}/acc3"] = acc3
-    data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-        probs=y_pred,  # type: ignore
-        y_true=y_true,  # type: ignore
-        class_names=ind_labels,
-        title=f"Confusion Matrix ({prefix})",
-    )
-    data[f"{prefix}/roc"] = wandb.plot.roc_curve(
-        y_true=y_true,
-        y_probas=y_pred,
-        labels=ind_labels,
-    )
-    data[f"{prefix}/pr"] = wandb.plot.pr_curve(
-        y_true=y_true,
-        y_probas=y_pred,
-        labels=ind_labels,
-    )
+    if prefix == "train" or prefix == "test/ind":
+        acc1, acc2, acc3 = gen_epoch_acc(
+            y_pred=y_pred.tolist(),
+            y_true=y_true.tolist(),
+            labels=np.arange(K).tolist(),
+        )
+        tqdm.write(
+            f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
+        )
+        data[f"{prefix}/acc1"] = acc1
+        data[f"{prefix}/acc2"] = acc2
+        data[f"{prefix}/acc3"] = acc3
+        data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
+            probs=y_pred,  # type: ignore
+            y_true=y_true,  # type: ignore
+            class_names=ind_labels,
+            title=f"Confusion Matrix ({prefix})",
+        )
+        data[f"{prefix}/roc"] = wandb.plot.roc_curve(
+            y_true=y_true,
+            y_probas=y_pred,
+            labels=ind_labels,
+        )
+        data[f"{prefix}/pr"] = wandb.plot.pr_curve(
+            y_true=y_true,
+            y_probas=y_pred,
+            labels=ind_labels,
+        )
     done_keys = ["y_true", "y_pred", "samples"]
     for key in set(stats).difference(done_keys):
         val = stats[key]
@@ -93,14 +98,14 @@ def agg_log_metrics(
     log: dict,
 ) -> None:
     prefix = "ood_detection"
-    if "train/v_norm" in log and "test/v_norm" in log:
-        trn_v_norm = log.pop("train/v_norm")
-        tst_v_norm = log.pop("test/v_norm")
-        B_InD = trn_v_norm.shape[0]
-        B_OoD = tst_v_norm.shape[0]
+    if "test/ind/v_norm" in log and "test/ood/v_norm" in log:
+        ind_v_norm = log.pop("test/ind/v_norm")
+        ood_v_norm = log.pop("test/ood/v_norm")
+        B_InD = ind_v_norm.shape[0]
+        B_OoD = ood_v_norm.shape[0]
         # binary classification labels for ID and OOD
         LABELS = ["InD", "OoD"]
-        values = np.concatenate([trn_v_norm, tst_v_norm], axis=0)
+        values = np.concatenate([ind_v_norm, ood_v_norm], axis=0)
         values_2d = np.stack([1.0 - values, values], axis=-1)
         target = np.concatenate([np.zeros(B_InD), np.ones(B_OoD)], axis=0)
         log[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
@@ -135,6 +140,7 @@ def main(config: Config):
         # training loop
         if epoch > 0:
             trn_stats = step(
+                prefix="train",
                 model=model,
                 epoch=epoch,
                 config=config,
@@ -145,11 +151,22 @@ def main(config: Config):
 
         # testing loop
         tst_stats = step(
+            prefix="test/ind",
             model=model,
             epoch=epoch,
             config=config,
         )
-        log = gen_log_metrics(tst_stats, "test", config, epoch)
+        log = gen_log_metrics(tst_stats, "test/ind", config, epoch)
+        epoch_stats.update(log)
+
+        # testing loop
+        ood_stats = step(
+            prefix="test/ood",
+            model=model,
+            epoch=epoch,
+            config=config,
+        )
+        log = gen_log_metrics(ood_stats, "test/ood", config, epoch)
         epoch_stats.update(log)
 
         agg_log_metrics(epoch_stats)

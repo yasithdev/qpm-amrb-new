@@ -354,14 +354,24 @@ def edl_loss(
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
     h = lambda x: torch.as_tensor(F.relu(x))
-    K = logits.size(-1)
+    (B, K) = logits.size()
 
     # logic
-    y = target
     e = h(logits)
     α = e + 1
     S = Σ(α)
     p = α / S
+
+    # make y one-hot
+    if target.dim() == 2:
+        assert (B, K) == target.size()
+        y = target.float()
+    else:
+        assert B == target.size(0)
+        y = logits.new_zeros(B, K)
+        idx_ind = (target < K).nonzero()
+        if len(idx_ind) > 0:
+            y[idx_ind] = F.one_hot(target[idx_ind], K).float()
 
     # wait for q epochs, then anneal λ from 0 -> λ_max over τ epochs
     λ = min(λ_max, max(epoch - q, 0) / τ)
