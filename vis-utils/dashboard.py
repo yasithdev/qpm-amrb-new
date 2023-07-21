@@ -2,11 +2,17 @@ import torch
 import sys
 sys.path.append("../")
 from config import *
+import numpy as np
+import cv2
 import streamlit as st
+import plotly.express as px
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 from models import get_model_optimizer_and_step
 from models.common import load_saved_state
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
-import matplotlib.pyplot as plt
 from models.common import (
     Functional,
     edl_loss,
@@ -22,46 +28,64 @@ os.environ["MANIFOLD_D"] = "50"
 os.environ["CV_MODE"] = "k-fold"
 os.environ["CV_FOLDS"] = "10"
 os.environ["DATASET_NAME"] = "AMRB2_species.4"
+st.set_page_config(layout="wide")
 
-
-
-config = load_config()
-config.image_chw = get_dataset_chw(
-        dataset_name=config.dataset_name,
-)
-
-config.dataset_info = get_dataset_info(
-    dataset_name=config.dataset_name,
-    data_root=config.data_dir,
-    cv_mode=config.cv_mode,
-)
-
-train_loader, test_loader = get_dataset_loaders(
-        dataset_name = config.dataset_name,
-        batch_size_train = 32,
-        batch_size_test = 32,
-        data_root = "/n/holyscratch01/wadduwage_lab/yasith/datasets",
-        cv_k = config.cv_k,
-        cv_folds = config.cv_folds,
-        cv_mode = config.cv_mode,
+@st.cache_data
+def load_stuff(PATH):
+    config = load_config()
+    config.image_chw = get_dataset_chw(
+            dataset_name=config.dataset_name,
     )
 
-PATH = "/n/home12/ramith/experiments/ood_flows/AMRB2_species/k-fold-N10-K4-M50_1-17-53.097923/rescaps_model_e100.pth"
+    config.dataset_info = get_dataset_info(
+        dataset_name=config.dataset_name,
+        data_root=config.data_dir,
+        cv_mode=config.cv_mode,
+    )
 
-device = torch.device('cpu')
-weights = torch.load(PATH, map_location=device)
+    train_loader, test_loader = get_dataset_loaders(
+            dataset_name = config.dataset_name,
+            batch_size_train = 32,
+            batch_size_test = 32,
+            data_root = "/Users/ramith_1/Datasets/",
+            cv_k = config.cv_k,
+            cv_folds = config.cv_folds,
+            cv_mode = config.cv_mode,
+        )
 
-model, _, _  = get_model_optimizer_and_step(config)
-model.load_state_dict(weights)
-model.to(device)
 
-encoder = model["encoder"]
-classifier = model["classifier"]
-decoder = model["decoder"]
+    device = torch.device('cpu')
+    weights = torch.load(PATH, map_location=device)
 
-st.sidebar.header("Settings")
-mode = st.sidebar.selectbox('Choose mode', ['train', 'test'])
+    model, _, _  = get_model_optimizer_and_step(config)
+    model.load_state_dict(weights)
+    model.to(device)
+
+    encoder = model["encoder"]
+    classifier = model["classifier"]
+    decoder = model["decoder"]
+    
+    return encoder, classifier, decoder, train_loader, test_loader
+
+np.random.seed(42)
+torch.random.manual_seed(42)
+    
+base_dir = "../experiments/ood_flows/AMRB2_species/"
+models = os.listdir(base_dir)
+models = [model for model in models if model != ".ipynb_checkpoints"]
+
+model_name = st.sidebar.selectbox('Choose model', models)
+
+encoder, classifier, decoder, train_loader, test_loader = load_stuff(base_dir + model_name)
+
+st.sidebar.header("CapsNet Latent Dimension Visualizer")
+
+mode = st.sidebar.selectbox('Choose data split', ['train', 'test'])
+n_batches = st.sidebar.slider('Number of batches', 0, 400, 150)
 filter_only_correct = st.sidebar.checkbox('Filter only correct predictions')
+st.sidebar.markdown("""---""")
+st.sidebar.subheader(":blue[Moving] in the latent space")
+pos = st.sidebar.slider('Position', 0, 49, 11)
 
 if mode == 'train':
     loader = train_loader
@@ -93,9 +117,7 @@ for idx, (x,y) in enumerate(loader):
         tensors.append(target_prototypes)
         ys.append(y)
             
-        
-    
-    if(idx > 2):
+    if(idx == n_batches):
         break
     
 all_target_prototypes = torch.cat(tensors, dim=0)
@@ -103,52 +125,630 @@ all_y = torch.cat(ys, dim = 0 )
 
 class_means = []
 
-# for i in range(0,4):
-#     mean_vector = all_target_prototypes[all_y.argmax(dim = 1) == i].mean(axis = 0)
+class_names = ["Acinetobacter", "E. Coli", "K. pneumoniae", "S. aureus"]
+fig = make_subplots(rows=2, cols=4, subplot_titles=[f'{name} Heatmap' for name in class_names] + [f'{name} Variance' for name in class_names])
+max_variance = 0
+
+for i in range(0,4):
+    mean_vector = all_target_prototypes[all_y.argmax(dim = 1) == i].mean(axis = 0)
+        
+    class_means.append(mean_vector)
     
-#     class_means.append(mean_vector)
+    img = all_target_prototypes[all_y.argmax(dim = 1) == i].detach().cpu()
+    img = img.reshape(img.shape[0],img.shape[1])
+        
+    # Add the image as a subplot
+    fig.add_trace(
+        go.Heatmap(z=img, zmin=-1, zmax=1, showscale=False),
+        row=1, col=i+1
+    )
     
-#     plt.figure(figsize=(5,5))
-#     plt.imshow(all_target_prototypes[all_y.argmax(dim = 1) == i].detach().cpu())
-#     plt.savefig(f"mode_{mode}_class_{i}_only_correct_{filter_only_correct}.png")
+    ## calculate the variance of the class
+    pos_intraclass_variance = torch.var(img, dim = 0).reshape(50,1)
+    if(pos_intraclass_variance.max() > max_variance):
+        max_variance = pos_intraclass_variance.max()
     
-#     plt.colorbar()
+    # Add variance as a subplot
+    fig.add_trace(
+        go.Bar(y=pos_intraclass_variance.squeeze(), name=f"Variance of class {i}"),
+        row=2, col=i+1
+    )
     
-# class_reps = torch.cat(class_means, dim=1).T
+    
+fig.update_layout(height=600)
+fig.update_yaxes(range=[0, max_variance], row=2)
 
-# plt.figure(figsize=(10,10))
-# plt.imshow(class_reps)
-# plt.savefig("class_reps.png")
-
-# pos_variance = torch.var(class_reps, dim = 0).reshape(50,1)
-
-# plt.figure(figsize=(24,4))
-# plt.bar(range(pos_variance.shape[0]),pos_variance)
-
-# plt.xlabel('Position')
-# plt.ylabel('Variance')
-# plt.savefig("varience_plot.png")
-
-with st.expander("Plots"):  # Collapsible section for plots
-
-    for i in range(0,4):
-        mean_vector = all_target_prototypes[all_y.argmax(dim = 1) == i].mean(axis = 0)
-        class_means.append(mean_vector)
-        fig = plt.figure(figsize=(3,3))
-        plt.imshow(all_target_prototypes[all_y.argmax(dim = 1) == i].detach().cpu())
-        st.pyplot(fig)  # Here we use Streamlit's function to show the plot
+st.plotly_chart(fig, use_container_width=True)
 
 
+
+with st.expander("Inter-Class Variance w.r.t Position (using :red[mean] vectors)"):
+    # Calculate the variance between classes
+    st.title('Inter-Class Variance w.r.t Position (using :red[mean] vectors)')
+    
     class_reps = torch.cat(class_means, dim=1).T
-
-    fig2 = plt.figure(figsize=(10,10))
-    plt.imshow(class_reps)
-    st.pyplot(fig2)
-
     pos_variance = torch.var(class_reps, dim = 0).reshape(50,1)
+    pos_variance_np = pos_variance.numpy()
 
-    fig3 = plt.figure(figsize=(24,4))
-    plt.bar(range(pos_variance.shape[0]),pos_variance)
-    plt.xlabel('Position')
-    plt.ylabel('Variance')
-    st.pyplot(fig3)
+    fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
+                            y=pos_variance_np.flatten(),
+                            name='Variance')])  # use flatten to convert 2D array to 1D
+
+    fig3.update_layout(title_text='Inter-Class Variance w.r.t Position',
+                    xaxis_title='Position',
+                    yaxis_title='Variance')
+
+    st.plotly_chart(fig3,  use_container_width=True)
+
+
+    fig2 = px.imshow(class_reps, title="Class Mean Vectors")
+    st.plotly_chart(fig2, use_container_width=True)
+
+
+
+with st.expander("Inter-Class Variance w.r.t Position (using :blue[all] vectors)"):
+    
+    st.title('Inter-Class Variance w.r.t Position (using :blue[all] vectors)')
+    pos_variance = torch.var(all_target_prototypes, dim = 0).reshape(50,1)
+    pos_variance_np = pos_variance.numpy()
+    
+    st.write(torch.std(all_target_prototypes, dim = 0).reshape(50,1))
+    st.write(torch.std(all_target_prototypes, dim = 0).reshape(50,1).max())
+
+    fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
+                            y=pos_variance_np.flatten(),
+                            name='Variance')])  # use flatten to convert 2D array to 1D
+
+    fig3.update_layout(title_text='Inter-Class Variance w.r.t Position',
+                    xaxis_title='Position',
+                    yaxis_title='Variance')
+
+    st.plotly_chart(fig3,  use_container_width=True)
+    
+with st.expander("Inter-Class :green[pair] variance w.r.t. position"):
+    
+    st.title('Inter-Class :green[pair] variance w.r.t. position')
+    selected_classes = st.multiselect('Select classes', [0,1,2,3], default=[1,3])
+    
+    pair_tensors = []
+
+    for idx, (x,y) in enumerate(loader):
+
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        
+        pos_to_extract = y.argmax(dim = 1).unsqueeze(-1).unsqueeze(-1).expand(-1, 50, -1)
+        
+        target_prototypes = z_x.gather(dim = 2, index = pos_to_extract).detach().cpu()
+        
+        
+        #append
+        
+        for i in selected_classes:
+            
+            #select only the target prototypes of the selected class
+            selected_indices = y.argmax(dim = 1) == i
+            
+            considered = target_prototypes[selected_indices]
+            
+            #get the corresponding predictions of the selected class
+            pred_indices = pY.argmax(dim = 1)[selected_indices]
+            
+            if(filter_only_correct):
+                #filter only the correct predictions
+                correct_indices = pred_indices == y.argmax(dim = 1)[selected_indices]
+                pair_tensors.append(considered[correct_indices])
+            else:
+                pair_tensors.append(considered)
+                
+        if(idx == n_batches):
+            break
+    
+    pair_tensors = torch.cat(pair_tensors, dim=0)
+    
+    pos_variance = torch.var(pair_tensors, dim = 0).reshape(50,1)
+    pos_variance_np = pos_variance.numpy()
+    
+    st.write(torch.std(pair_tensors, dim = 0).reshape(50,1))
+    st.write(torch.std(pair_tensors, dim = 0).reshape(50,1).max())
+    
+    st.write("Position-wise mean")
+    st.write(torch.mean(pair_tensors, dim = 0).reshape(50,1))
+
+    fig3 = go.Figure([go.Bar(x=list(range(pos_variance_np.shape[0])), 
+                            y=pos_variance_np.flatten(),
+                            name='Variance')])  # use flatten to convert 2D array to 1D
+
+    fig3.update_layout(title_text='Inter-Class Variance w.r.t Position',
+                    xaxis_title='Position',
+                    yaxis_title='Variance')
+
+    st.plotly_chart(fig3,  use_container_width=True)
+   
+ 
+with st.expander(":blue[Move] from one bacteria to another (one position)"):
+    st.header(":blue[Move] from one bacteria to another")
+    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3], index = 1)
+    
+    rem_bac = [0,1,2,3]
+    rem_bac.remove(b_1)
+    b_2 = st.selectbox('Select bacteria 2', rem_bac)
+    
+    bac1_latents = 0
+    bac2_latents = 0
+    
+    bac_2_original_img = 0
+    
+    b1_labels = 0
+    b2_labels = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        x_z = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        b1_count = 0
+        b2_indices = []
+        b2_count = 0 
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+                b1_count += 1
+            else:
+                b1_indices.append(False)
+                
+            if(y.argmax(dim = 1)[i] == b_2 and pY.argmax(dim = 1)[i] == b_2):
+                b2_indices.append(True)
+                b2_count += 1
+            else:
+                b2_indices.append(False)
+                
+        s_length = min(b1_count, b2_count)
+        st.write(s_length)
+        
+        bac1_latents = sel_z_x[b1_indices][:s_length]
+        bac2_latents = sel_z_x[b2_indices][:s_length]
+        
+        b1_labels = y[b1_indices][:s_length]
+        b2_labels = y[b2_indices][:s_length]
+        
+        bac_2_original_img = x[b2_indices][:s_length]
+
+        break
+    
+    diff = bac2_latents - bac1_latents
+    
+    num_images = diff.shape[0]
+    sweep = 10
+    
+    header =  [] #[f"original class {b_1}"] + [f"Δ {i}" for i in range(sweep)] +  [f"mix {b_2}"] +  [f"original class {b_2}"]
+    st.write(f"position chosen for moving in the latent space -> {pos}")
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+3):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+                labels = b1_labels
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            if(j == sweep+1):
+                x_z = bac_2_original_img.float()
+            
+            z_x_ = encoder(x_z)
+            y_z_, _ = classifier(z_x_)
+            pY_, uY_ = edl_probs(y_z_.detach())
+            
+            pred_class = pY_.argmax(dim = 1)[i]
+            gt_class = labels.argmax(dim = 1)[i]
+            
+            header.append(f"pred {pred_class} gt {gt_class}")
+
+    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+3, subplot_titles = header)
+
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+3):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + diff[:, pos]/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                #perturbed_sel_z_x[:, pos] = bac1_latents[:, pos] #only position pos is gotten from bacteria 1
+            
+            if(j == sweep+2):
+                perturbed_sel_z_x = bac2_latents.clone()
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            if(j == sweep+1):
+                x_z = bac_2_original_img.float()
+
+            img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            fig_move_in_latent.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
+                row=i+1, col=j+1
+            )
+    # Set the overall height of the figure
+    fig_move_in_latent.update_layout(height=200*num_images)  # Adjust as needed
+
+    st.plotly_chart(fig_move_in_latent, use_container_width=True)
+    
+
+with st.expander(":blue[Move] from one bacteria to another (all positions)"):
+    st.header(":blue[Move] from one bacteria to another")
+    b_1 = st.selectbox('Select bacteria 1', [0,1,2,3], key = "task1", index = 1)
+    
+    rem_bac = [0,1,2,3]
+    rem_bac.remove(b_1)
+    b_2 = st.selectbox('Select bacteria 2', rem_bac, key = "task2")
+    
+    bac1_latents = 0
+    bac2_latents = 0
+    
+    b1_labels = 0
+    b2_labels = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        x_z = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        b1_count = 0
+        b2_indices = []
+        b2_count = 0 
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+                b1_count += 1
+            else:
+                b1_indices.append(False)
+                
+            if(y.argmax(dim = 1)[i] == b_2 and pY.argmax(dim = 1)[i] == b_2):
+                b2_indices.append(True)
+                b2_count += 1
+            else:
+                b2_indices.append(False)
+                
+        s_length = min(b1_count, b2_count)
+        st.write(s_length)
+        
+        bac1_latents = sel_z_x[b1_indices][:s_length]
+        bac2_latents = sel_z_x[b2_indices][:s_length]
+        
+        b1_labels = y[b1_indices][:s_length]
+        b2_labels = y[b2_indices][:s_length]
+
+        break
+    
+    diff = bac2_latents - bac1_latents
+    
+    num_images = diff.shape[0]
+    sweep = 10
+    
+    header =  [] #[f"original class {b_1}"] + [f"Δ {i}" for i in range(sweep)] +  [f"mix {b_2}"] +  [f"original class {b_2}"]
+    st.write(f"moving all positions in the latent space ")
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+2):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+                labels = b1_labels
+            
+            if(j > 0 and j < sweep + 1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x = perturbed_sel_z_x + diff/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+                labels = b2_labels
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            
+            z_x_ = encoder(x_z)
+            y_z_, _ = classifier(z_x_)
+            pY_, uY_ = edl_probs(y_z_.detach())
+            
+            pred_class = pY_.argmax(dim = 1)[i]
+            gt_class = labels.argmax(dim = 1)[i]
+            
+            header.append(f"pred {pred_class} gt {gt_class}")
+
+    fig_move_in_latent = make_subplots(rows=num_images, cols = sweep+2, subplot_titles = header)
+
+    # Add each image as a Heatmap to the subplots
+    for i in range(num_images):
+        for j in range(sweep+2):
+            
+            if(j == 0):
+                perturbed_sel_z_x = bac1_latents.clone()
+            
+            if(j > 0 and j < sweep+1):
+                perturbed_sel_z_x = bac1_latents.clone()
+                perturbed_sel_z_x = perturbed_sel_z_x + diff/sweep*j
+            
+            if(j == sweep+1):
+                perturbed_sel_z_x = bac2_latents.clone()
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+
+            img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            fig_move_in_latent.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
+                row=i+1, col=j+1
+            )
+    # Set the overall height of the figure
+    fig_move_in_latent.update_layout(height=200*num_images)  # Adjust as needed
+
+    st.plotly_chart(fig_move_in_latent, use_container_width=True)
+    
+    
+with st.expander(":blue[Moving] in the latent space"):
+    
+    st.write(f"Position {pos}")
+    
+    b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "task one bac", index = 3)
+    bool_show_area = st.checkbox('show area')
+    show_diff = st.checkbox('show difference')
+    
+    start_val = float(st.text_input("Start value", -0.15, key = "start"))
+    end_val   = float(st.text_input("End value", 0.15, key = "end"))
+    steps = int(st.text_input("Steps", 9, key = "steps"))
+    
+    bac1_latents = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+            else:
+                b1_indices.append(False)
+        
+        bac1_latents = sel_z_x[b1_indices]
+        
+        b1_labels = y[b1_indices]
+
+        if(b_1 != 0):
+            break
+        else:
+            if(idx > 5):
+                break
+    
+    num_images = bac1_latents.shape[0]
+    
+    num_images = int(st.slider("number of examples to plot", 1, bac1_latents.shape[0], value = 5))
+    
+    constants = torch.linspace(start_val, end_val, steps)
+    st.write(sel_z_x.max(), sel_z_x.min())
+    st.write(bac1_latents.shape)
+    fig = make_subplots(rows=num_images, cols = constants.shape[0])
+
+    # Add each image as a Heatmap to the subplots
+    original_img = decoder(bac1_latents.clone()[..., None, None])
+    
+    for i in range(num_images):
+        for j, constant in enumerate(constants):
+            showscale = i == num_images - 1 and j == constants.shape[0] - 1
+            
+            perturbed_sel_z_x = bac1_latents.clone()
+            perturbed_sel_z_x[:, pos] = perturbed_sel_z_x[:, pos] + constant.item() # z_x is -> (32, 50), we add noise to just one pos across all images
+            
+            x_z = decoder(perturbed_sel_z_x[..., None, None])
+            img = x_z[i].squeeze().detach().cpu().numpy()  # Remove the channel dimension and convert the image to numpy array
+            
+            
+            if(bool_show_area):
+                # Find contours in the image
+                img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+                # Find binary image
+                _, thresh = cv2.threshold(img_8bit, 15, 255, cv2.THRESH_BINARY)
+
+                # Find contours in the binary image
+                contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                
+                for contour in contours:
+                    # Calculate contour area
+                    area = cv2.contourArea(contour)
+
+                    # Draw contour on the original image
+                    cv2.drawContours(img, [contour], -1, (255, 0, 0), 1)
+
+                    # Calculate the center of the contour to place the text
+                    # M = cv2.moments(contour)
+                    # cx = int(M['m10'] / M['m00'])
+                    # cy = int(M['m01'] / M['m00'])
+
+                    # Add text showing area
+                    #cv2.putText(img, f'Area: {area}', (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                    
+                    st.write(f"{i},{j} -> area = {area}")
+
+            if(show_diff):
+                img = (original_img[i].squeeze().detach().cpu().numpy() - img)
+                
+                fig.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=showscale, zmin = -0.1, zmax = 0.1),
+                row=i+1, col=j+1
+                )
+            else:
+                fig.add_trace(
+                go.Heatmap(z = img, colorscale='Viridis', showscale=False),
+                row=i+1, col=j+1
+                )
+            
+    # Set the overall height of the figure
+    fig.update_layout(height=200*num_images)  # Adjust as needed
+
+    st.plotly_chart(fig, use_container_width=True)
+            
+
+with st.expander("Visualization of images"):
+    
+    
+    
+    b_1 = st.selectbox('Select bacteria', [0,1,2,3], key = "select bac to visualize", index = 3)
+    bool_show_area = st.checkbox('show area', key = "show area in image")
+    
+    bac1_images = 0
+    recon_images = 0
+    
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        img_ = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        b1_indices = []
+        
+        for i in range(y.shape[0]):
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+                b1_indices.append(True)
+            else:
+                b1_indices.append(False)
+        
+        bac1_images = x[b1_indices]
+        recon_images = img_[b1_indices]
+        b1_labels = y[b1_indices]
+
+        if(b_1 != 0):
+            break
+        else:
+            if(idx > 5):
+                break
+    
+    areas = []
+    for idx, (x,y) in enumerate(loader):
+        z_x = encoder(x.float())
+        y_z, sel_z_x = classifier(z_x)
+        pY, uY = edl_probs(y_z.detach())
+        
+        img_ = decoder(sel_z_x[..., None, None])
+        
+        #select user picked bacteria latent representations
+        for i in range(y.shape[0]):
+            
+            img = img_[i].squeeze().detach().cpu().numpy()
+            
+            if(y.argmax(dim = 1)[i] == b_1 and pY.argmax(dim = 1)[i] == b_1):
+            
+                img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+                # Find binary image
+                _, thresh = cv2.threshold(img_8bit, 70, 255, cv2.THRESH_BINARY)
+
+                # Find contours in the binary image
+                contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                
+                for contour in contours:
+                    # Calculate contour area
+                    area = cv2.contourArea(contour)
+                    areas.append(area)
+
+        if(idx == 500):
+            break
+    
+    areas = np.array(areas)
+    st.write(f"total area = {areas.sum()}, mean area = {areas.mean()}, variance = {areas.var()}, std = {areas.std()}")
+    
+    num_images = bac1_images.shape[0]
+    
+    num_images = int(st.slider("number of examples to plot", 1, bac1_images.shape[0], value = min(3, bac1_images.shape[0]), key ="img viz"))
+    
+    st.write(bac1_images.shape)
+    #fig = make_subplots(rows = 2, cols = num_images)
+    
+    # Plotly subplot setup
+    fig = make_subplots(rows = num_images, cols = 2)
+
+    # Add each image from the batch to the subplot
+    for i in range(num_images):
+        
+        img = bac1_images[i].squeeze().detach().cpu().numpy()
+        recon_img = recon_images[i].squeeze().detach().cpu().numpy()
+        
+        if(bool_show_area):
+                # Find contours in the image
+            img_8bit = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+            # Find binary image
+            _, thresh = cv2.threshold(img_8bit, 70, 255, cv2.THRESH_BINARY)
+
+            # Find contours in the binary image
+            contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                # Calculate contour area
+                area = cv2.contourArea(contour)
+
+                # Draw contour on the original image
+                cv2.drawContours(img, [contour], -1, (255, 0, 0), 1)
+                
+                # st.write(f"{i},{j} -> area = {area}")
+    
+        
+        fig.add_trace(
+            go.Heatmap(
+                z = img, # Remove the channel dimension
+                colorscale='Viridis',    # Use grayscale colors
+                showscale=False,        # Hide the color scale
+            ),
+            row = i+1, col = 1
+        )
+        
+        fig.add_trace(
+            go.Heatmap(
+                z = recon_img, # Remove the channel dimension
+                colorscale='Viridis',    # Use grayscale colors
+                showscale=False,        # Hide the color scale
+            ),
+            row = i+1, col = 2
+        )
+
+    fig.update_layout(height=200*num_images, width = 200)
+
+    # Show the plot in Streamlit
+    st.plotly_chart(fig)
