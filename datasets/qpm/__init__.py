@@ -2,9 +2,9 @@ from typing import List, Tuple
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import Compose, ToTensor
+from torchvision.transforms import Compose, ToTensor, Resize
 
-from ..transforms import create_target_transform
+from ..transforms import create_target_transform, TileChannels2d
 from .qpm import bacteria_dataset
 
 
@@ -51,7 +51,8 @@ def get_targets(
 
 
 def get_shape() -> Tuple[int, int, int]:
-    return (3, 224, 224)
+    return (1, 40, 40)
+    # return (3, 224, 224)
 
 
 def get_datasets(
@@ -62,12 +63,12 @@ def get_datasets(
     transform = Compose(
         [
             ToTensor(),
-            lambda x: torch.as_tensor(x).expand(3, -1, -1),
-            transforms.Resize((224, 224), antialias=True),  # type: ignore
+            # Resize((224, 224), antialias=True),  # type: ignore
+            # TileChannels2d(3),
         ]
     )
     targets = get_targets(target_label=target_label)
-    target_transform = create_target_transform(targets, ood)
+    target_transform = create_target_transform(targets, ood, infer_index=False)
 
     trainset = bacteria_dataset(
         data_dir=data_root,

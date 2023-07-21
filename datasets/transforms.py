@@ -50,15 +50,20 @@ class TileChannels2d(object):
 def create_target_transform(
     targets: List[str],
     ood: List[int],
+    infer_index: bool = True,
+    one_hot: bool = False,
 ) -> Compose:
-    # K = len(targets) - len(ood)
     ind_targets = [y for i, y in enumerate(targets) if i not in ood]
     ood_targets = [y for i, y in enumerate(targets) if i in ood]
-    permuted_targets = ind_targets + ood_targets
-    target_transform = Compose(
-        [
-            lambda y: permuted_targets.index(str(y)),
-            # lambda y: F.one_hot(torch.tensor(y), K) if y < K else torch.zeros(K),
-        ]
-    )
+    K = len(ind_targets)
+
+    transforms = []
+    if infer_index:
+        permuted_targets = ind_targets + ood_targets
+        transforms.append(lambda y: permuted_targets.index(str(y)))
+    if one_hot:
+        transforms.append(
+            lambda y: F.one_hot(torch.tensor(y), K) if y < K else torch.zeros(K)
+        )
+    target_transform = Compose(transforms)
     return target_transform

@@ -39,5 +39,5 @@ train-amrb2_strain-%:
 	DATASET_NAME=AMRB2_strain MANIFOLD_D=512 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
 train-qpm_species-%:
 	DATASET_NAME=QPM_species MANIFOLD_D=512 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
-train-qpm_species-%:
+train-qpm_strain-%:
 	DATASET_NAME=QPM_strain MANIFOLD_D=512 MODEL_NAME=$* ${RUN_ARGS} python -u 2_training.py
