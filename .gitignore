@@ -7,3 +7,4 @@ logs/
 experiments/
 wandb/
 *.out
+**/.ipynb_checkpoints/*
