@@ -1,4 +1,8 @@
+from typing import List
+
 import torch
+import torch.nn.functional as F
+from torchvision.transforms import Compose
 
 
 class AddGaussianNoise(object):
@@ -30,3 +34,36 @@ class ZeroPad2D(object):
         return self.__class__.__name__ + "(H={0},{1}, W={2}{3})".format(
             self.h1, self.h2, self.w1, self.w2
         )
+
+
+class TileChannels2d(object):
+    def __init__(self, repeats: int):
+        self.repeats = repeats
+
+    def __call__(self, tensor: torch.Tensor):
+        return tensor.tile((self.repeats, 1, 1))
+
+    def __repr__(self):
+        return self.__class__.__name__ + "(repeats={0})".format(self.repeats)
+
+
+def create_target_transform(
+    targets: List[str],
+    ood: List[int],
+    infer_index: bool = True,
+    one_hot: bool = False,
+) -> Compose:
+    ind_targets = [y for i, y in enumerate(targets) if i not in ood]
+    ood_targets = [y for i, y in enumerate(targets) if i in ood]
+    K = len(ind_targets)
+
+    transforms = []
+    if infer_index:
+        permuted_targets = ind_targets + ood_targets
+        transforms.append(lambda y: permuted_targets.index(str(y)))
+    if one_hot:
+        transforms.append(
+            lambda y: F.one_hot(torch.tensor(y), K) if y < K else torch.zeros(K)
+        )
+    target_transform = Compose(transforms)
+    return target_transform

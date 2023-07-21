@@ -26,8 +26,8 @@ def get_encoder(
         torch.nn.Conv2d(
             in_channels=c,
             out_channels=d // 4,
-            kernel_size=7,
-            padding=3,
+            kernel_size=3,
+            padding=1,
             stride=2,
         ),
         # (B, d/4, h/2, w/2)
@@ -140,8 +140,8 @@ def get_decoder(
         torch.nn.ConvTranspose2d(
             in_channels=d // 4,
             out_channels=c,
-            kernel_size=7,
-            padding=3,
+            kernel_size=3,
+            padding=1,
             stride=2,
             output_padding=1,
         ),

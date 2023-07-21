@@ -11,13 +11,13 @@ from . import flow
 from .common import edl_loss, edl_probs, gather_samples
 from .flow.util import decode_mask
 
+cm, k0, k1 = 0, 4, 2
+
 
 def load_model_and_optimizer(
     config: Config,
 ) -> Tuple[torch.nn.ModuleDict, Tuple[torch.optim.Optimizer, ...]]:
-
-    assert config.image_chw
-    assert config.dataset_info
+    assert config.image_chw is not None
 
     C, H, W = config.image_chw
     CHW = C * H * W
@@ -25,12 +25,18 @@ def load_model_and_optimizer(
     num_bins = 10
 
     # ambient (x) flow configuration
-    k0, k1 = 4, 2
     c1, h1, w1 = C * k0 * k0, H // k0, W // k0
     c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
+    # adjust manifold_d to closest possible value
+    global cm
+    cm = D // (h2 * w2)
+    D = cm * h2 * w2
+    config.manifold_d = D
+
     # categorical configuration
-    num_labels = config.dataset_info["num_train_labels"]
+    ind_targets = config.get_ind_labels()
+    num_labels = len(ind_targets)
 
     # spatial flow
     x1_mask = torch.zeros(c1).bool()
@@ -61,21 +67,19 @@ def load_model_and_optimizer(
         "num_bins": num_bins,
     }
 
-    # non-spatial flow
-    u_mask = torch.zeros(D).bool()
+    # reduced-channel flow
+    u_mask = torch.zeros(cm).bool()
     u_mask[::2] = True
     uI, uT = decode_mask(u_mask)
     rqs_coupling_args_uA = {
         "i_channels": uI,
         "t_channels": uT,
         "num_bins": num_bins,
-        "spatial": False,
     }
     rqs_coupling_args_uB = {
         "i_channels": uT,
         "t_channels": uI,
         "num_bins": num_bins,
-        "spatial": False,
     }
 
     # Base Distributions
@@ -99,8 +103,6 @@ def load_model_and_optimizer(
             flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
             flow.nn.RQSCoupling(**rqs_coupling_args_x2B),
             flow.nn.RQSCoupling(**rqs_coupling_args_x2A),
-            #
-            flow.nn.Flatten(input_shape=(c2, h2, w2)),
         ]
     )
 
@@ -108,13 +110,15 @@ def load_model_and_optimizer(
     flow_u = flow.Compose(
         [
             #
-            flow.nn.ActNorm(D),
+            flow.nn.ActNorm(cm),
             #
             flow.nn.RQSCoupling(**rqs_coupling_args_uA),
             flow.nn.RQSCoupling(**rqs_coupling_args_uB),
             flow.nn.RQSCoupling(**rqs_coupling_args_uA),
             #
-            flow.nn.ActNorm(D),
+            flow.nn.ActNorm(cm),
+            #
+            flow.nn.Flatten((cm, h2, w2)),
         ]
     )
 
@@ -146,40 +150,43 @@ def describe_model(
     model: torch.nn.ModuleDict,
     config: Config,
 ) -> None:
-
-    assert config.image_chw
+    assert config.image_chw is not None
 
     B = config.batch_size
     D = config.manifold_d
+    f = k0 * k1
     (C, H, W) = config.image_chw
-
+    global cm
     torchinfo.summary(model["flow_x"], input_size=(B, C, H, W), depth=5)
-    torchinfo.summary(model["flow_u"], input_size=(B, D), depth=5)
-    torchinfo.summary(model["classifier"], input_size=(B, C, H, W), depth=5)
+    torchinfo.summary(model["flow_u"], input_size=(B, cm, H // f, W // f), depth=5)
+    torchinfo.summary(model["classifier"], input_size=(B, D), depth=5)
 
 
 def step_model(
     model: torch.nn.ModuleDict,
     epoch: int,
     config: Config,
+    prefix: str,
     optim: Optional[Tuple[torch.optim.Optimizer, ...]] = None,
     **kwargs,
 ) -> dict:
-
     # pre-step
-    D = config.manifold_d
-    if optim:
+    if prefix == "train":
         data_loader = config.train_loader
-        assert data_loader
+        assert data_loader is not None
         model.train()
-        prefix = "TRN"
-    else:
+    elif prefix == "test/ind":
         data_loader = config.test_loader
-        assert data_loader
+        assert data_loader is not None
         model.eval()
-        prefix = "TST"
+    elif prefix == "test/ood":
+        data_loader = config.ood_loader
+        assert data_loader is not None
+        model.eval()
+    else:
+        raise ValueError()
 
-    size = len(data_loader.dataset)  # type: ignore
+    size = 0
     sum_loss = 0
 
     # step
@@ -215,15 +222,14 @@ def step_model(
         samples = []
 
         for x, y in iterable:
-
             # cast x and y to float
             x = x.float().to(config.device)
-            y = y.float().to(config.device)
+            y = y.long().to(config.device)
             B = x.size(0)
 
             # x -> (u x v) -> u -> z
             uv_x, _ = flow_x(x, forward=True)
-            u_x, v_x = flow.nn.partition(uv_x, D)
+            u_x, v_x = flow.nn.partition(uv_x, cm)
             z_x, _ = flow_u(u_x, forward=True)
 
             # u -> (u x 0) -> x~
@@ -233,20 +239,20 @@ def step_model(
             x_z, _ = flow_x(uv_z, forward=False)
 
             # classifier
-            y_z = classifier(z_x)
+            y_z = classifier(u_x.flatten(1))
             pY, uY = edl_probs(y_z.detach())
 
             # manifold losses
-            L_z = -dist_z.log_prob(z_x)
-            L_v = -dist_v.log_prob(v_x)
-            L_x = (x - x_z).pow(2).flatten(1).sum(-1)
+            L_z = -dist_z.log_prob(z_x.flatten(1))
+            L_v = -dist_v.log_prob(v_x.flatten(1))
+            L_x = (x - x_z).flatten(1).pow(2).sum(-1)
 
             # classification losses
             # L_y_z = F.cross_entropy(y_x, y) - used EDL alternative
             L_y_z = edl_loss(y_z, y, epoch)
 
             # accumulate predictions
-            y_true.extend(y.detach().argmax(-1).cpu().numpy())
+            y_true.extend(y.detach().cpu().numpy())
             y_pred.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
@@ -263,14 +269,16 @@ def step_model(
             L_minibatch = (L_z + (ß * L_v) + L_x + L_y_z).mean()  # Σ_n[Σ_i(L_{n,i})]/N
 
             # backward pass (if optimizer is given)
-            if optim:
+            if prefix == "train":
+                assert optim is not None
                 (optim_gd,) = optim
                 optim_gd.zero_grad()
                 L_minibatch.backward()
                 optim_gd.step()
 
             # accumulate sum loss
-            sum_loss += L_minibatch.item() * config.batch_size
+            sum_loss += L_minibatch.item() * B
+            size += B
 
             # logging
             log_stats = {
@@ -283,7 +291,7 @@ def step_model(
             iterable.set_postfix(log_stats)
 
     # post-step
-    avg_loss = sum_loss / size
+    avg_loss = sum_loss / max(size, 1)
 
     return {
         "loss": avg_loss,

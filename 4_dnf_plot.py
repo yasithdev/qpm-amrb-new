@@ -107,7 +107,7 @@ if __name__ == "__main__":
         cv_folds=config.cv_folds,
         cv_mode=config.cv_mode,
     )
-    config.init_labels()
+    config.print_labels()
 
     import wandb.plot
 

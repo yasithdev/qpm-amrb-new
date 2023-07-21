@@ -24,7 +24,6 @@ class CouplingTransform(FlowTransform):
         t_channels: torch.Tensor,
         coupling_net: nn.Module,
     ) -> None:
-
         super().__init__()
 
         self.i_channels = i_channels
@@ -36,13 +35,15 @@ class CouplingTransform(FlowTransform):
         x: torch.Tensor,
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
         assert x.dim() in [2, 4], "Inputs must be a 2D or a 4D tensor."
 
         xI = x[:, self.i_channels, ...]
         xT = x[:, self.t_channels, ...]
 
-        params = self.coupling_net(xI, c)
+        if x.dim() == 2:
+            params = self.coupling_net(xI)
+        else:
+            params = self.coupling_net(xI, c)
         zI = xI
         zT, logabsdet = self.coupling_transform(xT, params, inverse=False)
 
@@ -57,7 +58,6 @@ class CouplingTransform(FlowTransform):
         z: torch.Tensor,
         c: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
         assert z.dim() in [2, 4], "Inputs must be a 2D or a 4D tensor."
 
         zI = z[:, self.i_channels, ...]
@@ -99,7 +99,6 @@ class AffineCoupling(CouplingTransform):
         t_channels: torch.Tensor,
         num_layers: int,
     ) -> None:
-
         nI = len(i_channels)
         nT = len(t_channels)
         assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
@@ -125,7 +124,6 @@ class AffineCoupling(CouplingTransform):
         params: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
         s, t = torch.chunk(params, 2, dim=1)
         sign = -1 if inverse else +1
 
@@ -158,7 +156,6 @@ class RQSCoupling(CouplingTransform):
         min_d: float = 1e-2,
         spatial: bool = True,
     ) -> None:
-
         nI = len(i_channels)
         nT = len(t_channels)
 
@@ -180,10 +177,10 @@ class RQSCoupling(CouplingTransform):
         else:
             coupling_net = torch.nn.Sequential(
                 torch.nn.Linear(nI, nParams),
-                torch.nn.LayerNorm(nParams),
+                torch.nn.BatchNorm1d(nParams),
                 torch.nn.Tanh(),
                 torch.nn.Linear(nParams, nParams),
-                torch.nn.LayerNorm(nParams),
+                torch.nn.BatchNorm1d(nParams),
                 torch.nn.Tanh(),
             )
 
@@ -213,15 +210,13 @@ class RQSCoupling(CouplingTransform):
         params: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
         nW, nH, nD = self.nW, self.nH, self.nD
 
         # rearrange params
         params = einops.rearrange(
             params, "B (C P) ... -> B C ... P", C=data.size(1), P=nW + nH + nD
         )
-        indices = np.cumsum([nW, nH, nD])
-        w, h, d = params.tensor_split(indices, dim=-1)
+        w, h, d = params.tensor_split([nW, nW + nH], dim=-1)
 
         # constant-pad d for outer data
         const = np.log(np.exp(1 - self.min_d) - 1)
@@ -239,7 +234,6 @@ class RQSCoupling(CouplingTransform):
         idx_inner = (data >= self.lo) & (data <= self.hi)
 
         if idx_inner.numel() > 0:
-
             kwargs = {
                 "data": data[idx_inner],
                 "h": h[idx_inner, :],
@@ -261,7 +255,6 @@ class RQSCoupling(CouplingTransform):
         d: torch.Tensor,
         inverse: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-
         left = bottom = self.lo
         right = top = self.hi
 
@@ -361,6 +354,5 @@ class RQSCoupling(CouplingTransform):
         inputs: torch.Tensor,
         eps: float = 1e-6,
     ) -> torch.Tensor:
-
         bin_locations[..., -1] += eps
         return torch.sum(inputs[..., None] >= bin_locations, dim=-1) - 1

@@ -1,81 +1,77 @@
 import logging
 import os
+from typing import Dict, Literal
 
-from typing import Literal, Dict
 import numpy as np
 import torch
-from tqdm import tqdm
 from sklearn import metrics
+from tqdm import tqdm
 
 from config import Config, load_config
+from datasets import init_dataloaders, init_labels, init_shape
 from models import get_model_optimizer_and_step
-from models.common import load_saved_state, save_state, gen_epoch_acc
-
-from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
+from models.common import gen_epoch_acc, load_saved_state, save_state
 
 
 def gen_log_metrics(
     stats: Dict[str, np.ndarray],
-    prefix: Literal["train", "test"],
+    prefix: Literal["train", "test/ind", "test/ood"],
     config: Config,
     step: int,
 ) -> dict:
-
     data = {}
-    labels = config.labels
-    mode = config.cv_mode
-    assert labels
+    ind_labels = config.get_ind_labels()
 
     y_true = stats["y_true"]
     y_pred = stats["y_pred"]
     B = y_pred.shape[0]
-    K = len(labels)
+
+    if B == 0:
+        return data
+
+    K = len(ind_labels)
     IMG = wandb.Image
     zero_ucty = np.zeros((B, 1), dtype=np.float32)
     y_ucty = stats.get("y_ucty", zero_ucty)
     samples = stats["samples"]
 
-    # update y_pred and y_true for leave-out mode
-    if mode == "leave-out":
-        y_pred = np.concatenate([y_pred, y_ucty], axis=-1)
-        if prefix == "test":
-            y_true = np.full((B,), fill_value=K - 1)
-
     # log targets
-    if mode == "leave-out" and prefix == "test":
-        targets = [IMG(x, caption=labels[K - 1]) for x, _, _, _ in samples]
-    else:
-        targets = [IMG(x, caption=labels[y]) for x, y, _, _ in samples]
-    data[f"{prefix}/targets"] = targets
+    inputs = [IMG(x, caption=ind_labels[y]) for x, y, _, _ in samples]
+    data[f"{prefix}/inputs"] = inputs
 
     # log estimates
-    estimates = [IMG(xz, caption=labels[yz]) for _, _, xz, yz in samples]
-    data[f"{prefix}/estimates"] = estimates
+    reconstructions = [IMG(xz, caption=ind_labels[yz]) for _, _, xz, yz in samples]
+    data[f"{prefix}/reconstructions"] = reconstructions
 
     # log top-k acc and confusion matrix
-    acc1, acc2, acc3 = gen_epoch_acc(y_pred, y_true, np.arange(K))  # type: ignore
-    tqdm.write(
-        f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
-    )
-    data[f"{prefix}/acc1"] = acc1
-    data[f"{prefix}/acc2"] = acc2
-    data[f"{prefix}/acc3"] = acc3
-    data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-        probs=y_pred,  # type: ignore
-        y_true=y_true,  # type: ignore
-        class_names=labels,
-        title=f"Confusion Matrix ({prefix})",
-    )
-    data[f"{prefix}/roc"] = wandb.plot.roc_curve(
-        y_true=y_true,
-        y_probas=y_pred,
-        labels=labels,
-    )
-    data[f"{prefix}/pr"] = wandb.plot.pr_curve(
-        y_true=y_true,
-        y_probas=y_pred,
-        labels=labels,
-    )
+    if prefix == "train" or prefix == "test/ind":
+        acc1, acc2, acc3 = gen_epoch_acc(
+            y_pred=y_pred.tolist(),
+            y_true=y_true.tolist(),
+            labels=np.arange(K).tolist(),
+        )
+        tqdm.write(
+            f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
+        )
+        data[f"{prefix}/acc1"] = acc1
+        data[f"{prefix}/acc2"] = acc2
+        data[f"{prefix}/acc3"] = acc3
+        data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
+            probs=y_pred,  # type: ignore
+            y_true=y_true,  # type: ignore
+            class_names=ind_labels,
+            title=f"Confusion Matrix ({prefix})",
+        )
+        data[f"{prefix}/roc"] = wandb.plot.roc_curve(
+            y_true=y_true,
+            y_probas=y_pred,
+            labels=ind_labels,
+        )
+        data[f"{prefix}/pr"] = wandb.plot.pr_curve(
+            y_true=y_true,
+            y_probas=y_pred,
+            labels=ind_labels,
+        )
     done_keys = ["y_true", "y_pred", "samples"]
     for key in set(stats).difference(done_keys):
         val = stats[key]
@@ -102,14 +98,14 @@ def agg_log_metrics(
     log: dict,
 ) -> None:
     prefix = "ood_detection"
-    if "train/v_norm" in log and "test/v_norm" in log:
-        trn_v_norm = log.pop("train/v_norm")
-        tst_v_norm = log.pop("test/v_norm")
-        B_InD = trn_v_norm.shape[0]
-        B_OoD = tst_v_norm.shape[0]
+    if "test/ind/v_norm" in log and "test/ood/v_norm" in log:
+        ind_v_norm = log.pop("test/ind/v_norm")
+        ood_v_norm = log.pop("test/ood/v_norm")
+        B_InD = ind_v_norm.shape[0]
+        B_OoD = ood_v_norm.shape[0]
         # binary classification labels for ID and OOD
         LABELS = ["InD", "OoD"]
-        values = np.concatenate([trn_v_norm, tst_v_norm], axis=0)
+        values = np.concatenate([ind_v_norm, ood_v_norm], axis=0)
         values_2d = np.stack([1.0 - values, values], axis=-1)
         target = np.concatenate([np.zeros(B_InD), np.ones(B_OoD)], axis=0)
         log[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
@@ -118,10 +114,8 @@ def agg_log_metrics(
 
 
 def main(config: Config):
-
     assert config.train_loader
     assert config.test_loader
-    assert config.labels
 
     model, optim, step = get_model_optimizer_and_step(config)
 
@@ -141,12 +135,12 @@ def main(config: Config):
     artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
     for epoch in range(config.train_epochs + 1):
-
         epoch_stats: dict = {}
 
         # training loop
         if epoch > 0:
             trn_stats = step(
+                prefix="train",
                 model=model,
                 epoch=epoch,
                 config=config,
@@ -157,11 +151,22 @@ def main(config: Config):
 
         # testing loop
         tst_stats = step(
+            prefix="test/ind",
             model=model,
             epoch=epoch,
             config=config,
         )
-        log = gen_log_metrics(tst_stats, "test", config, epoch)
+        log = gen_log_metrics(tst_stats, "test/ind", config, epoch)
+        epoch_stats.update(log)
+
+        # testing loop
+        ood_stats = step(
+            prefix="test/ood",
+            model=model,
+            epoch=epoch,
+            config=config,
+        )
+        log = gen_log_metrics(ood_stats, "test/ood", config, epoch)
         epoch_stats.update(log)
 
         agg_log_metrics(epoch_stats)
@@ -190,37 +195,22 @@ def main(config: Config):
 
 
 if __name__ == "__main__":
-
     # initialize the RNG deterministically
     np.random.seed(42)
     torch.manual_seed(42)
 
     config = load_config()
 
-    # get dataset info
-    config.dataset_info = get_dataset_info(
-        dataset_name=config.dataset_name,
-        data_root=config.data_dir,
-        cv_mode=config.cv_mode,
-    )
-    # get image dims
-    config.image_chw = get_dataset_chw(
-        dataset_name=config.dataset_name,
-    )
-    # initialize data loaders
-    config.train_loader, config.test_loader = get_dataset_loaders(
-        dataset_name=config.dataset_name,
-        batch_size_train=config.batch_size,
-        batch_size_test=config.batch_size,
-        data_root=config.data_dir,
-        cv_k=config.cv_k,
-        cv_folds=config.cv_folds,
-        cv_mode=config.cv_mode,
-    )
-    config.init_labels()
+    # initialize data attributes and loaders
+    init_labels(config)
+    init_shape(config)
+    init_dataloaders(config)
+
+    config.print_labels()
+
+    import wandb.plot
 
     import wandb
-    import wandb.plot
 
     wandb.init(
         project="ood_flows",
