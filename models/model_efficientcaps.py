@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 from functools import partial
 from typing import Optional, Tuple
@@ -133,11 +134,11 @@ def step_model(
         data_loader = config.train_loader
         assert data_loader is not None
         model.train()
-    elif prefix == "test/ind":
+    elif prefix == "test_ind":
         data_loader = config.test_loader
         assert data_loader is not None
         model.eval()
-    elif prefix == "test/ood":
+    elif prefix == "test_ood":
         data_loader = config.ood_loader
         assert data_loader is not None
         model.eval()
@@ -145,7 +146,7 @@ def step_model(
         raise ValueError()
 
     size = 0
-    sum_loss = 0
+    sum_loss = defaultdict(lambda: 0.)
 
     # step
     with torch.enable_grad():
@@ -159,7 +160,7 @@ def step_model(
         x: torch.Tensor
         y: torch.Tensor
         y_true = []
-        y_pred = []
+        y_prob = []
         y_ucty = []
         samples = []
 
@@ -188,7 +189,7 @@ def step_model(
 
             # accumulate predictions
             y_true.extend(y.detach().cpu().numpy())
-            y_pred.extend(pY.detach().cpu().numpy())
+            y_prob.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
@@ -198,6 +199,8 @@ def step_model(
             L_x_z = (x_z - x).pow(2).flatten(1).mean(-1)
             l = 0.999
             L_minibatch = (l * L_y_z + (1 - l) * L_x_z).mean()
+            L_y_minibatch = L_y_z.mean()
+            L_x_minibatch = L_x_z.mean()
 
             # backward pass
             if prefix == "train":
@@ -208,24 +211,26 @@ def step_model(
                 optim_gd.step()
 
             # accumulate sum loss
-            sum_loss += L_minibatch.item() * B
+            sum_loss["agg"] += L_minibatch.item() * B
+            sum_loss["y"] += L_y_minibatch.item() * B
+            sum_loss["x"] += L_x_minibatch.item() * B
             size += B
 
             # logging
             log_stats = {
-                "Loss(mb)": f"{L_minibatch:.4f}",
-                "Loss(x)": f"{L_x_z.mean():.4f}",
-                "Loss(y)": f"{L_y_z.mean():.4f}",
+                "Loss(agg)": f"{L_minibatch:.4f}",
+                "Loss(y)": f"{L_y_minibatch:.4f}",
+                "Loss(x)": f"{L_x_minibatch:.4f}",
             }
             iterable.set_postfix(log_stats)
 
     # post-step
-    avg_loss = sum_loss / max(size, 1)
+    avg_loss = {k: v / max(size, 1) for k, v in sum_loss.items()}
 
     return {
         "loss": avg_loss,
         "y_true": np.array(y_true),
-        "y_pred": np.array(y_pred),
+        "y_prob": np.array(y_prob),
         "y_ucty": np.array(y_ucty),
         "samples": samples,
     }

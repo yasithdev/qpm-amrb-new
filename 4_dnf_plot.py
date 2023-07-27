@@ -7,7 +7,7 @@ import models.flow as flow
 from config import Config, load_config
 from datasets import get_dataset_chw, get_dataset_info, get_dataset_loaders
 from models import get_model_optimizer_and_step
-from models.common import load_saved_state
+from models.common import load_model_state
 
 
 def main(config: Config):
@@ -18,9 +18,8 @@ def main(config: Config):
     model, optim, _ = get_model_optimizer_and_step(config)
 
     # load saved model and optimizer
-    load_saved_state(
+    load_model_state(
         model=model,
-        optim=optim,
         config=config,
         epoch=config.train_epochs,
     )

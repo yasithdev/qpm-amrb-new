@@ -3,7 +3,6 @@ __pycache__/
 .vscode/
 .idea/
 *.egg-info/
-experiments/
 wandb/
 *.out
 **/.ipynb_checkpoints/**

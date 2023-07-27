@@ -38,7 +38,7 @@ def get_datasets(
         target_label=target_label,
         data_root=data_root,
     )
-    target_transform = create_target_transform(targets, ood)
+    target_transform = create_target_transform(targets, ood, infer_index=False)
 
     trainset, testset = create_datasets(
         data_root=data_root,

@@ -1,116 +1,210 @@
 import logging
 import os
-from typing import Dict, Literal
+from typing import Literal
 
 import numpy as np
 import torch
-from sklearn import metrics
+import sklearn.metrics
 from tqdm import tqdm
 
 from config import Config, load_config
 from datasets import init_dataloaders, init_labels, init_shape
 from models import get_model_optimizer_and_step
-from models.common import gen_epoch_acc, load_saved_state, save_state
+from models.common import gen_topk_accs, load_model_state, save_model_state
 
 
-def gen_log_metrics(
-    stats: Dict[str, np.ndarray],
-    prefix: Literal["train", "test/ind", "test/ood"],
+def update_epoch_stats(
+    epoch_stats: dict,
+    stats: dict,
+    prefix: Literal["trn", "tid", "tod"],
+) -> None:
+    epoch_stats.update({f"{prefix}/{k}": v for k, v in stats.items()})
+
+
+def epoch_stats_to_wandb(
+    stats: dict,
     config: Config,
     step: int,
 ) -> dict:
-    data = {}
-    ind_labels = config.get_ind_labels()
+    # initialize metric dict
+    metrics = {}
+    metrics["trn/loss"] = None
+    metrics["tst/loss"] = [None, None]
+    metrics["trn/acc"] = (None, None, None)
+    metrics["tst/acc"] = (None, None, None)
 
-    y_true = stats["y_true"]
-    y_pred = stats["y_pred"]
-    B = y_pred.shape[0]
+    # get label information
+    ind_labels, ood_labels = config.get_ind_labels(), config.get_ood_labels()
+    Ki, Ko = len(ind_labels), len(ood_labels)
 
-    if B == 0:
-        return data
-
-    K = len(ind_labels)
-    IMG = wandb.Image
-    zero_ucty = np.zeros((B, 1), dtype=np.float32)
-    y_ucty = stats.get("y_ucty", zero_ucty)
-    samples = stats["samples"]
-
-    # log targets
-    inputs = [IMG(x, caption=ind_labels[y]) for x, y, _, _ in samples]
-    data[f"{prefix}/inputs"] = inputs
-
-    # log estimates
-    reconstructions = [IMG(xz, caption=ind_labels[yz]) for _, _, xz, yz in samples]
-    data[f"{prefix}/reconstructions"] = reconstructions
-
-    # log top-k acc and confusion matrix
-    if prefix == "train" or prefix == "test/ind":
-        acc1, acc2, acc3 = gen_epoch_acc(
-            y_pred=y_pred.tolist(),
-            y_true=y_true.tolist(),
-            labels=np.arange(K).tolist(),
-        )
-        tqdm.write(
-            f"[{prefix}] Epoch {step}: Loss(avg): {stats['loss']:.4f}, Acc: [{acc1:.4f}, {acc2:.4f}, {acc3:.4f}]"
-        )
-        data[f"{prefix}/acc1"] = acc1
-        data[f"{prefix}/acc2"] = acc2
-        data[f"{prefix}/acc3"] = acc3
-        data[f"{prefix}/cm"] = wandb.plot.confusion_matrix(
-            probs=y_pred,  # type: ignore
-            y_true=y_true,  # type: ignore
+    figs = {}
+    if "trn" in stats:
+        metrics["trn/loss"] = stats["trn"]["loss"]
+        y_true_trn: np.ndarray = stats["trn"]["y_true"]
+        y_prob_trn: np.ndarray = stats["trn"]["y_prob"]
+        metrics["trn/acc"] = gen_topk_accs(y_true_trn, y_prob_trn, Ki)
+        figs["trn/cm"] = wandb.plot.confusion_matrix(
+            y_true=y_true_trn,  # type: ignore
+            probs=y_prob_trn,  # type: ignore
             class_names=ind_labels,
-            title=f"Confusion Matrix ({prefix})",
+            title=f"Confusion Matrix (Train)",
         )
-        data[f"{prefix}/roc"] = wandb.plot.roc_curve(
-            y_true=y_true,
-            y_probas=y_pred,
+        figs["trn/roc"] = wandb.plot.roc_curve(
+            y_true=y_true_trn,
+            y_probas=y_prob_trn,
             labels=ind_labels,
         )
-        data[f"{prefix}/pr"] = wandb.plot.pr_curve(
-            y_true=y_true,
-            y_probas=y_pred,
+        figs["trn/prc"] = wandb.plot.pr_curve(
+            y_true=y_true_trn,
+            y_probas=y_prob_trn,
             labels=ind_labels,
         )
-    done_keys = ["y_true", "y_pred", "samples"]
-    for key in set(stats).difference(done_keys):
-        val = stats[key]
-        # unbounded histograms
-        if key in ["u_norm", "v_norm", "z_norm", "z_nll"]:
-            val = np.tanh(val)
-            # save v_norm for AUROC computation
-            if key in ["v_norm"]:
-                data[f"{prefix}/{key}"] = val
-            hist = np.histogram(val, bins=100, range=(0.0, 1.0))
-            data[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
-        # bounded histograms
-        elif key == "y_ucty":
-            hist = np.histogram(val, bins=100, range=(0.0, 1.0))
-            data[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
-        # log everything else
-        else:
-            data[f"{prefix}/{key}"] = val
+        if "y_ucty" in stats["trn"]:
+            y_ucty_trn: np.ndarray = stats["trn"]["y_ucty"]
 
-    return data
+    y_true_tst = []
+    y_prob_tst = []
 
+    if "tid" in stats:
+        y_true_tid: np.ndarray = stats["tid"]["y_true"]
+        y_prob_tid: np.ndarray = stats["tid"]["y_prob"]
+        if len(y_true_tid) > 0:
+            metrics["tst/loss"][0] = stats["tid"]["loss"]
+            metrics["tst/acc"] = gen_topk_accs(y_true_tid, y_prob_tid, Ki)
+            y_true_tst.append(y_true_tid)
+            y_prob_tst.append(y_prob_tid)
+            if "y_ucty" in stats["tid"]:
+                y_ucty_tid: np.ndarray = stats["tid"]["y_ucty"]
 
-def agg_log_metrics(
-    log: dict,
-) -> None:
+    if "tod" in stats:
+        y_true_tod: np.ndarray = stats["tod"]["y_true"]
+        y_prob_tod: np.ndarray = stats["tod"]["y_prob"]
+        if len(y_true_tod) > 0:
+            metrics["tst/loss"][1] = stats["tod"]["loss"]
+            y_true_tst.append(y_true_tod)
+            y_prob_tst.append(y_prob_tod)
+            if "y_ucty" in stats["tod"]:
+                y_ucty_tod: np.ndarray = stats["tod"]["y_ucty"]
+
+    # concatenate y of tid and tod datasets
+    y_true_tst = np.concatenate(y_true_tst, axis=0)
+    y_prob_tst = np.concatenate(y_prob_tst, axis=0)
+
+    # zero-pad y_prob_tst for ood targets
+    y_prob_tst = np.pad(y_prob_tst, pad_width=((0, 0), (0, Ko)))
+    perm_labels = ind_labels + ood_labels
+
+    figs["tst/cm"] = wandb.plot.confusion_matrix(
+        y_true=y_true_tst,  # type: ignore
+        probs=y_prob_tst,  # type: ignore
+        class_names=perm_labels,
+        title=f"Confusion Matrix (Test)",
+    )
+    figs["tst/roc"] = wandb.plot.roc_curve(
+        y_true=y_true_tst,
+        y_probas=y_prob_tst,
+        labels=perm_labels,
+    )
+    figs["tst/prc"] = wandb.plot.pr_curve(
+        y_true=y_true_tst,
+        y_probas=y_prob_tst,
+        labels=perm_labels,
+    )
+
+    tqdm.write(f"Epoch {step}: {metrics}")
+
+    join = lambda x: ",".join(map(str,x))
+    fig_row_lbl = []
+    fig_a_data = []
+    fig_a_col_lbl = []
+    fig_b_data = []
+    fig_b_col_lbl = []
+
+    if "trn" in stats:
+        fig_row_lbl.append("trn")
+        (E_x_trn, E_y_trn, E_xp_trn, E_yp_trn) = zip(*stats["trn"]["samples"])
+        E_x_trn = np.concatenate(E_x_trn, axis=1)
+        E_xp_trn = np.concatenate(E_xp_trn, axis=1)
+        fig_a_data.append(E_x_trn)
+        fig_a_col_lbl.append(join(E_y_trn))
+        fig_b_data.append(E_xp_trn)
+        fig_b_col_lbl.append(join(E_yp_trn))
+
+    if "tid" in stats and len(stats["tid"]["y_true"]) > 0:
+        fig_row_lbl.append("tid")
+        (E_x_tid, E_y_tid, E_xp_tid, E_yp_tid) = zip(*stats["tid"]["samples"])
+        E_x_tid = np.concatenate(E_x_tid, axis=1)
+        E_xp_tid = np.concatenate(E_xp_tid, axis=1)
+        fig_a_data.append(E_x_tid)
+        fig_a_col_lbl.append(join(E_y_tid))
+        fig_b_data.append(E_xp_tid)
+        fig_b_col_lbl.append(join(E_yp_tid))
+
+    if "tod" in stats and len(stats["tod"]["y_true"]) > 0:
+        fig_row_lbl.append("tod")
+        (E_x_tod, E_y_tod, E_xp_tod, E_yp_tod) = zip(*stats["tod"]["samples"])
+        E_x_tod = np.concatenate(E_x_tod, axis=1)
+        E_xp_tod = np.concatenate(E_xp_tod, axis=1)
+        fig_a_data.append(E_x_tod)
+        fig_a_col_lbl.append(join(E_y_tod))
+        fig_b_data.append(E_xp_tod)
+        fig_b_col_lbl.append(join(E_yp_tod))
+
+    fig_a_data = np.concatenate(fig_a_data, axis=0)
+    fig_b_data = np.concatenate(fig_b_data, axis=0)
+
+    fig_row_lbl = ", ".join([f"R{i+1}={v}" for i, v in enumerate(fig_row_lbl)])
+    fig_a_col_lbl = ", ".join([f"R{i+1}={v}" for i, v in enumerate(fig_a_col_lbl)])
+    fig_b_col_lbl = ", ".join([f"R{i+1}={v}" for i, v in enumerate(fig_b_col_lbl)])
+    fig_a_cap = f"sample inputs - rows: [{fig_row_lbl}] - targets: [{fig_a_col_lbl}]"
+    fig_b_cap = f"sample output - rows: [{fig_row_lbl}] - targets: [{fig_b_col_lbl}]"
+
+    figs["samples/input"] = wandb.Image(fig_a_data, caption=fig_a_cap)
+    figs["samples/output"] = wandb.Image(fig_b_data, caption=fig_b_cap)
+
+    done_keys = ["y_true", "y_prob", "y_ucty", "samples"]
+
+    for prefix in ["trn", "tid", "tod"]:
+        if prefix not in stats:
+            continue
+        prefix_stats = stats[prefix]
+        for key in set(prefix_stats).difference(done_keys):
+            val = prefix_stats[key]
+            # unbounded histograms
+            if key in ["u_norm", "v_norm", "z_norm", "z_nll"]:
+                val = np.tanh(val)
+                # save v_norm for AUROC computation
+                if key in ["v_norm"]:
+                    figs[f"{prefix}/{key}"] = val
+                hist = np.histogram(val, bins=100, range=(0.0, 1.0))
+                figs[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
+            # bounded histograms
+            elif key == "y_ucty":
+                hist = np.histogram(val, bins=100, range=(0.0, 1.0))
+                figs[f"{prefix}/{key}_hist"] = wandb.Histogram(np_histogram=hist)
+            # log everything else
+            else:
+                figs[f"{prefix}/{key}"] = val
+
     prefix = "ood_detection"
-    if "test/ind/v_norm" in log and "test/ood/v_norm" in log:
-        ind_v_norm = log.pop("test/ind/v_norm")
-        ood_v_norm = log.pop("test/ood/v_norm")
-        B_InD = ind_v_norm.shape[0]
-        B_OoD = ood_v_norm.shape[0]
+    if "v_norm" in stats["tid"] and "v_norm" in stats["tod"]:
+        tid_v_norm = stats["tid"]["v_norm"]
+        tod_v_norm = stats["tod"]["v_norm"]
+        B_InD = tid_v_norm.shape[0]
+        B_OoD = tod_v_norm.shape[0]
         # binary classification labels for ID and OOD
         LABELS = ["InD", "OoD"]
-        values = np.concatenate([ind_v_norm, ood_v_norm], axis=0)
+        values = np.concatenate([tid_v_norm, tod_v_norm], axis=0)
         values_2d = np.stack([1.0 - values, values], axis=-1)
         target = np.concatenate([np.zeros(B_InD), np.ones(B_OoD)], axis=0)
-        log[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
-        log[f"{prefix}/pr"] = wandb.plot.pr_curve(target, values_2d, LABELS)
-        log[f"{prefix}/auroc"] = metrics.roc_auc_score(target, values)
+        stats[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
+        stats[f"{prefix}/pr"] = wandb.plot.pr_curve(target, values_2d, LABELS)
+        stats[f"{prefix}/auroc"] = sklearn.metrics.roc_auc_score(target, values)
+
+    data = {}
+    data.update(metrics)
+    data.update(figs)
+    return data
 
 
 def main(config: Config):
@@ -120,11 +214,7 @@ def main(config: Config):
     model, optim, step = get_model_optimizer_and_step(config)
 
     # load saved model and optimizer, if present
-    load_saved_state(
-        model=model,
-        optim=optim,
-        config=config,
-    )
+    load_model_state(model, config)
     model = model.float().to(config.device)
 
     wandb.watch(model, log_freq=100)
@@ -134,10 +224,11 @@ def main(config: Config):
 
     artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
+    # loop over epochs
     for epoch in range(config.train_epochs + 1):
         epoch_stats: dict = {}
 
-        # training loop
+        # train
         if epoch > 0:
             trn_stats = step(
                 prefix="train",
@@ -146,50 +237,33 @@ def main(config: Config):
                 config=config,
                 optim=optim,
             )
-            log = gen_log_metrics(trn_stats, "train", config, epoch)
-            epoch_stats.update(log)
+            epoch_stats["trn"] = trn_stats
 
-        # testing loop
-        tst_stats = step(
-            prefix="test/ind",
+        # test (InD)
+        tid_stats = step(
+            prefix="test_ind",
             model=model,
             epoch=epoch,
             config=config,
         )
-        log = gen_log_metrics(tst_stats, "test/ind", config, epoch)
-        epoch_stats.update(log)
+        epoch_stats["tid"] = tid_stats
 
-        # testing loop
-        ood_stats = step(
-            prefix="test/ood",
+        # test (OoD)
+        tod_stats = step(
+            prefix="test_ood",
             model=model,
             epoch=epoch,
             config=config,
         )
-        log = gen_log_metrics(ood_stats, "test/ood", config, epoch)
-        epoch_stats.update(log)
+        epoch_stats["tod"] = tod_stats
 
-        agg_log_metrics(epoch_stats)
-
-        wandb.log(epoch_stats, step=epoch)
+        wandb.log(epoch_stats_to_wandb(epoch_stats, config, epoch), step=epoch)
 
         # save model and optimizer states
-        save_state(
-            model=model,
-            optim=optim,
-            config=config,
-            epoch=epoch,
-        )
-        artifact.add_file(
-            os.path.join(
-                config.experiment_path, f"{config.model_name}_model_e{epoch}.pth"
-            )
-        )
-        artifact.add_file(
-            os.path.join(
-                config.experiment_path, f"{config.model_name}_optim_e{epoch}.pth"
-            )
-        )
+        save_model_state(model, config, epoch)
+        fp = config.experiment_path
+        model_name = config.model_name
+        artifact.add_file(os.path.join(fp, f"{model_name}_model_e{epoch}.pth"))
 
     artifact.save()
 
@@ -213,7 +287,7 @@ if __name__ == "__main__":
     import wandb
 
     wandb.init(
-        project="ood_flows",
+        project="uq_ood",
         name=config.run_name,
         config=config.run_config,
     )

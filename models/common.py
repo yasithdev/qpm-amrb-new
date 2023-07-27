@@ -17,21 +17,17 @@ from config import Config
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def load_saved_state(
+def load_model_state(
     model: torch.nn.Module,
-    optim: Tuple[torch.optim.Optimizer, ...],
     config: Config,
     epoch: Optional[int] = None,
 ) -> None:
     if epoch is not None:
         model_filename = f"{config.model_name}_model_e{epoch}.pth"
-        optim_filename = f"{config.model_name}_optim_e{epoch}.pth"
     else:
         model_filename = f"{config.model_name}_model.pth"
-        optim_filename = f"{config.model_name}_optim.pth"
 
     model_state_path = os.path.join(config.experiment_path, model_filename)
-    optim_state_path = os.path.join(config.experiment_path, optim_filename)
 
     if not os.path.exists(model_state_path):
         logging.warn("no saved model state: %s", model_state_path)
@@ -39,31 +35,19 @@ def load_saved_state(
         logging.info("loading saved model state from: %s", model_state_path)
         model.load_state_dict(torch.load(model_state_path, map_location=config.device))
 
-    if not os.path.exists(optim_state_path):
-        logging.warn("no saved optim state: %s", optim_state_path)
-    else:
-        logging.info("loading saved optim state from: %s", optim_state_path)
-        optim[0].load_state_dict(
-            torch.load(optim_state_path, map_location=config.device)
-        )
-
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def save_state(
+def save_model_state(
     model: torch.nn.Module,
-    optim: Tuple[torch.optim.Optimizer, ...],
     config: Config,
     epoch: int,
 ) -> None:
-    logging.info(f"saving model and optimizer states - e{epoch}")
+    logging.info(f"saving model state - e{epoch}")
     model_filename = f"{config.model_name}_model_e{epoch}.pth"
-    optim_filename = f"{config.model_name}_optim_e{epoch}.pth"
     model_state_path = os.path.join(config.experiment_path, model_filename)
-    optim_state_path = os.path.join(config.experiment_path, optim_filename)
     torch.save(model.state_dict(), model_state_path)
-    torch.save(optim[0].state_dict(), optim_state_path)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -188,14 +172,17 @@ def get_convt_out_shape(
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
-def gen_epoch_acc(
-    y_pred: list,
-    y_true: list,
-    labels: list,
+def gen_topk_accs(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    num_labels: int,
 ) -> Tuple[float, float, float]:
-    top1_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=1))
-    top2_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=2))
-    top3_acc = float(topk_acc(y_true=y_true, y_score=y_pred, labels=labels, k=3))
+    y_true = y_true.tolist()
+    y_pred = y_pred.tolist()
+    pseudo_labels = np.arange(num_labels)
+    top1_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=1)
+    top2_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=2)
+    top3_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=3)
     return top1_acc, top2_acc, top3_acc
 
 
@@ -240,22 +227,22 @@ def margin_loss(
 
 
 def gather_samples(
-    samples: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    samples: List[Tuple[np.ndarray, int, np.ndarray, int]],
     x: torch.Tensor,
     y: torch.Tensor,
-    m: torch.Tensor,
-    y_x: torch.Tensor,
+    xp: torch.Tensor,
+    yp: torch.Tensor,
     num_samples: int = 5,
 ) -> None:
     pattern = "c h w -> h w c"
 
     if len(samples) < num_samples:
-        val_x = rearrange(x[0].cpu(), pattern).numpy()
-        val_y = y[0].argmax().cpu().numpy()
-        val_x_z = rearrange(m[0].detach().cpu(), pattern).numpy()
-        val_y_x = y_x[0].detach().argmax().cpu().numpy()
+        item_x = rearrange(x[0].cpu(), pattern).numpy()
+        item_y = int(y[0].argmax().cpu().numpy())
+        item_xp = rearrange(xp[0].detach().cpu(), pattern).numpy()
+        item_yp = int(yp[0].detach().argmax().cpu().numpy())
 
-        samples.append((val_x, val_y, val_x_z, val_y_x))
+        samples.append((item_x, item_y, item_xp, item_yp))
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Optional, Tuple
 
 import numpy as np
@@ -175,11 +176,11 @@ def step_model(
         data_loader = config.train_loader
         assert data_loader is not None
         model.train()
-    elif prefix == "test/ind":
+    elif prefix == "test_ind":
         data_loader = config.test_loader
         assert data_loader is not None
         model.eval()
-    elif prefix == "test/ood":
+    elif prefix == "test_ood":
         data_loader = config.ood_loader
         assert data_loader is not None
         model.eval()
@@ -187,7 +188,7 @@ def step_model(
         raise ValueError()
 
     size = 0
-    sum_loss = 0
+    sum_loss = defaultdict(lambda: 0.)
 
     # step
     with torch.enable_grad():
@@ -213,7 +214,7 @@ def step_model(
         x_z: torch.Tensor
 
         y_true = []
-        y_pred = []
+        y_prob = []
         y_ucty = []
         u_norm = []
         v_norm = []
@@ -253,7 +254,7 @@ def step_model(
 
             # accumulate predictions
             y_true.extend(y.detach().cpu().numpy())
-            y_pred.extend(pY.detach().cpu().numpy())
+            y_prob.extend(pY.detach().cpu().numpy())
             y_ucty.extend(uY.detach().cpu().numpy())
             gather_samples(samples, x, y, x_z, y_z)
 
@@ -267,6 +268,10 @@ def step_model(
             ß = 1e-3
             # L_minibatch = L_z.mean() + (ß * L_v.mean()) + L_m.mean() + L_y_z.mean() # Σ_i[Σ_n(L_{n,i})/N]
             L_minibatch = (L_z + (ß * L_v) + L_x + L_y_z).mean()  # Σ_n[Σ_i(L_{n,i})]/N
+            L_y_minibatch = L_y_z.mean()
+            L_x_minibatch = L_x.mean()
+            L_v_minibatch = L_v.mean()
+            L_z_minibatch = L_z.mean()
 
             # backward pass (if optimizer is given)
             if prefix == "train":
@@ -277,26 +282,30 @@ def step_model(
                 optim_gd.step()
 
             # accumulate sum loss
-            sum_loss += L_minibatch.item() * B
+            sum_loss["agg"] += L_minibatch.item() * B
+            sum_loss["y"] += L_y_minibatch.item() * B
+            sum_loss["x"] += L_x_minibatch.item() * B
+            sum_loss["v"] += L_v_minibatch.item() * B
+            sum_loss["z"] += L_z_minibatch.item() * B
             size += B
 
             # logging
             log_stats = {
-                "Loss(mb)": f"{L_minibatch:.4f}",
-                "Loss(x)": f"{L_x.mean():.4f}",
-                "Loss(y)": f"{L_y_z.mean():.4f}",
-                "Loss(v)": f"{L_v.mean():.4f}",
-                "Loss(z)": f"{L_z.mean():.4f}",
+                "Loss(agg)": f"{L_minibatch:.4f}",
+                "Loss(y)": f"{L_y_minibatch:.4f}",
+                "Loss(x)": f"{L_x_minibatch:.4f}",
+                "Loss(v)": f"{L_v_minibatch:.4f}",
+                "Loss(z)": f"{L_z_minibatch:.4f}",
             }
             iterable.set_postfix(log_stats)
 
     # post-step
-    avg_loss = sum_loss / max(size, 1)
+    avg_loss = {k: v / max(size, 1) for k, v in sum_loss.items()}
 
     return {
         "loss": avg_loss,
         "y_true": np.array(y_true),
-        "y_pred": np.array(y_pred),
+        "y_prob": np.array(y_prob),
         "y_ucty": np.array(y_ucty),
         "samples": samples,
         "u_norm": np.array(u_norm),
