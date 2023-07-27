@@ -11,27 +11,22 @@ from config import Config, load_config
 from datasets import init_dataloaders, init_labels, init_shape
 from models import get_model_optimizer_and_step
 from models.common import gen_topk_accs, load_model_state, save_model_state
-
-
-def update_epoch_stats(
-    epoch_stats: dict,
-    stats: dict,
-    prefix: Literal["trn", "tid", "tod"],
-) -> None:
-    epoch_stats.update({f"{prefix}/{k}": v for k, v in stats.items()})
+from matplotlib import pyplot as plt
+from PIL import Image
 
 
 def epoch_stats_to_wandb(
-    stats: dict,
+    stats: dict[str, dict],
     config: Config,
     step: int,
 ) -> dict:
     # initialize metric dict
     metrics = {}
     metrics["trn/loss"] = None
-    metrics["tst/loss"] = [None, None]
-    metrics["trn/acc"] = (None, None, None)
-    metrics["tst/acc"] = (None, None, None)
+    metrics["trn/acc"] = dict(acc1=None, acc2=None, acc3=None)
+    metrics["tid/loss"] = None
+    metrics["tid/acc"] = dict(acc1=None, acc2=None, acc3=None)
+    metrics["tod/loss"] = None
 
     # get label information
     ind_labels, ood_labels = config.get_ind_labels(), config.get_ood_labels()
@@ -43,24 +38,15 @@ def epoch_stats_to_wandb(
         y_true_trn: np.ndarray = stats["trn"]["y_true"]
         y_prob_trn: np.ndarray = stats["trn"]["y_prob"]
         metrics["trn/acc"] = gen_topk_accs(y_true_trn, y_prob_trn, Ki)
-        figs["trn/cm"] = wandb.plot.confusion_matrix(
-            y_true=y_true_trn,  # type: ignore
-            probs=y_prob_trn,  # type: ignore
-            class_names=ind_labels,
-            title=f"Confusion Matrix (Train)",
+
+        cm = sklearn.metrics.confusion_matrix(
+            y_true_trn, y_prob_trn.argmax(-1), labels=list(range(Ki))
         )
-        figs["trn/roc"] = wandb.plot.roc_curve(
-            y_true=y_true_trn,
-            y_probas=y_prob_trn,
-            labels=ind_labels,
-        )
-        figs["trn/prc"] = wandb.plot.pr_curve(
-            y_true=y_true_trn,
-            y_probas=y_prob_trn,
-            labels=ind_labels,
-        )
-        if "y_ucty" in stats["trn"]:
-            y_ucty_trn: np.ndarray = stats["trn"]["y_ucty"]
+        disp = sklearn.metrics.ConfusionMatrixDisplay(cm, display_labels=ind_labels)
+        disp.plot()
+        fp = os.path.join(config.experiment_path, f"cm_trn_e{step}.png")
+        plt.savefig(fp)
+        figs["trn/cm"] = wandb.Image(Image.open(fp))
 
     y_true_tst = []
     y_prob_tst = []
@@ -69,22 +55,18 @@ def epoch_stats_to_wandb(
         y_true_tid: np.ndarray = stats["tid"]["y_true"]
         y_prob_tid: np.ndarray = stats["tid"]["y_prob"]
         if len(y_true_tid) > 0:
-            metrics["tst/loss"][0] = stats["tid"]["loss"]
-            metrics["tst/acc"] = gen_topk_accs(y_true_tid, y_prob_tid, Ki)
+            metrics["tid/loss"] = stats["tid"]["loss"]
+            metrics["tid/acc"] = gen_topk_accs(y_true_tid, y_prob_tid, Ki)
             y_true_tst.append(y_true_tid)
             y_prob_tst.append(y_prob_tid)
-            if "y_ucty" in stats["tid"]:
-                y_ucty_tid: np.ndarray = stats["tid"]["y_ucty"]
 
     if "tod" in stats:
         y_true_tod: np.ndarray = stats["tod"]["y_true"]
         y_prob_tod: np.ndarray = stats["tod"]["y_prob"]
         if len(y_true_tod) > 0:
-            metrics["tst/loss"][1] = stats["tod"]["loss"]
+            metrics["tod/loss"] = stats["tod"]["loss"]
             y_true_tst.append(y_true_tod)
             y_prob_tst.append(y_prob_tod)
-            if "y_ucty" in stats["tod"]:
-                y_ucty_tod: np.ndarray = stats["tod"]["y_ucty"]
 
     # concatenate y of tid and tod datasets
     y_true_tst = np.concatenate(y_true_tst, axis=0)
@@ -94,26 +76,18 @@ def epoch_stats_to_wandb(
     y_prob_tst = np.pad(y_prob_tst, pad_width=((0, 0), (0, Ko)))
     perm_labels = ind_labels + ood_labels
 
-    figs["tst/cm"] = wandb.plot.confusion_matrix(
-        y_true=y_true_tst,  # type: ignore
-        probs=y_prob_tst,  # type: ignore
-        class_names=perm_labels,
-        title=f"Confusion Matrix (Test)",
+    cm = sklearn.metrics.confusion_matrix(
+        y_true_tst, y_prob_tst.argmax(-1), labels=list(range(Ki + Ko))
     )
-    figs["tst/roc"] = wandb.plot.roc_curve(
-        y_true=y_true_tst,
-        y_probas=y_prob_tst,
-        labels=perm_labels,
-    )
-    figs["tst/prc"] = wandb.plot.pr_curve(
-        y_true=y_true_tst,
-        y_probas=y_prob_tst,
-        labels=perm_labels,
-    )
+    disp = sklearn.metrics.ConfusionMatrixDisplay(cm, display_labels=perm_labels)
+    disp.plot()
+    fp = os.path.join(config.experiment_path, f"cm_tst_e{step}.png")
+    plt.savefig(fp)
+    figs["tst/cm"] = wandb.Image(Image.open(fp))
 
     tqdm.write(f"Epoch {step}: {metrics}")
 
-    join = lambda x: ",".join(map(str,x))
+    join = lambda x: ",".join(map(perm_labels.__getitem__, x))
     fig_row_lbl = []
     fig_a_data = []
     fig_a_col_lbl = []
@@ -167,7 +141,7 @@ def epoch_stats_to_wandb(
     for prefix in ["trn", "tid", "tod"]:
         if prefix not in stats:
             continue
-        prefix_stats = stats[prefix]
+        prefix_stats: dict = stats[prefix]
         for key in set(prefix_stats).difference(done_keys):
             val = prefix_stats[key]
             # unbounded histograms
@@ -197,9 +171,9 @@ def epoch_stats_to_wandb(
         values = np.concatenate([tid_v_norm, tod_v_norm], axis=0)
         values_2d = np.stack([1.0 - values, values], axis=-1)
         target = np.concatenate([np.zeros(B_InD), np.ones(B_OoD)], axis=0)
-        stats[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
-        stats[f"{prefix}/pr"] = wandb.plot.pr_curve(target, values_2d, LABELS)
-        stats[f"{prefix}/auroc"] = sklearn.metrics.roc_auc_score(target, values)
+        figs[f"{prefix}/roc"] = wandb.plot.roc_curve(target, values_2d, LABELS)
+        figs[f"{prefix}/pr"] = wandb.plot.pr_curve(target, values_2d, LABELS)
+        figs[f"{prefix}/auroc"] = sklearn.metrics.roc_auc_score(target, values)
 
     data = {}
     data.update(metrics)
@@ -225,19 +199,18 @@ def main(config: Config):
     artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
     # loop over epochs
-    for epoch in range(config.train_epochs + 1):
+    for epoch in range(1, config.train_epochs + 1):
         epoch_stats: dict = {}
 
         # train
-        if epoch > 0:
-            trn_stats = step(
-                prefix="train",
-                model=model,
-                epoch=epoch,
-                config=config,
-                optim=optim,
-            )
-            epoch_stats["trn"] = trn_stats
+        trn_stats = step(
+            prefix="train",
+            model=model,
+            epoch=epoch,
+            config=config,
+            optim=optim,
+        )
+        epoch_stats["trn"] = trn_stats
 
         # test (InD)
         tid_stats = step(

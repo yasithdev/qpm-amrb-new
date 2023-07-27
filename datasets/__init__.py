@@ -61,6 +61,7 @@ def __make_dataloaders(
 ):
     ind_labels = config.get_ind_labels()
     ood_labels = config.get_ood_labels()
+    Ki, Ko = len(ind_labels), len(ood_labels)
     permuted_idx = ind_labels + ood_labels
     bsize = config.batch_size
 
@@ -86,8 +87,8 @@ def __make_dataloaders(
     ood = ConcatDataset([Subset(trainset, trn_od_idx), Subset(testset, tst_od_idx)])
 
     trn_loader = DataLoader(trn, bsize, shuffle=True, drop_last=True)
-    tst_loader = DataLoader(tst, bsize, drop_last=True)
-    ood_loader = DataLoader(ood, bsize, drop_last=True)
+    tst_loader = DataLoader(tst, bsize, shuffle=True, drop_last=True)
+    ood_loader = DataLoader(ood, bsize, shuffle=Ko > 0, drop_last=True)
 
     print(len(trn_loader) * bsize, len(tst_loader) * bsize, len(ood_loader) * bsize)
     return trn_loader, tst_loader, ood_loader

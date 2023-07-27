@@ -176,14 +176,14 @@ def gen_topk_accs(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     num_labels: int,
-) -> Tuple[float, float, float]:
+) -> dict[str, float]:
     y_true = y_true.tolist()
     y_pred = y_pred.tolist()
     pseudo_labels = np.arange(num_labels)
     top1_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=1)
     top2_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=2)
     top3_acc = topk_acc(y_true, y_pred, labels=pseudo_labels, k=3)
-    return top1_acc, top2_acc, top3_acc
+    return dict(acc1=top1_acc, acc2=top2_acc, acc3=top3_acc)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -238,7 +238,7 @@ def gather_samples(
 
     if len(samples) < num_samples:
         item_x = rearrange(x[0].cpu(), pattern).numpy()
-        item_y = int(y[0].argmax().cpu().numpy())
+        item_y = int(y[0].cpu().numpy())
         item_xp = rearrange(xp[0].detach().cpu(), pattern).numpy()
         item_yp = int(yp[0].detach().argmax().cpu().numpy())
 
