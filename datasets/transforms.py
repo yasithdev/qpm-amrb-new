@@ -74,7 +74,7 @@ def take_splits(
     tst_od_idx = []
     tst_id_idx = []
     for idx, (_, target) in enumerate(testset):  # type: ignore
-        dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
+        dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
         dest.append(idx)
     print("Performed ind/ood split")
 

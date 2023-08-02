@@ -183,11 +183,11 @@ class Model(pl.LightningModule):
         L_z_mb = L_z.mean()
 
         # logging
-        self.log("loss_agg", L_mb)
-        self.log("loss_y", L_y_mb)
-        self.log("loss_x", L_x_mb)
-        self.log("loss_v", L_v_mb)
-        self.log("loss_z", L_z_mb)
+        self.log("loss_agg", L_mb, sync_dist=True)
+        self.log("loss_y", L_y_mb, sync_dist=True)
+        self.log("loss_x", L_x_mb, sync_dist=True)
+        self.log("loss_v", L_v_mb, sync_dist=True)
+        self.log("loss_z", L_z_mb, sync_dist=True)
 
         self.y_true.append(y.detach())
         self.y_prob.append(pY.detach())
