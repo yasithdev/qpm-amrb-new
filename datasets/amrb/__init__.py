@@ -41,7 +41,7 @@ class DataModule(pt.LightningDataModule):
         ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
         return ind_targets, ood_targets
 
-    def prepare_data(self) -> None:
+    def setup(self, stage: str) -> None:
         trainset, testset = create_datasets(
             data_root=self.data_root,
             version=self.version,

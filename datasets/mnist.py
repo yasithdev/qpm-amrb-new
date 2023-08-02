@@ -5,12 +5,7 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor
 
-from .transforms import (
-    AddGaussianNoise,
-    ZeroPad2D,
-    reindex_for_ood,
-    take_splits,
-)
+from .transforms import AddGaussianNoise, ZeroPad2D, reindex_for_ood, take_splits
 
 
 class DataModule(pl.LightningDataModule):
@@ -43,7 +38,7 @@ class DataModule(pl.LightningDataModule):
         ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
         return ind_targets, ood_targets
 
-    def prepare_data(self) -> None:
+    def setup(self, stage: str) -> None:
         trainset = MNIST(
             root=self.data_root,
             train=True,

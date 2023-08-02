@@ -75,7 +75,7 @@ class DataModule(pl.LightningDataModule):
         ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
         return ind_targets, ood_targets
 
-    def prepare_data(self) -> None:
+    def setup(self, stage: str) -> None:
         trainset = bacteria_dataset(
             data_dir=self.data_root,
             type_="train",
