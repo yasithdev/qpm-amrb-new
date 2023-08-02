@@ -56,11 +56,7 @@ def create_target_transform(
     ood_targets = [y for i, y in enumerate(targets) if i in ood]
     permuted_targets = ind_targets + ood_targets
 
-    transforms = []
-    if pre_indexed:
-        transforms.append(lambda y: permuted_targets.index(targets[y]))
-    else:
-        transforms.append(lambda y: permuted_targets.index(str(y)))
+    transforms = [targets.__getitem__ if pre_indexed else str, permuted_targets.index]
 
     target_transform = Compose(transforms)
     return target_transform
