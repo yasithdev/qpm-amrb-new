@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 
 import torch
 from dotenv import load_dotenv
-from torch.utils.data import DataLoader
+from lightning.pytorch import LightningDataModule
 
 
 def get_best_device():
@@ -16,8 +16,8 @@ def get_best_device():
     if cuda.is_built() and torch.cuda.is_available():
         return "cuda"
     # check for mps
-    # if mps.is_built() and mps.is_available():
-    #     return "mps"
+    if mps.is_built() and mps.is_available():
+        return "mps"
     return "cpu"
 
 
@@ -41,9 +41,7 @@ class Config:
         #
         image_chw: Optional[Tuple[int, int, int]] = None,
         labels: Optional[List[str]] = None,
-        train_loader: Optional[DataLoader] = None,
-        test_loader: Optional[DataLoader] = None,
-        ood_loader: Optional[DataLoader] = None,
+        datamodule: Optional[LightningDataModule] = None
     ) -> None:
         self.log_level = log_level
         self.ood_k = ood_k
@@ -84,9 +82,7 @@ class Config:
 
         self.image_chw = image_chw
         self.labels = labels
-        self.train_loader = train_loader
-        self.test_loader = test_loader
-        self.ood_loader = ood_loader
+        self.datamodule = datamodule
 
     def get_ind_labels(self) -> List[str]:
         assert self.labels

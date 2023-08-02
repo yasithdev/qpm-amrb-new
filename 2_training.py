@@ -1,17 +1,19 @@
 import logging
 import os
 
+import lightning.pytorch as pl
 import numpy as np
-import torch
 import sklearn.metrics
+import torch
+from lightning.pytorch.loggers.wandb import WandbLogger
+from matplotlib import pyplot as plt
+from PIL import Image
 from tqdm import tqdm
 
 from config import Config, load_config
-from datasets import init_dataloaders, init_labels, init_shape
-from models import get_model_optimizer_and_step
-from models.common import gen_topk_accs, load_model_state, save_model_state
-from matplotlib import pyplot as plt
-from PIL import Image
+from datasets import get_data
+from models import get_model
+from models.common import gen_topk_accs
 
 
 def epoch_stats_to_wandb(
@@ -183,63 +185,68 @@ def epoch_stats_to_wandb(
 
 
 def main(config: Config):
-    assert config.train_loader
-    assert config.test_loader
+    assert config.datamodule
 
-    model, optim, step = get_model_optimizer_and_step(config)
+    model = get_model(config)
+    trainer = pl.Trainer(
+        logger=WandbLogger("uq_project"),
+        accelerator="auto",
+        max_epochs=config.train_epochs,
+    )
+    trainer.fit(model=model, datamodule=config.datamodule)
 
-    # load saved model and optimizer, if present
-    load_model_state(model, config)
-    model = model.float().to(config.device)
+    # # load saved model and optimizer, if present
+    # load_model_state(model, config)
+    # model = model.float().to(config.device)
 
-    wandb.watch(model, log_freq=100)
+    # wandb.watch(model, log_freq=100)
 
-    # run train / test loops
-    logging.info("Started Train/Test")
+    # # run train / test loops
+    # logging.info("Started Train/Test")
 
-    artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
+    # artifact = wandb.Artifact(f"{config.run_name}-{config.model_name}", type="model")
 
-    # loop over epochs
-    for epoch in range(1, config.train_epochs + 1):
-        epoch_stats: dict = {}
+    # # loop over epochs
+    # for epoch in range(1, config.train_epochs + 1):
+    #     epoch_stats: dict = {}
 
-        # train
-        trn_stats = step(
-            prefix="train",
-            model=model,
-            epoch=epoch,
-            config=config,
-            optim=optim,
-        )
-        epoch_stats["trn"] = trn_stats
+    #     # train
+    #     trn_stats = step(
+    #         prefix="train",
+    #         model=model,
+    #         epoch=epoch,
+    #         config=config,
+    #         optim=optim,
+    #     )
+    #     epoch_stats["trn"] = trn_stats
 
-        # test (InD)
-        tid_stats = step(
-            prefix="test_ind",
-            model=model,
-            epoch=epoch,
-            config=config,
-        )
-        epoch_stats["tid"] = tid_stats
+    #     # test (InD)
+    #     tid_stats = step(
+    #         prefix="test_ind",
+    #         model=model,
+    #         epoch=epoch,
+    #         config=config,
+    #     )
+    #     epoch_stats["tid"] = tid_stats
 
-        # test (OoD)
-        tod_stats = step(
-            prefix="test_ood",
-            model=model,
-            epoch=epoch,
-            config=config,
-        )
-        epoch_stats["tod"] = tod_stats
+    #     # test (OoD)
+    #     tod_stats = step(
+    #         prefix="test_ood",
+    #         model=model,
+    #         epoch=epoch,
+    #         config=config,
+    #     )
+    #     epoch_stats["tod"] = tod_stats
 
-        wandb.log(epoch_stats_to_wandb(epoch_stats, config, epoch), step=epoch)
+    #     wandb.log(epoch_stats_to_wandb(epoch_stats, config, epoch), step=epoch)
 
-        # save model and optimizer states
-        save_model_state(model, config, epoch)
-        fp = config.experiment_path
-        model_name = config.model_name
-        artifact.add_file(os.path.join(fp, f"{model_name}_model_e{epoch}.pth"))
+    #     # save model and optimizer states
+    #     save_model_state(model, config, epoch)
+    #     fp = config.experiment_path
+    #     model_name = config.model_name
+    #     artifact.add_file(os.path.join(fp, f"{model_name}_model_e{epoch}.pth"))
 
-    artifact.save()
+    # artifact.save()
 
 
 if __name__ == "__main__":
@@ -250,20 +257,6 @@ if __name__ == "__main__":
     config = load_config()
 
     # initialize data attributes and loaders
-    init_labels(config)
-    init_shape(config)
-    init_dataloaders(config)
-
+    get_data(config)
     config.print_labels()
-
-    import wandb.plot
-
-    import wandb
-
-    wandb.init(
-        project="uq_ood",
-        name=config.run_name,
-        config=config.run_config,
-    )
-
     main(config)

@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Tuple
 
 import torch
-import torch.nn.functional as F
+from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from torchvision.transforms import Compose
 
 
@@ -47,16 +47,41 @@ class TileChannels2d(object):
         return self.__class__.__name__ + "(repeats={0})".format(self.repeats)
 
 
-def create_target_transform(
+def reindex_for_ood(
     targets: List[str],
     ood: List[int],
-    pre_indexed: bool = False,
-) -> Compose:
+) -> List[str]:
     ind_targets = [y for i, y in enumerate(targets) if i not in ood]
     ood_targets = [y for i, y in enumerate(targets) if i in ood]
     permuted_targets = ind_targets + ood_targets
+    return permuted_targets
 
-    transforms = [targets.__getitem__ if pre_indexed else str, permuted_targets.index]
 
-    target_transform = Compose(transforms)
-    return target_transform
+def take_splits(
+    trainset: Dataset,
+    testset: Dataset,
+    ind_labels: List[str],
+    ood_labels: List[str],
+) -> Tuple[Dataset, Dataset, Dataset, Dataset]:
+    permuted_idx = ind_labels + ood_labels
+
+    print("Performing ind/ood split")
+    trn_od_idx = []
+    trn_id_idx = []
+    for idx, (_, target) in enumerate(trainset):  # type: ignore
+        dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
+        dest.append(idx)
+    tst_od_idx = []
+    tst_id_idx = []
+    for idx, (_, target) in enumerate(testset):  # type: ignore
+        dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
+        dest.append(idx)
+    print("Performed ind/ood split")
+
+    trn = Subset(trainset, trn_id_idx)
+    trn, val = random_split(trn, [0.8, 0.2])
+    tst = Subset(testset, tst_id_idx)
+    ood = ConcatDataset([Subset(trainset, trn_od_idx), Subset(testset, tst_od_idx)])
+
+    print(len(trn), len(val), len(tst), len(ood))
+    return trn, val, tst, ood
