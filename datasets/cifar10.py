@@ -8,7 +8,7 @@ from .transforms import AddGaussianNoise, create_target_transform
 
 
 def get_targets() -> List[str]:
-    targets = sorted(map(str, range(10)))
+    targets = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
     return targets
 
 

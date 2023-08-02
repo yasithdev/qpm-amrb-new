@@ -68,7 +68,7 @@ def get_datasets(
         ]
     )
     targets = get_targets(target_label=target_label)
-    target_transform = create_target_transform(targets, ood, infer_index=False)
+    target_transform = create_target_transform(targets, ood, pre_indexed=True)
 
     trainset = bacteria_dataset(
         data_dir=data_root,

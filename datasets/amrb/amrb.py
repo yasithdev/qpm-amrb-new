@@ -69,7 +69,7 @@ def create_datasets(
     version: str,
     target_label: str,
     split_frac: float = 0.6,
-    balance_train_data=False,
+    balance_train_data: bool = False,
     transform: Optional[Callable] = None,
     target_transform: Optional[Callable] = None,
 ) -> Tuple[Dataset, Dataset]:

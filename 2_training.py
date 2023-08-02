@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Literal
 
 import numpy as np
 import torch
@@ -46,6 +45,7 @@ def epoch_stats_to_wandb(
         disp.plot()
         fp = os.path.join(config.experiment_path, f"cm_trn_e{step}.png")
         plt.savefig(fp)
+        plt.close()
         figs["trn/cm"] = wandb.Image(Image.open(fp))
 
     y_true_tst = []
@@ -83,6 +83,7 @@ def epoch_stats_to_wandb(
     disp.plot()
     fp = os.path.join(config.experiment_path, f"cm_tst_e{step}.png")
     plt.savefig(fp)
+    plt.close()
     figs["tst/cm"] = wandb.Image(Image.open(fp))
 
     tqdm.write(f"Epoch {step}: {metrics}")

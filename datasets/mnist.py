@@ -8,7 +8,7 @@ from .transforms import AddGaussianNoise, ZeroPad2D, create_target_transform
 
 
 def get_targets() -> List[str]:
-    targets = sorted(map(str, range(10)))
+    targets = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
     return targets
 
 

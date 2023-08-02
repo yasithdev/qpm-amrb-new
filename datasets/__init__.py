@@ -86,9 +86,9 @@ def __make_dataloaders(
     tst = Subset(testset, tst_id_idx)
     ood = ConcatDataset([Subset(trainset, trn_od_idx), Subset(testset, tst_od_idx)])
 
-    trn_loader = DataLoader(trn, bsize, shuffle=True, drop_last=True)
-    tst_loader = DataLoader(tst, bsize, shuffle=True, drop_last=True)
-    ood_loader = DataLoader(ood, bsize, shuffle=Ko > 0, drop_last=True)
+    trn_loader = DataLoader(trn, bsize, shuffle=True, drop_last=True, num_workers=4)
+    tst_loader = DataLoader(tst, bsize, shuffle=True, drop_last=True, num_workers=4)
+    ood_loader = DataLoader(ood, bsize, shuffle=Ko > 0, drop_last=True, num_workers=4)
 
     print(len(trn_loader) * bsize, len(tst_loader) * bsize, len(ood_loader) * bsize)
     return trn_loader, tst_loader, ood_loader

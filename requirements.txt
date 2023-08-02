@@ -11,6 +11,4 @@ plotly~=5.15.0
 einops~=0.6.1
 python-dotenv~=1.0.0
 umap-learn[plot]~=0.5.3
-wandb~=0.15.7
-jupyterlab~=4.0.3
-pyright~=1.1.318
+wandb~=0.15.8
