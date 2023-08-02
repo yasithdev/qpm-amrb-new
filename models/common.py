@@ -316,18 +316,19 @@ class GradientHook(object):
 
 
 def edl_kl(
-    α̃: torch.Tensor,
+    α: torch.Tensor,
 ) -> torch.Tensor:
     # function definitions
     lnΓ = torch.lgamma
     ψ = torch.digamma  # derivative of lnΓ
     Σ = partial(torch.sum, dim=-1, keepdim=True)
-    K = torch.as_tensor(α̃.size(-1), device=α̃.device)
 
     # logic
-    Σα̃ = Σ(α̃)
-    kl = lnΓ(Σα̃) - lnΓ(K) - Σ(lnΓ(α̃)) + Σ((α̃ - 1) * (ψ(α̃) - ψ(Σα̃)))
-    return kl
+    β = α.new_ones(α.size())
+    l1 = lnΓ(Σ(α)) - Σ(lnΓ(α)) + Σ(lnΓ(β)) - lnΓ(Σ(β))
+    l2 = Σ((α - β) * (ψ(α) - ψ(Σ(α))))
+
+    return l1 + l2
 
 
 def edl_loss(
@@ -362,7 +363,7 @@ def edl_loss(
 
     # wait for q epochs, then anneal λ from 0 -> λ_max over τ epochs
     λ = min(λ_max, max(epoch - q, 0) / τ)
-    α̃ = y + (1 - y) * α
+    α̃ = (1 - y) * (α - 1) + 1
 
     L_err = Σ((y - p).pow(2))
     L_var = Σ(p * (1 - p) / (S + 1))

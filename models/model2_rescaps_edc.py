@@ -79,7 +79,7 @@ class Model(pl.LightningModule):
         optimizer = optim.AdamW(self.parameters(), lr=self.config.optim_lr)
         return optimizer
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+    def step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         # get batch data
         x, y = batch
         x = x.float()
@@ -105,25 +105,25 @@ class Model(pl.LightningModule):
         self.log("loss_y", L_y_mb)
         self.log("loss_x", L_x_mb)
 
-        self.y_true.append(y.detach().cpu())
-        self.y_prob.append(pY.detach().cpu())
-        self.y_ucty.append(uY.detach().cpu())
+        self.y_true.append(y.detach())
+        self.y_prob.append(pY.detach())
+        self.y_ucty.append(uY.detach())
 
         if batch_idx == 0:
-            self.sample_x_true = x.detach().cpu()
-            self.sample_y_true = y.detach().cpu()
-            self.sample_x_pred = x_z.detach().cpu()
-            self.sample_y_pred = y_x.detach().argmax(-1).cpu()
-            self.sample_y_ucty = uY.detach().cpu()
+            self.sample_x_true = x.detach()
+            self.sample_y_true = y.detach()
+            self.sample_x_pred = x_z.detach()
+            self.sample_y_pred = y_z.detach().argmax(-1)
+            self.sample_y_ucty = uY.detach()
 
         return L_mb
 
-    def on_train_epoch_end(self):
+    def on_epoch_end(self):
         # concatenate
         y_true = torch.cat(self.y_true)
         y_prob = torch.cat(self.y_prob)
         y_ucty = torch.cat(self.y_ucty)
-        
+
         # log tensors
         ...
 
@@ -134,3 +134,21 @@ class Model(pl.LightningModule):
         self.y_true.clear()
         self.y_prob.clear()
         self.y_ucty.clear()
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_train_epoch_end(self) -> None:
+        return self.on_epoch_end()
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_validation_epoch_end(self) -> None:
+        return self.on_epoch_end()
+
+    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_test_epoch_end(self) -> None:
+        return self.on_epoch_end()

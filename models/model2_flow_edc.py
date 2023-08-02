@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Tuple
 
 import lightning.pytorch as pl
@@ -8,7 +7,7 @@ import torch.optim as optim
 from config import Config
 
 from . import flow
-from .common import edl_loss, edl_probs, gather_samples
+from .common import edl_loss, edl_probs
 from .flow.util import decode_mask
 
 
@@ -18,20 +17,21 @@ class Model(pl.LightningModule):
         self.config = config
         assert self.config.image_chw
 
-        C, H, W = config.image_chw
+        C, H, W = self.config.image_chw
         CHW = C * H * W
         D = config.manifold_d
         num_bins = 10
+        cm, k0, k1 = 0, 4, 2
 
         # ambient (x) flow configuration
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
         c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
         # adjust manifold_d to closest possible value
-        cm, k0, k1 = 0, 4, 2
         cm = D // (h2 * w2)
         D = cm * h2 * w2
         self.config.manifold_d = D
+        self.cm = cm
 
         # categorical configuration
         ind_targets = self.config.get_ind_labels()
@@ -148,7 +148,7 @@ class Model(pl.LightningModule):
         optimizer = optim.AdamW(self.parameters(), lr=self.config.optim_lr)
         return optimizer
 
-    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+    def step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
         # get batch data
         x, y = batch
         x = x.float()
@@ -156,24 +156,24 @@ class Model(pl.LightningModule):
 
         # forward pass
         # x -> (u x v) -> u -> z
-        uv_x, _ = flow_x(x, forward=True)
+        uv_x, _ = self.flow_x(x, forward=True)
         u_x, v_x = flow.nn.partition(uv_x, self.cm)
-        z_x, _ = flow_u(u_x, forward=True)
+        z_x, _ = self.flow_u(u_x, forward=True)
         # u -> (u x 0) -> x~
         u_z = u_x
         v_z = v_x.new_zeros(v_x.size())
         uv_z = flow.nn.join(u_z, v_z)
-        x_z, _ = flow_x(uv_z, forward=False)
+        x_z, _ = self.flow_x(uv_z, forward=False)
         # u -> y
-        y_z = classifier(u_x.flatten(1))
+        y_z = self.classifier(u_x.flatten(1))
         pY, uY = edl_probs(y_z.detach())
 
         # compute loss
-        L_z = -dist_z.log_prob(z_x.flatten(1))
-        L_v = -dist_v.log_prob(v_x.flatten(1))
+        L_z = -self.dist_z.log_prob(z_x.flatten(1))
+        L_v = -self.dist_v.log_prob(v_x.flatten(1))
         L_x = (x - x_z).flatten(1).pow(2).sum(-1)
         # L_y_z = F.cross_entropy(y_x, y) - used EDL alternative
-        L_y_z = edl_loss(y_z, y, epoch)
+        L_y_z = edl_loss(y_z, y, self.trainer.current_epoch)
         ß = 1e-3
         # L_mb = L_z.mean() + (ß * L_v.mean()) + L_m.mean() + L_y_z.mean() # Σ_i[Σ_n(L_{n,i})/N]
         L_mb = (L_z + (ß * L_v) + L_x + L_y_z).mean()  # Σ_n[Σ_i(L_{n,i})]/N
@@ -189,24 +189,24 @@ class Model(pl.LightningModule):
         self.log("loss_v", L_v_mb)
         self.log("loss_z", L_z_mb)
 
-        self.y_true.append(y.detach().cpu())
-        self.y_prob.append(pY.detach().cpu())
-        self.y_ucty.append(uY.detach().cpu())
-        self.u_norm.append(u_x.detach().flatten(1).norm(2, -1).cpu())
-        self.v_norm.append(v_x.detach().flatten(1).norm(2, -1).cpu())
-        self.z_norm.append(z_x.detach().flatten(1).norm(2, -1).cpu())
-        self.z_nll.append(L_z.detach().cpu())
+        self.y_true.append(y.detach())
+        self.y_prob.append(pY.detach())
+        self.y_ucty.append(uY.detach())
+        self.u_norm.append(u_x.detach().flatten(1).norm(2, -1))
+        self.v_norm.append(v_x.detach().flatten(1).norm(2, -1))
+        self.z_norm.append(z_x.detach().flatten(1).norm(2, -1))
+        self.z_nll.append(L_z.detach())
 
         if batch_idx == 0:
-            self.sample_x_true = x.detach().cpu()
-            self.sample_y_true = y.detach().cpu()
-            self.sample_x_pred = x_z.detach().cpu()
-            self.sample_y_pred = y_x.detach().argmax(-1).cpu()
-            self.sample_y_ucty = uY.detach().cpu()
+            self.sample_x_true = x.detach()
+            self.sample_y_true = y.detach()
+            self.sample_x_pred = x_z.detach()
+            self.sample_y_pred = y_z.detach().argmax(-1)
+            self.sample_y_ucty = uY.detach()
 
         return L_mb
 
-    def on_train_epoch_end(self):
+    def on_epoch_end(self):
         # concatenate
         y_true = torch.cat(self.y_true)
         y_prob = torch.cat(self.y_prob)
@@ -230,3 +230,21 @@ class Model(pl.LightningModule):
         self.v_norm.clear()
         self.z_norm.clear()
         self.z_nll.clear()
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_train_epoch_end(self) -> None:
+        return self.on_epoch_end()
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_validation_epoch_end(self) -> None:
+        return self.on_epoch_end()
+
+    def test_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int):
+        return self.step(batch, batch_idx)
+
+    def on_test_epoch_end(self) -> None:
+        return self.on_epoch_end()
