@@ -1,30 +1,13 @@
 import logging
 import os
-import shutil
-import sys
-from typing import List, Optional, Tuple
-
-import torch
+from typing import Tuple, List
 from dotenv import load_dotenv
 from lightning.pytorch import LightningDataModule
-
-
-def get_best_device():
-    from torch.backends import cuda, mps
-
-    # check for cuda
-    if cuda.is_built() and torch.cuda.is_available():
-        return "cuda"
-    # check for mps
-    if mps.is_built() and mps.is_available():
-        return "mps"
-    return "cpu"
 
 
 class Config:
     def __init__(
         self,
-        log_level: str,
         ood_k: str,
         data_dir: str,
         dataset_name: str,
@@ -35,15 +18,7 @@ class Config:
         optim_lr: float,
         optim_m: float,
         train_epochs: int,
-        exc_resume: bool,
-        device: str,
-        tqdm_args: dict,
-        #
-        image_chw: Optional[Tuple[int, int, int]] = None,
-        labels: Optional[List[str]] = None,
-        datamodule: Optional[LightningDataModule] = None
     ) -> None:
-        self.log_level = log_level
         self.ood_k = ood_k
         self.data_dir = data_dir
         self.dataset_name = dataset_name
@@ -54,35 +29,12 @@ class Config:
         self.optim_lr = optim_lr
         self.optim_m = optim_m
         self.train_epochs = train_epochs
-        self.exc_resume = exc_resume
-        self.device = device
-        self.tqdm_args = tqdm_args
-
+        self.image_chw: Tuple[int, int, int] | None = None
+        self.labels: List[str] | None = None
+        self.datamodule: LightningDataModule | None = None
         self.ood: List[int] = []
         if len(self.ood_k) > 0:
             self.ood.append(int(self.ood_k))
-
-        fragments = []
-        fragments.append(self.dataset_name)
-        fragments.append(f"M{self.manifold_d}")
-        if len(self.ood_k) > 0:
-            fragments.append(f"OOD{self.ood_k}")
-        self.run_name = "-".join(fragments)
-        self.experiment_path = os.path.join(self.experiment_base, self.run_name)
-        self.run_config = {
-            "dataset": self.dataset_name,
-            "model": self.model_name,
-            "dim_u": self.manifold_d,
-            "ood_k": self.ood_k,
-        }
-
-        if not self.exc_resume:
-            shutil.rmtree(self.experiment_path, ignore_errors=True)
-        os.makedirs(self.experiment_path, exist_ok=True)
-
-        self.image_chw = image_chw
-        self.labels = labels
-        self.datamodule = datamodule
 
     def get_ind_labels(self) -> List[str]:
         assert self.labels
@@ -100,6 +52,22 @@ class Config:
         logging.info(f"Labels (train, test): {self.get_ind_labels()}")
         logging.info(f"Labels (ood): {self.get_ood_labels()}")
 
+    def as_dict(
+        self,
+    ) -> dict[str, int | str | float]:
+        return dict(
+            ood_k=self.ood_k,
+            data_dir=self.data_dir,
+            dataset_name=self.dataset_name,
+            model_name=self.model_name,
+            experiment_base=self.experiment_base,
+            manifold_d=self.manifold_d,
+            batch_size=self.batch_size,
+            optim_lr=self.optim_lr,
+            optim_m=self.optim_m,
+            train_epochs=self.train_epochs,
+        )
+
 
 def getenv(key: str, default="") -> str:
     val = os.getenv(key, default)
@@ -110,12 +78,17 @@ def getenv(key: str, default="") -> str:
 
 
 def load_config() -> Config:
-    load_dotenv()
-
-    log_level = os.getenv("LOG_LEVEL", "INFO")
+    # log_level = os.getenv("LOG_LEVEL", "INFO")
+    log_level = logging.WARN
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
 
+    import matplotlib
+
+    matplotlib.rcParams["figure.dpi"] = 200
+    matplotlib.rcParams["figure.figsize"] = [9.6, 7.2]
+
+    load_dotenv()
     ood_k = getenv("OOD_K")
     data_dir = getenv("DATA_DIR")
     dataset_name = getenv("DATASET_NAME")
@@ -126,20 +99,8 @@ def load_config() -> Config:
     optim_lr = float(getenv("OPTIM_LR"))
     optim_m = float(getenv("OPTIM_M"))
     train_epochs = int(getenv("TRAIN_EPOCHS"))
-    exc_resume = bool(int(getenv("EXC_RESUME")))
-
-    # runtime device
-    device = get_best_device()
-    logging.info(f"Using device: {device}")
-
-    # tqdm prompt
-    tqdm_args = {
-        "bar_format": "{l_bar}{bar}| {n_fmt}/{total_fmt}{postfix}",
-        "file": sys.stdout,
-    }
 
     return Config(
-        log_level=log_level,
         ood_k=ood_k,
         data_dir=data_dir,
         dataset_name=dataset_name,
@@ -150,7 +111,4 @@ def load_config() -> Config:
         optim_lr=optim_lr,
         optim_m=optim_m,
         train_epochs=train_epochs,
-        exc_resume=exc_resume,
-        device=device,
-        tqdm_args=tqdm_args,
     )

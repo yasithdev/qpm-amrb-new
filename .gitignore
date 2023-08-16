@@ -4,5 +4,7 @@ __pycache__/
 .idea/
 *.egg-info/
 wandb/
+uq_project/
 *.out
 **/.ipynb_checkpoints/**
+**/*.ckpt

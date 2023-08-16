@@ -9,12 +9,11 @@ def get_data(config: Config) -> None:
     elif config.dataset_name == "CIFAR10":
         dm = cifar10.DataModule(config.data_dir, config.batch_size, config.ood)
     elif config.dataset_name.startswith("AMRB"):
-        ver, label = config.dataset_name[4:].split("_", maxsplit=1)
-        dm = amrb.DataModule(config.data_dir, config.batch_size, config.ood, ver, label)
-
+        ver, label_type = config.dataset_name[4:].split("_", maxsplit=1)
+        dm = amrb.DataModule(config.data_dir, config.batch_size, config.ood, ver, label_type)
     elif config.dataset_name.startswith("QPM"):
-        label = config.dataset_name[4:]
-        dm = qpm.DataModule(config.data_dir, config.batch_size, config.ood, label)
+        label_type = config.dataset_name[4:]
+        dm = qpm.DataModule(config.data_dir, config.batch_size, config.ood, label_type)
     else:
         raise ValueError(f"Dataset '{config.dataset_name}' is unsupported")
 

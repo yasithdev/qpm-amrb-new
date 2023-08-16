@@ -220,7 +220,7 @@ def margin_loss(
     loss_hi = torch.clamp(m_hi - y_pred, min=0) ** 2
     loss_lo = torch.clamp(y_pred - m_lo, min=0) ** 2
     loss = y_true * loss_hi + (1 - y_true) * t * loss_lo
-    return loss.sum(dim=-1).mean()
+    return loss.sum(dim=-1)
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -381,12 +381,13 @@ def edl_probs(
     K = logits.size(-1)
 
     # logic
-    e = h(logits)
-    α = e + 1
-    S = Σ(α)
-    p = α / S
+    with torch.no_grad():
+        e = h(logits)
+        α = e + 1
+        S = Σ(α)
+        p = α / S
 
-    b = e / S
-    u = K / S
+        b = e / S
+        u = K / S
 
     return p, u

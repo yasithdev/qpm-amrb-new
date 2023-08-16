@@ -17,6 +17,8 @@ class DataModule(pl.LightningDataModule):
         self.data_root = data_root
         self.ood = ood
         self.batch_size = batch_size
+        self.trainset = None
+        self.testset = None
         self.train_data = None
         self.val_data = None
         self.test_data = None
@@ -29,9 +31,7 @@ class DataModule(pl.LightningDataModule):
             ]
         )
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        self.target_transform = Compose(
-            [self.targets.__getitem__, self.permuted_targets.index]
-        )
+        self.target_transform = Compose([self.targets.__getitem__, self.permuted_targets.index])
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
@@ -39,37 +39,36 @@ class DataModule(pl.LightningDataModule):
         return ind_targets, ood_targets
 
     def setup(self, stage: str) -> None:
-        trainset = MNIST(
-            root=self.data_root,
-            train=True,
-            download=True,
-            transform=self.transform,
-            target_transform=self.target_transform,
-        )
-        testset = MNIST(
-            root=self.data_root,
-            train=False,
-            download=True,
-            transform=self.transform,
-            target_transform=self.target_transform,
-        )
-
-        ind_targets, ood_targets = self.get_label_splits()
-        splits = take_splits(trainset, testset, ind_targets, ood_targets)
-        self.train_data, self.val_data, self.test_data, self.ood_data = splits
+        if not self.trainset and not self.testset:
+            self.trainset = MNIST(
+                root=self.data_root,
+                train=True,
+                download=True,
+                transform=self.transform,
+                target_transform=self.target_transform,
+            )
+            self.testset = MNIST(
+                root=self.data_root,
+                train=False,
+                download=True,
+                transform=self.transform,
+                target_transform=self.target_transform,
+            )
+            splits = take_splits(self.trainset, self.testset, *self.get_label_splits())
+            self.train_data, self.val_data, self.test_data, self.ood_data = splits
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
 
     def val_dataloader(self):
         assert self.val_data
-        return DataLoader(self.val_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.val_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
 
     def test_dataloader(self):
         assert self.test_data
-        return DataLoader(self.test_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.test_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
 
     def predict_dataloader(self):
         assert self.ood_data
-        return DataLoader(self.ood_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.ood_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)

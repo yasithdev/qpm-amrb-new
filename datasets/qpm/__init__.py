@@ -20,6 +20,12 @@ class DataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.ood = ood
         self.target_label = target_label
+        self.trainset = None
+        self.testset = None
+        self.train_data = None
+        self.val_data = None
+        self.test_data = None
+        self.ood_data = None
         self.transform = Compose(
             [
                 ToTensor(),
@@ -66,9 +72,7 @@ class DataModule(pl.LightningDataModule):
         else:
             raise ValueError()
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        self.target_transform = Compose(
-            [self.targets.__getitem__, self.permuted_targets.index]
-        )
+        self.target_transform = Compose([self.targets.__getitem__, self.permuted_targets.index])
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
@@ -76,38 +80,38 @@ class DataModule(pl.LightningDataModule):
         return ind_targets, ood_targets
 
     def setup(self, stage: str) -> None:
-        trainset = bacteria_dataset(
-            data_dir=self.data_root,
-            type_="train",
-            transform=self.transform,
-            target_transform=self.target_transform,
-            label_type=self.target_label,
-            balance_data=False,
-        )
-        testset = bacteria_dataset(
-            data_dir=self.data_root,
-            type_="test",
-            transform=self.transform,
-            target_transform=self.target_transform,
-            label_type=self.target_label,
-            balance_data=False,
-        )
-        ind_targets, ood_targets = self.get_label_splits()
-        splits = take_splits(trainset, testset, ind_targets, ood_targets)
-        self.train_data, self.val_data, self.test_data, self.ood_data = splits
+        if not self.trainset and not self.testset:
+            self.trainset = bacteria_dataset(
+                data_dir=self.data_root,
+                type_="train",
+                transform=self.transform,
+                target_transform=self.target_transform,
+                label_type=self.target_label,
+                balance_data=False,
+            )
+            self.testset = bacteria_dataset(
+                data_dir=self.data_root,
+                type_="test",
+                transform=self.transform,
+                target_transform=self.target_transform,
+                label_type=self.target_label,
+                balance_data=False,
+            )
+            splits = take_splits(self.trainset, self.testset, *self.get_label_splits())
+            self.train_data, self.val_data, self.test_data, self.ood_data = splits
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
 
     def val_dataloader(self):
         assert self.val_data
-        return DataLoader(self.val_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.val_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
 
     def test_dataloader(self):
         assert self.test_data
-        return DataLoader(self.test_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.test_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
 
     def predict_dataloader(self):
         assert self.ood_data
-        return DataLoader(self.ood_data, self.batch_size, num_workers=self.N)
+        return DataLoader(self.ood_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
