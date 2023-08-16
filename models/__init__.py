@@ -1,11 +1,10 @@
 import importlib
 
-import lightning.pytorch as pl
-
 from config import Config
+from models.base import BaseModel
 
 
-def get_model(config: Config) -> pl.LightningModule:
+def get_model(config: Config) -> BaseModel:
     assert config.image_chw
 
     # load requested module, if available
@@ -20,7 +19,7 @@ def get_model(config: Config) -> pl.LightningModule:
 
     # instantiate model
     Model = getattr(module, "Model")
-    model: pl.LightningModule = Model(config)
+    model: BaseModel = Model(config)
 
     # return model
     return model

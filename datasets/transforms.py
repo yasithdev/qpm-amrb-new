@@ -58,30 +58,39 @@ def reindex_for_ood(
 
 
 def take_splits(
-    trainset: Dataset,
-    testset: Dataset,
+    trn_set: Dataset,
+    val_set: Dataset | None,
+    tst_set: Dataset,
     ind_labels: List[str],
     ood_labels: List[str],
 ) -> Tuple[Dataset, Dataset, Dataset, Dataset]:
+    # reference indices of targets
     permuted_idx = ind_labels + ood_labels
-
+    # if no validation set give, create one
+    if val_set is None:
+        trn_set, val_set = random_split(trn_set, [0.8, 0.2], torch.manual_seed(42))
     print("Performing ind/ood split")
-    trn_od_idx = []
-    trn_id_idx = []
-    for idx, (_, target) in enumerate(trainset):  # type: ignore
+    # train set data
+    trn_od_idx, trn_id_idx = [], []
+    for idx, (_, target) in enumerate(trn_set):  # type: ignore
         dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
         dest.append(idx)
-    tst_od_idx = []
-    tst_id_idx = []
-    for idx, (_, target) in enumerate(testset):  # type: ignore
+    # validation set data
+    val_od_idx, val_id_idx = [], []
+    for idx, (_, target) in enumerate(trn_set):  # type: ignore
+        dest = val_od_idx if permuted_idx[target] in ood_labels else val_id_idx
+        dest.append(idx)
+    # test set data
+    tst_od_idx, tst_id_idx = [], []
+    for idx, (_, target) in enumerate(tst_set):  # type: ignore
         dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
         dest.append(idx)
     print("Performed ind/ood split")
 
-    trn = Subset(trainset, trn_id_idx)
-    trn, val = random_split(trn, [0.8, 0.2])
-    tst = Subset(testset, tst_id_idx)
-    ood = ConcatDataset([Subset(trainset, trn_od_idx), Subset(testset, tst_od_idx)])
+    trn = Subset(trn_set, trn_id_idx)
+    val = Subset(trn_set, val_id_idx)
+    tst = Subset(tst_set, tst_id_idx)
+    ood = ConcatDataset([Subset(trn_set, trn_od_idx), Subset(val_set, val_od_idx), Subset(tst_set, tst_od_idx)])
 
     print(len(trn), len(val), len(tst), len(ood))
     return trn, val, tst, ood

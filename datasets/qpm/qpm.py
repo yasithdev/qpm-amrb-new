@@ -42,7 +42,7 @@ class bacteria_dataset(Dataset):
 
     Args:
         data_dir   : data directory which contains data hierarchy
-        type_      : whether dataloader if train/ val
+        type_      : whether dataloader is train/val/test
         transform  : torchvision.transforms
         target_transform  : torchvision.transforms
         label_type : There are multiple types of classification in bacteria dataset
@@ -59,33 +59,23 @@ class bacteria_dataset(Dataset):
     def __init__(
         self,
         data_dir: str,
-        type_="train",
+        type_: str,
         transform=None,
         target_transform=None,
         label_type="class",
         balance_data=False,
     ):
+        # validation
+        assert type_ in ["train", "val", "test"]
+        # params
         self.transform = transform
         self.target_transform = target_transform
         self.label_type = label_type
         self.type_ = type_
-
-        train_dirs = sorted(
-            glob.glob(f"{data_dir}/QPM_train/*/*"),
+        all_dirs = sorted(
+            glob.glob(f"{data_dir}/QPM/{self.type_}/*/*"),
             key=lambda x: int(x.split("/")[-1][:-4]),
         )
-        test_dirs = sorted(
-            glob.glob(f"{data_dir}/QPM_test/*/*"),
-            key=lambda x: int(x.split("/")[-1][:-4]),
-        )
-        if type_ == "train":
-            all_dirs = train_dirs
-        elif type_ == "test":
-            all_dirs = test_dirs
-        elif type_ == "ood":
-            all_dirs = train_dirs + test_dirs
-        else:
-            raise ValueError()
 
         print(f"Dataset type {type_} label type: {label_type}", end=" -> ")
 

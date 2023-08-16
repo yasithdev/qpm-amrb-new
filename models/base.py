@@ -2,12 +2,10 @@ from typing import Tuple
 
 import lightning.pytorch as pl
 import PIL.Image
-from matplotlib.figure import Figure
 import torch
-import torch.nn.functional as F
-import torch.optim as optim
 from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from torchmetrics.aggregation import CatMetric
 from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
 from torchmetrics.regression import MeanSquaredError

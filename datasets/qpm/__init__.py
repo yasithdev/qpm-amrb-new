@@ -1,3 +1,4 @@
+from functools import partial
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
@@ -21,6 +22,7 @@ class DataModule(pl.LightningDataModule):
         self.ood = ood
         self.target_label = target_label
         self.trainset = None
+        self.valset = None
         self.testset = None
         self.train_data = None
         self.val_data = None
@@ -80,24 +82,19 @@ class DataModule(pl.LightningDataModule):
         return ind_targets, ood_targets
 
     def setup(self, stage: str) -> None:
-        if not self.trainset and not self.testset:
-            self.trainset = bacteria_dataset(
-                data_dir=self.data_root,
-                type_="train",
-                transform=self.transform,
-                target_transform=self.target_transform,
-                label_type=self.target_label,
-                balance_data=False,
-            )
-            self.testset = bacteria_dataset(
-                data_dir=self.data_root,
-                type_="test",
-                transform=self.transform,
-                target_transform=self.target_transform,
-                label_type=self.target_label,
-                balance_data=False,
-            )
-            splits = take_splits(self.trainset, self.testset, *self.get_label_splits())
+        get_dataset = partial(
+            bacteria_dataset,
+            data_dir=self.data_root,
+            transform=self.transform,
+            target_transform=self.target_transform,
+            label_type=self.target_label,
+            balance_data=False,
+        )
+        if not self.trainset and not self.testset and not self.valset:
+            self.trainset = get_dataset(type_="train")
+            self.valset = get_dataset(type_="val")
+            self.testset = get_dataset(type_="test")
+            splits = take_splits(self.trainset, self.valset, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
 
     def train_dataloader(self):
