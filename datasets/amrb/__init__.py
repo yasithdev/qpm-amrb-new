@@ -57,10 +57,6 @@ class DataModule(pt.LightningDataModule):
             )
             splits = take_splits(self.trainset, None, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
-            self.train_data.transform = self.transform
-            self.val_data.transform = self.transform
-            self.test_data.transform = self.transform
-            self.ood_data.transform = self.transform
 
     def train_dataloader(self):
         assert self.train_data

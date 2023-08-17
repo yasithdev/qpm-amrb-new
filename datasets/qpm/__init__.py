@@ -87,7 +87,7 @@ class DataModule(pl.LightningDataModule):
         get_dataset = partial(
             bacteria_dataset,
             data_dir=self.data_root,
-            transform=None,
+            transform=self.transform,
             target_transform=self.target_transform,
             label_type=self.target_label,
             balance_data=False,
@@ -98,10 +98,6 @@ class DataModule(pl.LightningDataModule):
             self.testset = get_dataset(type_="test")
             splits = take_splits(self.trainset, self.valset, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
-            self.train_data.transform = self.transform
-            self.val_data.transform = self.transform
-            self.test_data.transform = self.transform
-            self.ood_data.transform = self.transform
 
     def train_dataloader(self):
         assert self.train_data

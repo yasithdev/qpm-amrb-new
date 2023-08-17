@@ -67,88 +67,63 @@ class bacteria_dataset(Dataset):
     ):
         # validation
         assert type_ in ["train", "val", "test"]
+        
         # params
         self.transform = transform
         self.target_transform = target_transform
         self.label_type = label_type
         self.type_ = type_
-        all_dirs = sorted(
-            glob.glob(f"{data_dir}/QPM/{self.type_}/*/*"),
-            key=lambda x: int(x.split("/")[-1][:-4]),
-        )
-
-        print(f"Dataset type {type_} label type: {label_type}", end=" -> ")
+        print(f"Dataset type {type_} label type: {label_type}")
 
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
-        for i, x in enumerate(all_dirs):
-            class_ = int(
-                x.split("/")[-2]
-            )  # read strain class, encoded in folder name (x.split('/')[-2])
-
-            if class_ in dirs.keys():
-                dirs[class_].append(x)
-            else:
-                dirs[class_] = [x]
-        print(dirs.keys())
-        img_dirs_filtered = []
+        all_files = glob.glob(f"{data_dir}/QPM_np/{self.type_}/*.npy")
+        for x in all_files:
+            # read strain class, encoded in folder name (x.split('/')[-2][:-4])
+            class_ = int(x.split("/")[-1][:-4])
+            dirs[class_] = np.load(x)
 
         ## Get the class with minimum count
         min_class_count = 1000000000
 
-        if (
-            balance_data
-        ):  # if dataset needs to be balanced in terms of count per each class (strain)
+        # if dataset needs to be balanced in terms of count per each class (strain)
+        if (balance_data):
             for i in range(0, 21):
-                count = len(dirs[i])
+                count = dirs[i].shape[0]
                 if count < min_class_count:
                     min_class_count = count
             print(" - Min class count: ", min_class_count)
 
+        self.images = []
+        self.targets = []
         for i in range(0, 21):  # iterate through all classes
             if balance_data:
                 count = min_class_count
             else:
-                count = len(dirs[i])
+                count = dirs[i].shape[0]
 
-            img_dirs_filtered.append(
-                dirs[i][: int(count)]
-            )  # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
+            # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
+            self.images.extend(dirs[i][: int(count), ..., None])
+            self.targets.extend([i]*int(count))
 
-        self.img_dirs = [
-            item for sublist in img_dirs_filtered for item in sublist
-        ]  # flatten list
-
-        print(f"Loaded {len(self.img_dirs)} images")
+        print(f"Loaded {len(self.images)} images")
 
     def __len__(self):
-        return len(self.img_dirs)
+        return len(self.images)
 
-    def __getclass_(self, meta_data, label_type):
+    def __getclass_(self, target, label_type):
         if label_type == "class":
-            return meta_data[0]
-
-        elif label_type == "antibiotic_resistant":
-            """
-            Dataset wild_type equals to class 1
-            antibiotic_resistance is when class is => not wild_type
-            """
-            antibiotic_resistance = int(not (meta_data[1]))
-            return antibiotic_resistance
-
-        elif label_type == "gram_strain":
-            return meta_data[2]
+            return target
 
         elif label_type == "species":
-            return species_mapping_dict[meta_data[0]]  # map class to species
+            return species_mapping_dict[target]  # map class to species
 
         else:
             raise Exception("Invalid label type")
 
     def __getitem__(self, idx):
-        image, metadata = np.load(self.img_dirs[idx], allow_pickle=True)
-
-        label = self.__getclass_(metadata, self.label_type)
+        image, target = self.images[idx], self.targets[idx]
+        label = self.__getclass_(target, self.label_type)
 
         if self.transform:
             image = self.transform(image)

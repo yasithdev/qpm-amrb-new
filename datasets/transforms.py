@@ -2,6 +2,7 @@ from typing import List, Tuple
 
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from torchvision.transforms import Compose
 
@@ -29,7 +30,7 @@ class ZeroPad2D(object):
 
     def __call__(self, tensor: torch.Tensor):
         pad = (self.w1, self.w2, self.h1, self.h2)
-        return torch.constant_pad_nd(tensor, pad)
+        return F.pad(tensor, pad)
 
     def __repr__(self):
         return self.__class__.__name__ + "(H={0},{1}, W={2}{3})".format(
