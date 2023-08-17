@@ -25,7 +25,8 @@ class DataModule(pl.LightningDataModule):
         self.ood_data = None
         self.transform = Compose([ToTensor(), AddGaussianNoise(mean=0.0, std=0.01)])
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        self.target_transform = Compose([self.targets.__getitem__, self.permuted_targets.index])
+        mapping = list(map(self.permuted_targets.index, self.targets))
+        self.target_transform = mapping.__getitem__
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]

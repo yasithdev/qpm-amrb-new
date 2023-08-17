@@ -190,15 +190,16 @@ class Model(BaseModel):
             metrics_mb["y_pred"] = pY.argmax(-1)
             metrics_mb["y_ucty"] = uY
 
-        # likelihood losses
+        # manifold losses
         ß = 1e-3
         v_nll = -self.dist_v.log_prob(v.flatten(1))
         z_nll = -self.dist_z.log_prob(z.flatten(1))
         losses_mb["loss_v"] = ß * v_nll.mean()
         losses_mb["loss_z"] = z_nll.mean()
-
-        # manifold losses
         losses_mb["loss_x"] = F.mse_loss(x, x_m)
+        
+        # manifold metrics
+        metrics_mb["x_pred"] = x_m
 
         # overall metrics
         losses_mb["loss"] = torch.as_tensor(sum(losses_mb.values()))

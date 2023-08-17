@@ -84,9 +84,7 @@ def load_config() -> Config:
     logging.info(f"LOG_LEVEL={log_level}")
 
     import matplotlib
-
-    matplotlib.rcParams["figure.dpi"] = 200
-    matplotlib.rcParams["figure.figsize"] = [9.6, 7.2]
+    matplotlib.rcParams["figure.figsize"] = [16, 12]
 
     load_dotenv()
     ood_k = getenv("OOD_K")

@@ -38,7 +38,8 @@ class DataModule(pt.LightningDataModule):
         target_map = get_target_map(data_root, version, target_label)
         self.targets = sorted(target_map.keys())
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        self.target_transform = Compose([self.targets.__getitem__, self.permuted_targets.index])
+        mapping = list(map(self.permuted_targets.index, self.targets))
+        self.target_transform = mapping.__getitem__
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
@@ -56,6 +57,10 @@ class DataModule(pt.LightningDataModule):
             )
             splits = take_splits(self.trainset, None, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
+            self.train_data.transform = self.transform
+            self.val_data.transform = self.transform
+            self.test_data.transform = self.transform
+            self.ood_data.transform = self.transform
 
     def train_dataloader(self):
         assert self.train_data

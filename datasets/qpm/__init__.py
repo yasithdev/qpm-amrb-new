@@ -3,7 +3,7 @@ import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, reindex_for_ood, take_splits
+from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits
 from .qpm import bacteria_dataset
 
 
@@ -31,11 +31,12 @@ class DataModule(pl.LightningDataModule):
         self.transform = Compose(
             [
                 ToTensor(),
+                ZeroPad2D(2, 2, 2, 2),
                 # Resize((224, 224), antialias=True),  # type: ignore
                 # TileChannels2d(3),
             ]
         )
-        self.shape = (1, 60, 60)
+        self.shape = (1, 64, 64)
         # define targets
         strains = [
             "Acinetobacter",
@@ -74,7 +75,8 @@ class DataModule(pl.LightningDataModule):
         else:
             raise ValueError()
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        self.target_transform = Compose([self.targets.__getitem__, self.permuted_targets.index])
+        mapping = list(map(self.permuted_targets.index, self.targets))
+        self.target_transform = mapping.__getitem__
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
@@ -85,7 +87,7 @@ class DataModule(pl.LightningDataModule):
         get_dataset = partial(
             bacteria_dataset,
             data_dir=self.data_root,
-            transform=self.transform,
+            transform=None,
             target_transform=self.target_transform,
             label_type=self.target_label,
             balance_data=False,
@@ -96,6 +98,10 @@ class DataModule(pl.LightningDataModule):
             self.testset = get_dataset(type_="test")
             splits = take_splits(self.trainset, self.valset, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
+            self.train_data.transform = self.transform
+            self.val_data.transform = self.transform
+            self.test_data.transform = self.transform
+            self.ood_data.transform = self.transform
 
     def train_dataloader(self):
         assert self.train_data

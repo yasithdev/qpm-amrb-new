@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+from tqdm import tqdm
 import torch
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from torchvision.transforms import Compose
@@ -71,20 +72,23 @@ def take_splits(
         trn_set, val_set = random_split(trn_set, [0.8, 0.2], torch.manual_seed(42))
     print("Performing ind/ood split")
     # train set data
-    trn_od_idx, trn_id_idx = [], []
-    for idx, (_, target) in enumerate(trn_set):  # type: ignore
+    trn_od_idx = []
+    trn_id_idx = []
+    for idx, (_, target) in enumerate(tqdm(trn_set)):  # type: ignore
         dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
         dest.append(idx)
     print("Train - OK")
     # validation set data
-    val_od_idx, val_id_idx = [], []
-    for idx, (_, target) in enumerate(val_set):  # type: ignore
+    val_od_idx = []
+    val_id_idx = []
+    for idx, (_, target) in enumerate(tqdm(val_set)):  # type: ignore
         dest = val_od_idx if permuted_idx[target] in ood_labels else val_id_idx
         dest.append(idx)
     print("Val - OK")
     # test set data
-    tst_od_idx, tst_id_idx = [], []
-    for idx, (_, target) in enumerate(tst_set):  # type: ignore
+    tst_od_idx = []
+    tst_id_idx = []
+    for idx, (_, target) in enumerate(tqdm(tst_set)):  # type: ignore
         dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
         dest.append(idx)
     print("Test - OK")
