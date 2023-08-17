@@ -18,6 +18,7 @@ class Config:
         optim_lr: float,
         optim_m: float,
         train_epochs: int,
+        checkpoint_metric: str,
     ) -> None:
         self.ood_k = ood_k
         self.data_dir = data_dir
@@ -29,12 +30,14 @@ class Config:
         self.optim_lr = optim_lr
         self.optim_m = optim_m
         self.train_epochs = train_epochs
+        self.checkpoint_metric = checkpoint_metric
         self.image_chw: Tuple[int, int, int] | None = None
         self.labels: List[str] | None = None
         self.datamodule: LightningDataModule | None = None
         self.ood: List[int] = []
-        if len(self.ood_k) > 0:
-            self.ood.append(int(self.ood_k))
+        for k in self.ood_k.split(':'):
+            if len(k) > 0:
+                self.ood.append(int(k))
 
     def get_ind_labels(self) -> List[str]:
         assert self.labels
@@ -97,6 +100,7 @@ def load_config() -> Config:
     optim_lr = float(getenv("OPTIM_LR"))
     optim_m = float(getenv("OPTIM_M"))
     train_epochs = int(getenv("TRAIN_EPOCHS"))
+    checkpoint_metric = getenv("CHECKPOINT_METRIC")
 
     return Config(
         ood_k=ood_k,
@@ -109,4 +113,5 @@ def load_config() -> Config:
         optim_lr=optim_lr,
         optim_m=optim_m,
         train_epochs=train_epochs,
+        checkpoint_metric=checkpoint_metric,
     )

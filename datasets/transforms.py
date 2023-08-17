@@ -1,6 +1,6 @@
 from typing import List, Tuple
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split

@@ -25,8 +25,8 @@ class Model(BaseModel):
         self,
         config: Config,
         with_decoder: bool = True,
-        classifier_loss: str = "edl",
-        decoder_loss: str = "margin",
+        classifier_loss: str = "margin",
+        decoder_loss: str = "mse",
     ) -> None:
         super().__init__(
             config=config,

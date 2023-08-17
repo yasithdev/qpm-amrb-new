@@ -22,7 +22,7 @@ class Model(BaseModel):
     def __init__(
         self,
         config: Config,
-        with_classifier: bool = True,
+        with_classifier: bool = False,
         classifier_loss: str = "edl",
         decoder_loss: str = "mse",
     ) -> None:
