@@ -1,4 +1,4 @@
-# COMMON_ARGS = --gres=gpu:1 --cpus-per-task=1 --mem=64G --time=1-0
+# COMMON_ARGS = --gres=gpu:1 --cpus-per-task=4 --mem=64G --time=1-0
 
 # WAHAB_ARGS = ${COMMON_ARGS}
 # FASRC_ARGS = ${COMMON_ARGS} --account=wadduwage_lab
