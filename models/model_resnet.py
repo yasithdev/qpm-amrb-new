@@ -113,7 +113,7 @@ class Model(BaseModel):
 
         # decoder loss
         if self.with_decoder:
-            assert x_pred
+            assert x_pred is not None
             if self.decoder_loss == "mse":
                 L_x = F.mse_loss(x_pred, x)
             else:

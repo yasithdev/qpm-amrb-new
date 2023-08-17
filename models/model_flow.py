@@ -170,6 +170,7 @@ class Model(BaseModel):
 
         # classifier loss
         if self.with_classifier:
+            assert logits is not None
             if self.classifier_loss == "edl":
                 pY, uY = edl_probs(logits)
                 losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
