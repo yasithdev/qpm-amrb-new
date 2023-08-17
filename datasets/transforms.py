@@ -75,20 +75,23 @@ def take_splits(
     for idx, (_, target) in enumerate(trn_set):  # type: ignore
         dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
         dest.append(idx)
+    print("Train - OK")
     # validation set data
     val_od_idx, val_id_idx = [], []
-    for idx, (_, target) in enumerate(trn_set):  # type: ignore
+    for idx, (_, target) in enumerate(val_set):  # type: ignore
         dest = val_od_idx if permuted_idx[target] in ood_labels else val_id_idx
         dest.append(idx)
+    print("Val - OK")
     # test set data
     tst_od_idx, tst_id_idx = [], []
     for idx, (_, target) in enumerate(tst_set):  # type: ignore
         dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
         dest.append(idx)
+    print("Test - OK")
     print("Performed ind/ood split")
 
     trn = Subset(trn_set, trn_id_idx)
-    val = Subset(trn_set, val_id_idx)
+    val = Subset(val_set, val_id_idx)
     tst = Subset(tst_set, tst_id_idx)
     ood = ConcatDataset([Subset(trn_set, trn_od_idx), Subset(val_set, val_od_idx), Subset(tst_set, tst_od_idx)])
 

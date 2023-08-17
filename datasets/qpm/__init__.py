@@ -35,7 +35,7 @@ class DataModule(pl.LightningDataModule):
                 # TileChannels2d(3),
             ]
         )
-        self.shape = (1, 40, 40)
+        self.shape = (1, 60, 60)
         # define targets
         strains = [
             "Acinetobacter",

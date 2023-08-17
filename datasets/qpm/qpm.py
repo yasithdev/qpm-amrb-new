@@ -81,8 +81,6 @@ class bacteria_dataset(Dataset):
 
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
-        print(dirs)
-
         for i, x in enumerate(all_dirs):
             class_ = int(
                 x.split("/")[-2]
@@ -92,7 +90,7 @@ class bacteria_dataset(Dataset):
                 dirs[class_].append(x)
             else:
                 dirs[class_] = [x]
-
+        print(dirs.keys())
         img_dirs_filtered = []
 
         ## Get the class with minimum count
