@@ -126,11 +126,11 @@ class Model(BaseModel):
             losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
         elif self.classifier_loss == "crossent":
             pY = logits.softmax(-1)
-            uY = 1.0 - pY.max(-1)
+            uY = 1 - pY.amax(-1)
             losses_mb["loss_y"] = F.cross_entropy(logits, y)
         elif self.classifier_loss == "margin":
             pY = logits.sigmoid()
-            uY = 1.0 - pY.max(-1)
+            uY = 1 - pY.amax(-1)
             losses_mb["loss_y"] = margin_loss(pY, y).mean()
         else:
             raise ValueError(self.classifier_loss)

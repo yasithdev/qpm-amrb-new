@@ -15,11 +15,11 @@ export CHECKPOINT_METRIC=val_decoder_mse
 # species: Ab, Bs, Ec, Kp, Bs
 # choose the ood variant (optional)
 # export OOD_K=0                            # leave out Ab
-# export OOD_K=1:2:3                        # leave out Bs:Ec:Kp
+export OOD_K=2:3                          # leave out Ec:Kp
 
 # export MODEL_NAME=flow_ce_mse             # crossentropy + mse
-export MODEL_NAME=flow_edl_mse            # evidential + mse
-# export MODEL_NAME=flow_mse                # just mse
+# export MODEL_NAME=flow_edl_mse            # evidential + mse
+export MODEL_NAME=flow_mse                # just mse
 
 
 python -u train.py
