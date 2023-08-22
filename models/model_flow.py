@@ -5,8 +5,6 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from config import Config
-
 from . import flow
 from .base import BaseModel
 from .common import edl_loss, edl_probs, margin_loss
@@ -21,32 +19,36 @@ class Model(BaseModel):
 
     def __init__(
         self,
-        config: Config,
+        labels: list[str],
+        cat_k: int,
+        manifold_d: int,
+        image_chw: tuple[int, int, int],
+        optim_lr: float,
         with_classifier: bool = False,
         classifier_loss: str = "edl",
         decoder_loss: str = "mse",
     ) -> None:
         super().__init__(
-            config=config,
+            labels=labels,
+            cat_k=cat_k,
+            manifold_d=manifold_d,
+            image_chw=image_chw,
+            optim_lr=optim_lr,
             with_classifier=with_classifier,
             with_decoder=True,
         )
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
-        hparams = {**locals(), **self.config.as_dict()}
-        del hparams["self"]
-        del hparams["config"]
-        self.save_hyperparameters(hparams)
+        self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
-        config = self.config
-        assert config.image_chw
-
-        C, H, W = config.image_chw
+        # params
+        K = self.cat_k
+        D = self.manifold_d
+        C, H, W = self.image_chw
         CHW = C * H * W
-        D = config.manifold_d
         num_bins = 10
         cm, k0, k1 = 0, 4, 2
 
@@ -57,12 +59,8 @@ class Model(BaseModel):
         # adjust manifold_d to closest possible value
         cm = D // (h2 * w2)
         D = cm * h2 * w2
-        self.config.manifold_d = D
+        self.manifold_d = D
         self.cm = cm
-
-        # categorical configuration
-        ind_targets = self.config.get_ind_labels()
-        num_labels = len(ind_targets)
 
         # spatial flow
         arg = namedtuple("arg", ["i_channels", "t_channels", "num_bins"])
@@ -129,11 +127,11 @@ class Model(BaseModel):
             self.classifier = torch.nn.Sequential(
                 torch.nn.Linear(D, D),
                 torch.nn.Tanh(),
-                torch.nn.Linear(D, num_labels),
+                torch.nn.Linear(D, K),
             )
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.config.optim_lr)
+        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         return optimizer
 
     def forward(

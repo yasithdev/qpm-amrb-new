@@ -10,27 +10,27 @@ from torchmetrics.aggregation import CatMetric
 from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
 from torchmetrics.regression import MeanSquaredError
 
-from config import Config
-
 
 class BaseModel(pl.LightningModule):
-    ind_labels: list[str]
-    ood_labels: list[str]
-    labels: list[str]
 
     def __init__(
         self,
-        config: Config,
+        labels: list[str],
+        cat_k: int,
+        manifold_d: int,
+        image_chw: tuple[int, int, int],
+        optim_lr: float,
         with_classifier: bool = True,
         with_decoder: bool = True,
     ) -> None:
         super().__init__()
-        self.config = config
+        self.labels = labels
+        self.cat_k = cat_k
+        self.manifold_d = manifold_d
+        self.image_chw = image_chw
+        self.optim_lr = optim_lr
         self.with_classifier = with_classifier
         self.with_decoder = with_decoder
-        self.ind_labels = self.config.get_ind_labels()
-        self.ood_labels = self.config.get_ood_labels()
-        self.labels = self.ind_labels + self.ood_labels
         self.define_model()
         self.define_metrics()
 
@@ -55,7 +55,7 @@ class BaseModel(pl.LightningModule):
             self.log(f"{stage}_{name}", value, prog_bar=True, rank_zero_only=True, sync_dist=True)
 
     def define_metrics(self):
-        K = len(self.ind_labels)
+        K = self.cat_k
         for stage in ["train", "val", "test", "predict"]:
             # common metrics
             setattr(self, f"{stage}_batch_x_true", CatMetric())

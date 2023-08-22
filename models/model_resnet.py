@@ -4,8 +4,6 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from config import Config
-
 from .base import BaseModel
 from .common import edl_loss, edl_probs, margin_loss
 from .resnet import get_decoder, get_encoder
@@ -19,47 +17,51 @@ class Model(BaseModel):
 
     def __init__(
         self,
-        config: Config,
+        labels: list[str],
+        cat_k: int,
+        manifold_d: int,
+        image_chw: tuple[int, int, int],
+        optim_lr: float,
         with_decoder: bool = True,
         classifier_loss: str = "edl",
         decoder_loss: str = "mse",
     ) -> None:
         super().__init__(
-            config=config,
+            labels=labels,
+            cat_k=cat_k,
+            manifold_d=manifold_d,
+            image_chw=image_chw,
+            optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=with_decoder,
         )
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
-        hparams = {**locals(), **self.config.as_dict()}
-        del hparams["self"]
-        del hparams["config"]
-        self.save_hyperparameters(hparams)
+        self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
-        assert self.config.image_chw
-        K = len(self.ind_labels)
+        K = self.cat_k
         # (B, C, H, W) -> (B, D, 1, 1)
         self.encoder = get_encoder(
-            input_chw=self.config.image_chw,
-            num_features=self.config.manifold_d,
+            input_chw=self.image_chw,
+            num_features=self.manifold_d,
         )
         # (B, D, 1, 1) -> (B, K)
         self.classifier = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(self.config.manifold_d, K),
+            torch.nn.Linear(self.manifold_d, K),
         )
         # (B, D, 1, 1) -> (B, C, H, W)
         if self.with_decoder:
             self.decoder = get_decoder(
-                num_features=self.config.manifold_d,
-                output_chw=self.config.image_chw,
+                num_features=self.manifold_d,
+                output_chw=self.image_chw,
             )
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.config.optim_lr)
+        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         return optimizer
 
     def forward(

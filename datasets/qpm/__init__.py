@@ -12,7 +12,7 @@ class DataModule(pl.LightningDataModule):
         self,
         data_root: str,
         batch_size: int,
-        ood: list,
+        ood: list[int],
         target_label: str,
     ) -> None:
         super().__init__()

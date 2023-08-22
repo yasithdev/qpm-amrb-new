@@ -5,8 +5,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.models as models
 
-from config import Config
-
 from .base import BaseModel
 from .common import edl_loss, edl_probs, margin_loss
 
@@ -19,26 +17,29 @@ class Model(BaseModel):
 
     def __init__(
         self,
-        config: Config,
+        labels: list[str],
+        cat_k: int,
+        manifold_d: int,
+        image_chw: tuple[int, int, int],
+        optim_lr: float,
         classifier_loss: str = "edl",
     ) -> None:
         super().__init__(
-            config=config,
+            labels=labels,
+            cat_k=cat_k,
+            manifold_d=manifold_d,
+            image_chw=image_chw,
+            optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=False,
         )
-        self.config = config
         self.classifier_loss = classifier_loss
-        hparams = {**locals(), **self.config.as_dict()}
-        del hparams["self"]
-        del hparams["config"]
-        self.save_hyperparameters(hparams)
+        self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
-        assert self.config.image_chw
-        K = len(self.ind_labels)
+        K = self.cat_k
         # pretrained resnet18 model
         weights = models.ResNet18_Weights.IMAGENET1K_V1
         model = models.resnet18(weights=weights)
@@ -53,7 +54,7 @@ class Model(BaseModel):
         )
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.config.optim_lr)
+        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         return optimizer
 
     def forward(

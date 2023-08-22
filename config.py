@@ -39,13 +39,59 @@ class Config:
             if len(k) > 0:
                 self.ood.append(int(k))
 
+    def load_data(
+        self,
+        *,
+        dataset_name: str | None = None,
+        data_dir: str | None = None,
+        batch_size: int | None = None,
+        ood: list[int] | None = None,
+    ) -> None:
+        """
+        Load data modules.
+
+        This function uses pre-configured parameters by default.
+        If you need to override anything in code, specify them in the function args.
+
+        Args:
+            dataset_name (str, optional): Name of the dataset.
+            data_dir (str, optional): Location of the data directory.
+            batch_size (int, optional): Batch size to use.
+            ood (list[int], optional): Targets to treat as OOD.
+        """
+        from datasets import get_data
+        dm = get_data(
+            dataset_name or self.dataset_name,
+            data_dir or self.data_dir,
+            batch_size or self.batch_size,
+            ood or self.ood,
+        )
+        self.datamodule = dm
+        self.labels = dm.targets
+        self.image_chw = dm.shape
+
+    def get_model(self):
+        from models import get_model
+        from datasets.transforms import reindex_for_ood
+        assert self.labels is not None
+        assert self.image_chw is not None
+        cat_k = len(self.get_ind_labels())
+        return get_model(
+            self.image_chw,
+            self.model_name,
+            reindex_for_ood(self.labels, self.ood),
+            cat_k,
+            self.manifold_d,
+            self.optim_lr
+        )
+
     def get_ind_labels(self) -> List[str]:
-        assert self.labels
+        assert self.labels is not None
         ind_labels = [x for i, x in enumerate(self.labels) if i not in self.ood]
         return ind_labels
 
     def get_ood_labels(self) -> List[str]:
-        assert self.labels
+        assert self.labels is not None
         ood_labels = [x for i, x in enumerate(self.labels) if i in self.ood]
         return ood_labels
 

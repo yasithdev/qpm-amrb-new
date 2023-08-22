@@ -1,67 +1,80 @@
 import importlib
 
-from config import Config
 from models.base import BaseModel
 
 
-def get_model(config: Config) -> BaseModel:
-    assert config.image_chw
+def get_model(
+    image_chw: tuple[int, int, int],
+    model_name: str,
+    labels: list[str],
+    cat_k: int,
+    manifold_d: int,
+    optim_lr: float,
+) -> BaseModel:
+
+    args: dict = dict(
+        labels=labels,
+        cat_k=cat_k,
+        manifold_d=manifold_d,
+        image_chw=image_chw,
+        optim_lr=optim_lr,
+    )
 
     # VARIANTS
     
     # resnet variants
-    if config.model_name == "resnet_ce_mse":
+    if model_name == "resnet_ce_mse":
         from .model_resnet import Model
-        return Model(config, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
-    elif config.model_name == "resnet_ce":
+        return Model(**args, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
+    elif model_name == "resnet_ce":
         from .model_resnet import Model
-        return Model(config, with_decoder=False, classifier_loss="crossent", decoder_loss="N/A")
-    elif config.model_name == "resnet_edl_mse":
+        return Model(**args, with_decoder=False, classifier_loss="crossent", decoder_loss="N/A")
+    elif model_name == "resnet_edl_mse":
         from .model_resnet import Model
-        return Model(config, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
-    elif config.model_name == "resnet_edl":
+        return Model(**args, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
+    elif model_name == "resnet_edl":
         from .model_resnet import Model
-        return Model(config, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
+        return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
     
     # resnet18 variants
-    elif config.model_name == "resnet18_ce":
+    elif model_name == "resnet18_ce":
         from .model_resnet18 import Model
-        return Model(config, classifier_loss="crossent")
-    elif config.model_name == "resnet18_edl":
+        return Model(**args, classifier_loss="crossent")
+    elif model_name == "resnet18_edl":
         from .model_resnet18 import Model
-        return Model(config, classifier_loss="edl")
+        return Model(**args, classifier_loss="edl")
     
     # rescaps variants
-    elif config.model_name == "rescaps_margin_mse":
+    elif model_name == "rescaps_margin_mse":
         from .model_rescaps import Model
-        return Model(config, with_decoder=True, classifier_loss="margin", decoder_loss="mse")
-    elif config.model_name == "rescaps_margin":
+        return Model(**args, with_decoder=True, classifier_loss="margin", decoder_loss="mse")
+    elif model_name == "rescaps_margin":
         from .model_rescaps import Model
-        return Model(config, with_decoder=False, classifier_loss="margin", decoder_loss="N/A")
-    elif config.model_name == "rescaps_edl_mse":
+        return Model(**args, with_decoder=False, classifier_loss="margin", decoder_loss="N/A")
+    elif model_name == "rescaps_edl_mse":
         from .model_rescaps import Model
-        return Model(config, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
-    elif config.model_name == "rescaps_edl":
+        return Model(**args, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
+    elif model_name == "rescaps_edl":
         from .model_rescaps import Model
-        return Model(config, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
+        return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
     
     # flow variants
-    elif config.model_name == "flow_ce_mse":
+    elif model_name == "flow_ce_mse":
         from .model_flow import Model
-        return Model(config, with_classifier=True, classifier_loss="crossent", decoder_loss="mse")
-    elif config.model_name == "flow_edl_mse":
+        return Model(**args, with_classifier=True, classifier_loss="crossent", decoder_loss="mse")
+    elif model_name == "flow_edl_mse":
         from .model_flow import Model
-        return Model(config, with_classifier=True, classifier_loss="edl", decoder_loss="mse")
-    elif config.model_name == "flow_mse":
+        return Model(**args, with_classifier=True, classifier_loss="edl", decoder_loss="mse")
+    elif model_name == "flow_mse":
         from .model_flow import Model
-        return Model(config, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
+        return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
 
     # DEFAULTS
 
     # load requested module, if available
     try:
         module = importlib.__import__(
-            name=f"model_{config.model_name}",
+            name=f"model_{model_name}",
             globals=globals(),
             level=1,
         )
@@ -70,7 +83,7 @@ def get_model(config: Config) -> BaseModel:
 
     # instantiate model
     Model = getattr(module, "Model")
-    model: BaseModel = Model(config)
+    model: BaseModel = Model(**args)
 
     # return model
     return model

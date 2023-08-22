@@ -12,28 +12,28 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.metrics import top_k_accuracy_score as topk_acc
 
-from config import Config
-
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 def load_model_state(
     model: torch.nn.Module,
-    config: Config,
-    epoch: Optional[int] = None,
+    model_name: str,
+    experiment_path: str,
+    device: str,
+    epoch: int | None = None,
 ) -> None:
     if epoch is not None:
-        model_filename = f"{config.model_name}_model_e{epoch}.pth"
+        model_filename = f"{model_name}_model_e{epoch}.pth"
     else:
-        model_filename = f"{config.model_name}_model.pth"
+        model_filename = f"{model_name}_model.pth"
 
-    model_state_path = os.path.join(config.experiment_path, model_filename)
+    model_state_path = os.path.join(experiment_path, model_filename)
 
     if not os.path.exists(model_state_path):
         logging.warn("no saved model state: %s", model_state_path)
     else:
         logging.info("loading saved model state from: %s", model_state_path)
-        model.load_state_dict(torch.load(model_state_path, map_location=config.device))
+        model.load_state_dict(torch.load(model_state_path, map_location=device))
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------
@@ -41,12 +41,13 @@ def load_model_state(
 
 def save_model_state(
     model: torch.nn.Module,
-    config: Config,
+    model_name: str,
+    experiment_path: str,
     epoch: int,
 ) -> None:
     logging.info(f"saving model state - e{epoch}")
-    model_filename = f"{config.model_name}_model_e{epoch}.pth"
-    model_state_path = os.path.join(config.experiment_path, model_filename)
+    model_filename = f"{model_name}_model_e{epoch}.pth"
+    model_state_path = os.path.join(experiment_path, model_filename)
     torch.save(model.state_dict(), model_state_path)
 
 
