@@ -4,6 +4,7 @@ from typing import Tuple, List
 from dotenv import load_dotenv
 from lightning.pytorch import LightningDataModule
 
+import argparse
 
 class Config:
     def __init__(
@@ -117,17 +118,14 @@ class Config:
             train_epochs=self.train_epochs,
         )
 
-
-def getenv(key: str, default="") -> str:
-    val = os.getenv(key, default)
+def default_env(key) -> dict:
+    val = os.environ.get(key, default="")
     val = os.path.expanduser(val)
     val = os.path.expandvars(val)
-    logging.info(f"{key}={val}")
-    return val
+    return dict(default=val) if val else dict(required=True)
 
 
 def load_config() -> Config:
-    # log_level = os.getenv("LOG_LEVEL", "INFO")
     log_level = logging.WARN
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
@@ -136,28 +134,32 @@ def load_config() -> Config:
     matplotlib.rcParams["figure.figsize"] = [16, 12]
 
     load_dotenv()
-    ood_k = getenv("OOD_K")
-    data_dir = getenv("DATA_DIR")
-    dataset_name = getenv("DATASET_NAME")
-    model_name = getenv("MODEL_NAME")
-    experiment_base = getenv("EXPERIMENT_BASE")
-    manifold_d = int(getenv("MANIFOLD_D"))
-    batch_size = int(getenv("BATCH_SIZE"))
-    optim_lr = float(getenv("OPTIM_LR"))
-    optim_m = float(getenv("OPTIM_M"))
-    train_epochs = int(getenv("TRAIN_EPOCHS"))
-    checkpoint_metric = getenv("CHECKPOINT_METRIC")
+
+    parser = argparse.ArgumentParser(description="configuration")
+    parser.add_argument('--ood_k', **default_env("OOD_K"))
+    parser.add_argument('--data_dir', **default_env("DATA_DIR"))
+    parser.add_argument('--dataset_name', **default_env("DATASET_NAME"))
+    parser.add_argument('--model_name', **default_env("MODEL_NAME"))
+    parser.add_argument('--experiment_base', **default_env("EXPERIMENT_BASE"))
+    parser.add_argument('--manifold_d', **default_env("MANIFOLD_D"))
+    parser.add_argument('--batch_size', **default_env("BATCH_SIZE"))
+    parser.add_argument('--optim_lr', **default_env("OPTIM_LR"))
+    parser.add_argument('--optim_m', **default_env("OPTIM_M"))
+    parser.add_argument('--train_epochs', **default_env("TRAIN_EPOCHS"))
+    parser.add_argument('--checkpoint_metric', **default_env("CHECKPOINT_METRIC"))
+    args = parser.parse_args()
+    logging.info(args.__dict__)
 
     return Config(
-        ood_k=ood_k,
-        data_dir=data_dir,
-        dataset_name=dataset_name,
-        model_name=model_name,
-        experiment_base=experiment_base,
-        manifold_d=manifold_d,
-        batch_size=batch_size,
-        optim_lr=optim_lr,
-        optim_m=optim_m,
-        train_epochs=train_epochs,
-        checkpoint_metric=checkpoint_metric,
+        ood_k=str(args.ood_k),
+        data_dir=str(args.data_dir),
+        dataset_name=str(args.dataset_name),
+        model_name=str(args.model_name),
+        experiment_base=str(args.experiment_base),
+        manifold_d=int(args.manifold_d),
+        batch_size=int(args.batch_size),
+        optim_lr=float(args.optim_lr),
+        optim_m=float(args.optim_m),
+        train_epochs=int(args.train_epochs),
+        checkpoint_metric=str(args.checkpoint_metric),
     )

@@ -17,8 +17,9 @@ config.load_data()
 config.print_labels()
 assert config.datamodule
 
-wandb_logger = WandbLogger(project="uq_project", log_model="all")
 model = config.get_model()
+run_name = f"{config.dataset_name}_{config.model_name}"
+wandb_logger = WandbLogger(project="uq_project", log_model="all", name=run_name, config={**config.as_dict(), **model.hparams})
 wandb_logger.watch(model, log="all")
 
 checkpoint_callback = ModelCheckpoint(monitor=config.checkpoint_metric, mode="max")

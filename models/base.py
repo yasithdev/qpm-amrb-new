@@ -137,7 +137,7 @@ class BaseModel(pl.LightningModule):
             self.log(f"{stage}_accuracy_top2", getattr(self, f"{stage}_accuracy_top2").compute(), sync_dist=True)
             # plot confusion matrix
             confusion_matrix: MulticlassConfusionMatrix = getattr(self, f"{stage}_confusion_matrix")
-            cm_fig: Figure = confusion_matrix.plot(add_text=True, labels=self.labels)[0]  # type: ignore
+            cm_fig: Figure = confusion_matrix.plot(add_text=True, labels=self.labels[:self.cat_k])[0]  # type: ignore
             cm_fig.canvas.draw()
             cm_img = PIL.Image.frombytes("RGB", cm_fig.canvas.get_width_height(), cm_fig.canvas.tostring_rgb())  # type: ignore
             logger.log_image(f"{stage}_confusion_matrix", [cm_img])
