@@ -2,6 +2,7 @@ import importlib
 
 from models.base import BaseModel
 
+import argparse
 
 def get_model(
     image_chw: tuple[int, int, int],
@@ -10,6 +11,7 @@ def get_model(
     cat_k: int,
     manifold_d: int,
     optim_lr: float,
+    _args: argparse.Namespace,
 ) -> BaseModel:
 
     args: dict = dict(
@@ -47,10 +49,10 @@ def get_model(
     # resnet50 variants
     elif model_name == "resnet50_ssl":
         from .model_resnet50 import Model
-        return Model(**args, with_classifier=False, encoder_loss="simclr")
+        return Model(**args, with_classifier=False, encoder_loss="simclr", temperature=_args.temperature)
     elif model_name == "resnet50_ce":
         from .model_resnet50 import Model
-        return Model(**args, with_classifier=True, classifier_loss="crossent")
+        return Model(**args, with_classifier=True, classifier_loss="crossent", temperature=_args.temperature)
     
     # rescaps variants
     elif model_name == "rescaps_margin_mse":

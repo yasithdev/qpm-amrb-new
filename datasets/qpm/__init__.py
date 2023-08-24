@@ -76,19 +76,13 @@ class DataModule(pl.LightningDataModule):
         mapping = list(map(self.permuted_targets.index, self.targets))
         self.target_transform = mapping.__getitem__
 
-    def get_label_splits(self):
-        ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
-        ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
-        return ind_targets, ood_targets
-
-    def setup(self, stage: str) -> None:
-        
+        # image transforms and shape
         if(self.train_type == "self_supervised"):
             # Augmentations used for self_supervised learning objective
             self.transform = get_transforms
-            self.train_transform = self.transform(args, eval = False) 
-            self.val_transform   = self.transform(args, eval = True if args.train_supervised else False)
-            self.test_transform  = self.transform(args, eval = True)
+            self.train_transform = self.transform(self.args, eval = False) 
+            self.val_transform   = self.transform(self.args, eval = True if self.args.train_supervised else False)
+            self.test_transform  = self.transform(self.args, eval = True)
             self.shape = (1, 64, 64)
         else:
             self.transform = Compose(
@@ -102,8 +96,14 @@ class DataModule(pl.LightningDataModule):
             self.train_transform = self.transform
             self.val_transform  = self.transform
             self.test_transform = self.transform
-            
             self.shape = (1, 64, 64)
+
+    def get_label_splits(self):
+        ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
+        ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
+        return ind_targets, ood_targets
+
+    def setup(self, stage: str) -> None:
         
         get_dataset = partial(
             bacteria_dataset,

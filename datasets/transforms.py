@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from torchvision import transforms
-from torchvision.transforms import Compose
+import argparse
 
 
 class AddGaussianNoise(object):
@@ -84,43 +84,48 @@ class Denormalize(object):
         # clamp to get rid of numerical errors
         return torch.clamp(tensor, 0.0, 1.0)
 
-def concat_torchvision_transforms(eval=False, aug=None):
+def concat_torchvision_transforms(eval: bool, aug: dict):
 
     trans = []
 
     if aug["resize"]:
         trans.append(transforms.Resize(aug["resize"]))
 
-    if aug["randcrop"] and aug["scale"] and not eval:
-        trans.append(transforms.RandomResizedCrop(aug["randcrop"], scale=aug["scale"]))
+    # if aug["randcrop"] and aug["scale"] and not eval:
+    #     trans.append(transforms.RandomResizedCrop(aug["randcrop"], scale=aug["scale"]))
 
-    if aug["randcrop"] and eval:
-        trans.append(transforms.CenterCrop(aug["randcrop"]))
+    # if aug["randcrop"] and eval:
+    #     trans.append(transforms.CenterCrop(aug["randcrop"]))
 
-    if aug["flip"] and not eval:
-        trans.append(transforms.RandomHorizontalFlip(p=0.5))
-        trans.append(transforms.RandomVerticalFlip(p=0.5))
+    # if aug["flip"] and not eval:
+    #     trans.append(transforms.RandomHorizontalFlip(p=0.5))
+    #     trans.append(transforms.RandomVerticalFlip(p=0.5))
 
-    if aug["jitter_d"] and not eval:
-        trans.append(transforms.RandomApply(
-            [transforms.ColorJitter(0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.2*aug["jitter_d"])],
-             p=aug["jitter_p"]))
+    # if aug["jitter_d"] and not eval:
+    #     trans.append(transforms.RandomApply(
+    #         [transforms.ColorJitter(0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.2*aug["jitter_d"])],
+    #          p=aug["jitter_p"]))
 
-    if aug["gaussian_blur"] and not eval:
-        trans.append(transforms.RandomApply([GaussianBlur([.1, 2.])], p=aug["gaussian_blur"]))
+    # ---
 
-    if aug["rotation"] and not eval:
-        trans.append(FixedRandomRotation(angles=[0, 90, 180, 270]))
+    # if aug["gaussian_blur"] and not eval:
+    #     trans.append(transforms.RandomApply([GaussianBlur([.1, 2.])], p=aug["gaussian_blur"]))
 
-    if aug["grayscale"]:
-        trans.append(transforms.Grayscale())
-        trans.append(transforms.ToTensor())
-        trans.append(transforms.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
-    elif aug["mean"]:
-        trans.append(transforms.ToTensor())
-        trans.append(transforms.Normalize(mean=aug["mean"], std=aug["std"]))
-    else:
-        trans.append(transforms.ToTensor())
+    # if aug["rotation"] and not eval:
+    #     trans.append(FixedRandomRotation(angles=[0, 90, 180, 270]))
+
+    # if aug["grayscale"]:
+    #     trans.append(transforms.Grayscale())
+    #     trans.append(transforms.ToTensor())
+    #     trans.append(transforms.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
+    # elif aug["mean"]:
+    #     trans.append(transforms.ToTensor())
+    #     trans.append(transforms.Normalize(mean=aug["mean"], std=aug["std"]))
+    # else:
+    #     trans.append(transforms.ToTensor())
+
+    trans.append(transforms.ToTensor())
+    trans.append(TileChannels2d(3))
 
     return trans
 
@@ -147,7 +152,7 @@ def get_rgb_transforms(opt, eval=False):
 
     transform_func = transforms.Compose(concat_torchvision_transforms(eval=eval, aug=aug))
     
-    return lambda x: transform_func(x), transform_func(x)
+    return lambda x: (transform_func(x), transform_func(x))
 
 def get_transforms(opt, eval=False):
     return get_rgb_transforms(opt, eval)

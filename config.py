@@ -86,7 +86,8 @@ class Config:
             reindex_for_ood(self.labels, self.ood),
             cat_k,
             self.manifold_d,
-            self.optim_lr
+            self.optim_lr,
+            self.args,
         )
 
     def get_ind_labels(self) -> List[str]:
@@ -125,7 +126,7 @@ def default_env(key) -> dict:
     val = os.environ.get(key, default="")
     val = os.path.expanduser(val)
     val = os.path.expandvars(val)
-    return dict(default=val) if val else dict(required=True)
+    return dict(default=val)
 
 
 def load_config() -> Config:
@@ -153,8 +154,11 @@ def load_config() -> Config:
     
     ## SSL Augmentation parameters
     # Common augmentations
-    parser.add_argument("--image_size", type=int, default=224)
+    # parser.add_argument("--image_size", type=int, default=224) - original
+    parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--scale",  nargs=2, type=float, default=[0.2, 1.0])
+    parser.add_argument("--train_supervised", type=bool, default=False)
+    parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
 
     # RGB augmentations
     parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (only on rgb)" )

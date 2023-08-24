@@ -111,7 +111,6 @@ class Model(BaseModel):
         
         # get batch data
         x, y = batch
-        x = x.float()
         y = y.long()
 
         # accumulators
@@ -122,10 +121,13 @@ class Model(BaseModel):
             # assuming x is a tuple
             # can also call transform(x) here twice and get 2 crops
             (x_a, x_b) = x
+            x_a, x_b = x_a.float(), x_b.float()
             assert list(x_a.shape) == list(x_b.shape)
             _, proj_a, logits = self(x_a)
             _, proj_b, logits = self(x_b)
-            losses_mb["loss_simclr"] = simclr_loss(proj_a, proj_b, self.temperature)
+            loss = simclr_loss(proj_a, proj_b, self.temperature)
+            losses_mb["loss_simclr"] = loss
+            metrics_mb["loss_simclr"] = loss
         else:
             raise ValueError()
         

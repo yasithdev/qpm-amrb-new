@@ -17,7 +17,7 @@ def get_data(
         dm = amrb.DataModule(data_dir, batch_size, ood, ver, label_type)
     elif dataset_name.startswith("QPM"):
         label_type = dataset_name[4:]
-        dm = qpm.DataModule(data_dir, batch_size, ood, label_type, "supervised")
+        dm = qpm.DataModule(data_dir, batch_size, ood, label_type, "supervised", args)
     elif dataset_name.startswith("S_QPM"): # e.g => S_QPM_strain
         label_type = dataset_name[6:]
         dm = qpm.DataModule(data_dir, batch_size, ood, label_type, "self_supervised", args)
