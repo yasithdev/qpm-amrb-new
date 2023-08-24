@@ -20,6 +20,7 @@ class Config:
         optim_m: float,
         train_epochs: int,
         checkpoint_metric: str,
+        checkpoint_mode: str,
         args : argparse.Namespace
     ) -> None:
         self.ood_k = ood_k
@@ -33,6 +34,7 @@ class Config:
         self.optim_m = optim_m
         self.train_epochs = train_epochs
         self.checkpoint_metric = checkpoint_metric
+        self.checkpoint_mode = checkpoint_mode
         self.image_chw: Tuple[int, int, int] | None = None
         self.labels: List[str] | None = None
         self.datamodule: LightningDataModule | None = None
@@ -120,6 +122,8 @@ class Config:
             optim_lr=self.optim_lr,
             optim_m=self.optim_m,
             train_epochs=self.train_epochs,
+            checkpoint_metric=self.checkpoint_metric,
+            checkpoint_mode=self.checkpoint_mode,
         )
 
 def default_env(key) -> dict:
@@ -151,6 +155,7 @@ def load_config() -> Config:
     parser.add_argument('--optim_m', **default_env("OPTIM_M"))
     parser.add_argument('--train_epochs', **default_env("TRAIN_EPOCHS"))
     parser.add_argument('--checkpoint_metric', **default_env("CHECKPOINT_METRIC"))
+    parser.add_argument('--checkpoint_mode', **default_env("CHECKPOINT_MODE"))
     
     ## SSL Augmentation parameters
     # Common augmentations
@@ -169,7 +174,7 @@ def load_config() -> Config:
     parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (only on rgb)" )
     parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (only on rgb)" )
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     logging.info(args.__dict__)
 
     return Config(
@@ -184,5 +189,6 @@ def load_config() -> Config:
         optim_m=float(args.optim_m),
         train_epochs=int(args.train_epochs),
         checkpoint_metric=str(args.checkpoint_metric),
+        checkpoint_mode=str(args.checkpoint_mode),
         args = args
     )

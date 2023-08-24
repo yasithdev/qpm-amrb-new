@@ -22,7 +22,7 @@ run_name = f"{config.dataset_name}_{config.model_name}"
 wandb_logger = WandbLogger(project="uq_project", log_model="all", name=run_name, config={**config.as_dict(), **model.hparams})
 wandb_logger.watch(model, log="all")
 
-checkpoint_callback = ModelCheckpoint(monitor=config.checkpoint_metric, mode="max")
+checkpoint_callback = ModelCheckpoint(monitor=config.checkpoint_metric, mode=config.checkpoint_mode)
 trainer = pl.Trainer(
     logger=wandb_logger,
     max_epochs=config.train_epochs,
