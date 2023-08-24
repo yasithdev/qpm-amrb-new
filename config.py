@@ -20,6 +20,7 @@ class Config:
         optim_m: float,
         train_epochs: int,
         checkpoint_metric: str,
+        args : argparse.Namespace
     ) -> None:
         self.ood_k = ood_k
         self.data_dir = data_dir
@@ -36,6 +37,7 @@ class Config:
         self.labels: List[str] | None = None
         self.datamodule: LightningDataModule | None = None
         self.ood: List[int] = []
+        self.args = args
         for k in self.ood_k.split(':'):
             if len(k) > 0:
                 self.ood.append(int(k))
@@ -66,6 +68,7 @@ class Config:
             data_dir or self.data_dir,
             batch_size or self.batch_size,
             ood or self.ood,
+            args = self.args
         )
         self.datamodule = dm
         self.labels = dm.targets
@@ -147,6 +150,21 @@ def load_config() -> Config:
     parser.add_argument('--optim_m', **default_env("OPTIM_M"))
     parser.add_argument('--train_epochs', **default_env("TRAIN_EPOCHS"))
     parser.add_argument('--checkpoint_metric', **default_env("CHECKPOINT_METRIC"))
+    
+    ## SSL Augmentation parameters
+    # Common augmentations
+    parser.add_argument("--image_size", type=int, default=224)
+    parser.add_argument("--scale",  nargs=2, type=float, default=[0.2, 1.0])
+
+    # RGB augmentations
+    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (only on rgb)" )
+    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (only on rgb)" )
+    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(only on rgb)" )
+    parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb only)")
+    parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb only)")
+    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (only on rgb)" )
+    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (only on rgb)" )
+
     args = parser.parse_args()
     logging.info(args.__dict__)
 
@@ -162,4 +180,5 @@ def load_config() -> Config:
         optim_m=float(args.optim_m),
         train_epochs=int(args.train_epochs),
         checkpoint_metric=str(args.checkpoint_metric),
+        args = args
     )
