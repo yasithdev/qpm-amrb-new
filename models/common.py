@@ -392,3 +392,31 @@ def edl_probs(
         u = K / S
 
     return p, u
+
+def simclr_loss(proj_a, proj_b, temperature=0.5):
+
+    assert list(proj_a.shape) == list(proj_b.shape)
+    B = proj_a.shape[0]
+
+    # [2*B, D]
+    proj = torch.cat([proj_a, proj_b], dim=0)
+    
+    # [2*B, 2*B]
+    cosine_sim_neg = torch.mm(proj, proj.t().contiguous())
+    sim_matrix = torch.exp(cosine_sim_neg / temperature)
+
+    # [2*B, 2*B] - all positions, minus diagonals of each (B,B) block
+    neg_mask = (torch.ones_like(sim_matrix) - torch.eye(B, device=sim_matrix.device).repeat(2,2)).bool()
+    sim_matrix_negs = neg_mask * sim_matrix
+    
+    # get across-group similarity values
+    diag_ab = torch.diag(sim_matrix, B)
+    diag_ba = torch.diag(sim_matrix, -B)
+
+    # [2*B]
+    pos_sim = torch.cat([diag_ab, diag_ba], dim=0)
+    neg_sim = sim_matrix_negs.sum(dim=-1)
+
+    # [2*B]
+    loss = -torch.log(pos_sim / (pos_sim + neg_sim)).mean()
+    return loss

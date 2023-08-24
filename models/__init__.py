@@ -44,6 +44,14 @@ def get_model(
         from .model_resnet18 import Model
         return Model(**args, classifier_loss="edl")
     
+    # resnet50 variants
+    elif model_name == "resnet50_ssl":
+        from .model_resnet50 import Model
+        return Model(**args, with_classifier=False, encoder_loss="simclr")
+    elif model_name == "resnet50_ce":
+        from .model_resnet50 import Model
+        return Model(**args, with_classifier=True, classifier_loss="crossent")
+    
     # rescaps variants
     elif model_name == "rescaps_margin_mse":
         from .model_rescaps import Model
