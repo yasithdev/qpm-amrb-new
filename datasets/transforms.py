@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from torchvision import transforms
-import argparse
+import numpy as np
 
 
 class AddGaussianNoise(object):
@@ -88,18 +88,22 @@ def concat_torchvision_transforms(eval: bool, aug: dict):
 
     trans = []
 
+    trans.append(lambda x: x.astype(np.float32))
+    trans.append(transforms.ToPILImage())
+
     if aug["resize"]:
         trans.append(transforms.Resize(aug["resize"]))
 
-    # if aug["randcrop"] and aug["scale"] and not eval:
-    #     trans.append(transforms.RandomResizedCrop(aug["randcrop"], scale=aug["scale"]))
+    if aug["randcrop"] and aug["scale"] and not eval:
+        trans.append(transforms.RandomResizedCrop(aug["randcrop"], scale=aug["scale"]))
 
-    # if aug["randcrop"] and eval:
-    #     trans.append(transforms.CenterCrop(aug["randcrop"]))
+    if aug["randcrop"] and eval:
+        trans.append(transforms.CenterCrop(aug["randcrop"]))
 
-    # if aug["flip"] and not eval:
-    #     trans.append(transforms.RandomHorizontalFlip(p=0.5))
-    #     trans.append(transforms.RandomVerticalFlip(p=0.5))
+    if aug["flip"] and not eval:
+        trans.append(transforms.RandomHorizontalFlip(p=0.5))
+        trans.append(transforms.RandomVerticalFlip(p=0.5))
+    
 
     # if aug["jitter_d"] and not eval:
     #     trans.append(transforms.RandomApply(
@@ -108,23 +112,23 @@ def concat_torchvision_transforms(eval: bool, aug: dict):
 
     # ---
 
-    # if aug["gaussian_blur"] and not eval:
-    #     trans.append(transforms.RandomApply([GaussianBlur([.1, 2.])], p=aug["gaussian_blur"]))
+    if aug["gaussian_blur"] and not eval:
+        trans.append(transforms.RandomApply([GaussianBlur([.1, 2.])], p=aug["gaussian_blur"]))
 
-    # if aug["rotation"] and not eval:
-    #     trans.append(FixedRandomRotation(angles=[0, 90, 180, 270]))
+    if aug["rotation"] and not eval:
+        trans.append(FixedRandomRotation(angles=[0, 90, 180, 270]))
 
-    # if aug["grayscale"]:
-    #     trans.append(transforms.Grayscale())
-    #     trans.append(transforms.ToTensor())
-    #     trans.append(transforms.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
-    # elif aug["mean"]:
-    #     trans.append(transforms.ToTensor())
-    #     trans.append(transforms.Normalize(mean=aug["mean"], std=aug["std"]))
-    # else:
-    #     trans.append(transforms.ToTensor())
+    
+    if aug["grayscale"]:
+        trans.append(transforms.Grayscale())
+        trans.append(transforms.ToTensor())
+        trans.append(transforms.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
+    elif aug["mean"]:
+        trans.append(transforms.ToTensor())
+        trans.append(transforms.Normalize(mean=aug["mean"], std=aug["std"]))
+    else:
+        trans.append(transforms.ToTensor())
 
-    trans.append(transforms.ToTensor())
     trans.append(TileChannels2d(3))
 
     return trans
@@ -144,10 +148,14 @@ def get_rgb_transforms(opt, eval=False):
         "contrast_p": opt.rgb_contrast_p,
         "grid_distort": opt.rgb_grid_distort_p,
         "grid_shuffle": opt.rgb_grid_shuffle_p,
-        "mean": [0.4914, 0.4822, 0.4465],  # values for train+unsupervised combined
-        "std": [0.2023, 0.1994, 0.2010],
-        "bw_mean": [0.4120],  # values for train+unsupervised combined
-        "bw_std": [0.2570],
+        "mean": None,
+        "std": None,
+        "bw_mean": None,
+        "bw_std": None,
+        # "mean": [0.4914, 0.4822, 0.4465],  # values for train+unsupervised combined
+        # "std": [0.2023, 0.1994, 0.2010],
+        # "bw_mean": [0.4120],  # values for train+unsupervised combined
+        # "bw_std": [0.2570],
     }
 
     transform_func = transforms.Compose(concat_torchvision_transforms(eval=eval, aug=aug))
