@@ -117,8 +117,7 @@ class Model(BaseModel):
 
         # accumulators
         losses_mb: dict[str, torch.Tensor] = {}
-        metrics_mb: dict[str, torch.Tensor] = {"x_true": x[0], "y_true": y}
-
+        metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         if self.encoder_loss == "simclr":
             T = self.temperature
