@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.models as models
 
-from .common import simclr_loss, edl_loss, edl_probs, margin_loss
+from .common import simclr_loss, vicreg_loss, edl_loss, edl_probs, margin_loss
 from datasets.transforms import simclr_transform
 
 from .base import BaseModel
@@ -69,9 +69,7 @@ class Model(BaseModel):
             torch.nn.ReLU(inplace=True),
         )
         self.g2 = torch.nn.Sequential(
-            torch.nn.Linear(1024, 512, bias=False),
-            torch.nn.BatchNorm1d(512),
-            torch.nn.ReLU(inplace=True)
+            torch.nn.Linear(1024, 512, bias=False), torch.nn.BatchNorm1d(512), torch.nn.ReLU(inplace=True)
         )
         self.g3 = torch.nn.Linear(512, D, bias=True)
 
@@ -87,16 +85,12 @@ class Model(BaseModel):
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         lrs = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=1000)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": lrs
-        }
+        return {"optimizer": optimizer, "lr_scheduler": lrs}
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
-    
         feature = self.f(x).flatten(start_dim=1)
         proj_1 = self.g1(feature)
         proj_2 = self.g2(proj_1)
@@ -106,7 +100,7 @@ class Model(BaseModel):
         if self.with_classifier:
             assert self.classifier is not None
             logits = self.classifier(proj_1)
-        
+
         # return unit vectors (TODO clarify)
         return F.normalize(proj_1, dim=-1), F.normalize(proj_3, dim=-1), logits
 
@@ -116,7 +110,6 @@ class Model(BaseModel):
         batch_idx: int,
         stage: str,
     ) -> torch.Tensor:
-        
         # get batch data
         x, y = batch
         x = x.float()
@@ -126,20 +119,34 @@ class Model(BaseModel):
         losses_mb: dict[str, torch.Tensor] = {}
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x[0], "y_true": y}
 
+
         if self.encoder_loss == "simclr":
-            # get two augmentations of x
-            x_a = self.augment_fn[stage](x)
-            x_b = self.augment_fn[stage](x)
-            assert list(x_a.shape) == list(x_b.shape)
-            _, proj_a, logits = self(x_a)
-            _, proj_b, logits = self(x_b)
-            loss = simclr_loss(proj_a, proj_b, self.temperature)
+            T = self.temperature
+            V = 8  # NOTE test this hyperparameter
+            # get V views of x
+            X = [self.augment_fn[stage](x) for _ in range(V)]
+            # project each view
+            Z = [self(x)[1] for x in X]
+            # compute SIMCLR loss
+            loss = simclr_loss(Z, temperature=T)
             losses_mb["loss_simclr"] = loss
             metrics_mb["loss_simclr"] = loss
+        elif self.encoder_loss == "vicreg":
+            # get 2 views of x
+            xA = self.augment_fn[stage](x)
+            xB = self.augment_fn[stage](x)
+            # project each view
+            zA = self(xA)[1]
+            zB = self(xB)[1]
+            # compute VICREG loss
+            loss = vicreg_loss(zA, zB)
+            losses_mb["loss_vicreg"] = loss
+            metrics_mb["loss_vicreg"] = loss
         else:
             raise ValueError()
-        
+
         if self.with_classifier:
+            _, _, logits = self(x)
             if self.classifier_loss == "edl":
                 pY, uY = edl_probs(logits)
                 losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
@@ -157,7 +164,7 @@ class Model(BaseModel):
             metrics_mb["y_prob"] = pY
             metrics_mb["y_pred"] = pY.argmax(-1)
             metrics_mb["y_ucty"] = uY
-        
+
         # overall metrics
         losses_mb["loss"] = torch.as_tensor(sum(losses_mb.values()))
         self.log_losses(stage, losses_mb)

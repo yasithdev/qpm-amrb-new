@@ -47,9 +47,12 @@ def get_model(
         return Model(**args, classifier_loss="edl")
     
     # resnet50 variants
-    elif model_name == "resnet50_ssl":
+    elif model_name == "resnet50_simclr":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=False, encoder_loss="simclr", classifier_loss="N/A", opt=opt)
+    elif model_name == "resnet50_vicreg":
+        from .model_resnet50 import Model
+        return Model(**args, with_classifier=False, encoder_loss="vicreg", classifier_loss="N/A", opt=opt)
     elif model_name == "resnet50_ce":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=True, encoder_loss="N/A", classifier_loss="crossent", opt=opt)

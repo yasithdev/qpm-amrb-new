@@ -88,9 +88,7 @@ def gen_patches_from_img(
     :param patch_hw: Patch Height and Width
     :return:
     """
-    patched = rearrange(
-        x, "b c (h ph) (w pw) -> b (ph pw c) h w", ph=patch_hw[0], pw=patch_hw[1]
-    )
+    patched = rearrange(x, "b c (h ph) (w pw) -> b (ph pw c) h w", ph=patch_hw[0], pw=patch_hw[1])
     return patched
 
 
@@ -109,9 +107,7 @@ def gen_img_from_patches(
     :param patch_w: Patch Width
     :return:
     """
-    unpatched = rearrange(
-        x, "b (ph pw c) h w -> b c (h ph) (w pw)", ph=patch_hw[0], pw=patch_hw[1]
-    )
+    unpatched = rearrange(x, "b (ph pw c) h w -> b c (h ph) (w pw)", ph=patch_hw[0], pw=patch_hw[1])
     return unpatched
 
 
@@ -160,13 +156,7 @@ def get_convt_out_shape(
 ) -> int:
     size_o = input_size
     for _ in range(blocks):
-        size_o = (
-            (size_o - 1) * stride
-            - 2 * padding
-            + dilation * (kernel_size - 1)
-            + output_padding
-            + 1
-        )
+        size_o = (size_o - 1) * stride - 2 * padding + dilation * (kernel_size - 1) + output_padding + 1
     return size_o
 
 
@@ -393,30 +383,92 @@ def edl_probs(
 
     return p, u
 
-def simclr_loss(proj_a, proj_b, temperature=0.5):
 
-    assert list(proj_a.shape) == list(proj_b.shape)
-    B = proj_a.shape[0]
+def simclr_loss(
+    projections: list[torch.Tensor],
+    temperature=0.5,
+) -> torch.Tensor:
+    """
+    Contrastive loss across V projections of X
 
-    # [2*B, D]
-    proj = torch.cat([proj_a, proj_b], dim=0)
-    
-    # [2*B, 2*B]
-    cosine_sim_neg = torch.mm(proj, proj.t().contiguous())
-    sim_matrix = torch.exp(cosine_sim_neg / temperature)
+    Args:
+        projections: list of projections of X
+        temperature: softmax temperature (default=0.5)
 
-    # [2*B, 2*B] - all positions, minus diagonals of each (B,B) block
-    neg_mask = (torch.ones_like(sim_matrix) - torch.eye(B, device=sim_matrix.device).repeat(2,2)).bool()
-    sim_matrix_negs = neg_mask * sim_matrix
-    
-    # get across-group similarity values
-    diag_ab = torch.diag(sim_matrix, B)
-    diag_ba = torch.diag(sim_matrix, -B)
+    Returns:
+        scalar loss across all projections
 
-    # [2*B]
-    pos_sim = torch.cat([diag_ab, diag_ba], dim=0)
-    neg_sim = sim_matrix_negs.sum(dim=-1)
+    """
+
+    shape = list(projections[0].shape)
+    assert len(shape) == 2
+    for p in projections[1:]:
+        assert list(p.shape) == shape
+
+    B, D = shape
+    V = len(projections)
+
+    # [V*B, D]
+    proj = torch.cat(projections, dim=0)
+
+    # [V*B, V*B]
+    cosine_sim = torch.mm(proj, proj.t().contiguous())
+    sim_matrix = torch.exp(cosine_sim / temperature)
+
+    # [V*B, V*B] masks for all, main diagonal, and block-diagonal positions
+    all_ones = torch.ones_like(sim_matrix)
+    main_diag = torch.eye(V * B, device=sim_matrix.device)
+    blck_diag = torch.eye(B, device=sim_matrix.device).repeat(V, V)
+
+    # [V*B, V*B] mask for positives
+    pos_mask = (blck_diag - main_diag).bool()
+    sim_matrix_pos = pos_mask * sim_matrix
+
+    # [V*B, V*B] mask for negatives
+    neg_mask = (all_ones - blck_diag).bool()
+    sim_matrix_neg = neg_mask * sim_matrix
+
+    # [2*B] summed positives and negatives
+    pos_sim = sim_matrix_pos.sum(dim=-1)
+    neg_sim = sim_matrix_neg.sum(dim=-1)
 
     # [2*B]
     loss = -torch.log(pos_sim / (pos_sim + neg_sim)).mean()
+    return loss
+
+
+def off_diagonal(x: torch.Tensor) -> torch.Tensor:
+    n, m = x.shape
+    assert n == m
+    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+
+
+def vicreg_loss(
+    zA: torch.Tensor,
+    zB: torch.Tensor,
+    w1: float = 1.0,
+    w2: float = 2.0,
+    w3: float = 2.0,
+) -> torch.Tensor:
+    shape = list(zA.shape)
+    assert list(zB.shape) == shape
+
+    B, D = shape
+
+    repr_loss = F.mse_loss(zA, zB)
+
+    zA = zA - zA.mean(dim=0)
+    zB = zB - zB.mean(dim=0)
+
+    stdA = (zA.var(dim=0) + 0.0001).sqrt()
+    stdB = (zB.var(dim=0) + 0.0001).sqrt()
+    std_loss = torch.mean(F.relu(1 - stdA)) / 2 + torch.mean(F.relu(1 - stdB)) / 2
+
+    # TODO check if (B - 1) must be (B*N - 1), where N is number of GPUs
+    covA = (zA.T @ zA) / (B - 1)
+    covB = (zB.T @ zB) / (B - 1)
+    cov_loss = off_diagonal(covA).pow_(2).sum().div(D) + off_diagonal(covB).pow_(2).sum().div(D)
+
+    loss = w1 * repr_loss + w2 * std_loss + w3 * cov_loss
+
     return loss

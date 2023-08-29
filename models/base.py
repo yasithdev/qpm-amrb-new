@@ -110,7 +110,7 @@ class BaseModel(pl.LightningModule):
             getattr(self, f"{stage}_confusion_matrix")(*args)
 
         if "x_pred" in metrics and "x_true" in metrics:
-            args = metrics["x_pred"], metrics["x_true"]
+            args = metrics["x_pred"].flatten(start_dim=1), metrics["x_true"].flatten(start_dim=1)
             getattr(self, f"{stage}_decoder_mse")(*args)
 
         if batch_idx == 0:
