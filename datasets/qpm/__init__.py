@@ -1,12 +1,12 @@
 from functools import partial
+
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits, get_transforms
+from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits
 from .qpm import bacteria_dataset
 
-import argparse
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -15,8 +15,6 @@ class DataModule(pl.LightningDataModule):
         batch_size: int,
         ood: list[int],
         target_label: str,
-        train_type: str,
-        args : argparse.Namespace,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -24,8 +22,6 @@ class DataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.ood = ood
         self.target_label = target_label
-        self.train_type = train_type
-        self.args = args
         self.trainset = None
         self.valset = None
         self.testset = None
@@ -77,26 +73,15 @@ class DataModule(pl.LightningDataModule):
         self.target_transform = mapping.__getitem__
 
         # image transforms and shape
-        if(self.train_type == "self_supervised"):
-            # Augmentations used for self_supervised learning objective
-            self.transform = get_transforms
-            self.train_transform = self.transform(self.args, eval = False) 
-            self.val_transform   = self.transform(self.args, eval = True if self.args.train_supervised else False)
-            self.test_transform  = self.transform(self.args, eval = True)
-            self.shape = (1, 64, 64)
-        else:
-            self.transform = Compose(
-                [
-                    ToTensor(),
-                    ZeroPad2D(2, 2, 2, 2),
-                    # Resize((224, 224), antialias=True),  # type: ignore
-                    # TileChannels2d(3),
-                ]
-            )
-            self.train_transform = self.transform
-            self.val_transform  = self.transform
-            self.test_transform = self.transform
-            self.shape = (1, 64, 64)
+        self.shape = (1, 64, 64)
+        self.transform = Compose(
+            [
+                ToTensor(),
+                ZeroPad2D(2, 2, 2, 2),
+                # Resize((224, 224), antialias=True),  # type: ignore
+                # TileChannels2d(3),
+            ]
+        )
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
@@ -104,22 +89,20 @@ class DataModule(pl.LightningDataModule):
         return ind_targets, ood_targets
 
     def setup(self, stage: str) -> None:
-        
         get_dataset = partial(
             bacteria_dataset,
             data_dir=self.data_root,
+            transform=self.transform,
             target_transform=self.target_transform,
             label_type=self.target_label,
             balance_data=False,
         )
         if not self.trainset and not self.testset and not self.valset:
-            self.trainset = get_dataset(type_="train", transform = self.train_transform)
-            self.valset  = get_dataset(type_="val", transform = self.val_transform)
-            self.testset = get_dataset(type_="test", transform = self.test_transform)
+            self.trainset = get_dataset(type_="train")
+            self.valset = get_dataset(type_="val")
+            self.testset = get_dataset(type_="test")
             splits = take_splits(self.trainset, self.valset, self.testset, *self.get_label_splits())
             self.train_data, self.val_data, self.test_data, self.ood_data = splits
-            
-
 
     def train_dataloader(self):
         assert self.train_data

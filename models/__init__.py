@@ -11,7 +11,7 @@ def get_model(
     cat_k: int,
     manifold_d: int,
     optim_lr: float,
-    _args: argparse.Namespace,
+    opt: argparse.Namespace,
 ) -> BaseModel:
 
     args: dict = dict(
@@ -49,10 +49,10 @@ def get_model(
     # resnet50 variants
     elif model_name == "resnet50_ssl":
         from .model_resnet50 import Model
-        return Model(**args, with_classifier=False, encoder_loss="simclr", temperature=_args.temperature)
+        return Model(**args, with_classifier=False, encoder_loss="simclr", classifier_loss="N/A", opt=opt)
     elif model_name == "resnet50_ce":
         from .model_resnet50 import Model
-        return Model(**args, with_classifier=True, classifier_loss="crossent", temperature=_args.temperature)
+        return Model(**args, with_classifier=True, encoder_loss="N/A", classifier_loss="crossent", opt=opt)
     
     # rescaps variants
     elif model_name == "rescaps_margin_mse":

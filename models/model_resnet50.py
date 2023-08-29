@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Callable, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -6,8 +6,10 @@ import torch.optim as optim
 import torchvision.models as models
 
 from .common import simclr_loss, edl_loss, edl_probs, margin_loss
+from datasets.transforms import simclr_transform
 
 from .base import BaseModel
+import argparse
 
 
 class Model(BaseModel):
@@ -23,7 +25,7 @@ class Model(BaseModel):
         manifold_d: int,
         image_chw: tuple[int, int, int],
         optim_lr: float,
-        temperature: float,
+        opt: argparse.Namespace,
         with_classifier: bool = False,
         encoder_loss: str = "simclr",
         classifier_loss: str = "edl",
@@ -37,9 +39,15 @@ class Model(BaseModel):
             with_classifier=with_classifier,
             with_decoder=False,
         )
-        self.temperature = temperature
+        self.temperature = opt.temperature
         self.encoder_loss = encoder_loss
         self.classifier_loss = classifier_loss
+        self.augment_fn = {
+            "train": simclr_transform(opt, eval=False),
+            "val": simclr_transform(opt, eval=opt.train_supervised),
+            "test": simclr_transform(opt, eval=True),
+            "predict": simclr_transform(opt, eval=True),
+        }
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
@@ -111,17 +119,23 @@ class Model(BaseModel):
         
         # get batch data
         x, y = batch
+        x = x.float()
         y = y.long()
 
         # accumulators
         losses_mb: dict[str, torch.Tensor] = {}
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x[0], "y_true": y}
 
+        if stage == "train":
+            eval = False
+        else:
+            eval = True
+
         if self.encoder_loss == "simclr":
-            # assuming x is a tuple
-            # can also call transform(x) here twice and get 2 crops
-            (x_a, x_b) = x
-            x_a, x_b = x_a.float(), x_b.float()
+            assert self.simclr_transform is not None
+            # get two augmentations of x
+            x_a = self.augment_fn[stage](x)
+            x_b = self.augment_fn[stage](x)
             assert list(x_a.shape) == list(x_b.shape)
             _, proj_a, logits = self(x_a)
             _, proj_b, logits = self(x_b)

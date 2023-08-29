@@ -1,14 +1,13 @@
-from typing import List, Tuple
-
 import random
-from tqdm.auto import tqdm
-from PIL import Image, ImageFilter
+from typing import List, Tuple
 
 import torch
 import torch.nn.functional as F
+import torchvision.transforms as T
+import torchvision.transforms.functional as TF
+from PIL import ImageFilter
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
-from torchvision import transforms
-import numpy as np
+from tqdm.auto import tqdm
 
 
 class AddGaussianNoise(object):
@@ -20,9 +19,8 @@ class AddGaussianNoise(object):
         return tensor + torch.randn(tensor.size()) * self.std + self.mean
 
     def __repr__(self):
-        return self.__class__.__name__ + "(mean={0}, std={1})".format(
-            self.mean, self.std
-        )
+        return self.__class__.__name__ + "(mean={0}, std={1})".format(self.mean, self.std)
+
 
 class ZeroPad2D(object):
     def __init__(self, h1: int, h2: int, w1: int, w2: int):
@@ -36,9 +34,8 @@ class ZeroPad2D(object):
         return F.pad(tensor, pad)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(H={0},{1}, W={2}{3})".format(
-            self.h1, self.h2, self.w1, self.w2
-        )
+        return self.__class__.__name__ + "(H={0},{1}, W={2}{3})".format(self.h1, self.h2, self.w1, self.w2)
+
 
 class TileChannels2d(object):
     def __init__(self, repeats: int):
@@ -50,11 +47,15 @@ class TileChannels2d(object):
     def __repr__(self):
         return self.__class__.__name__ + "(repeats={0})".format(self.repeats)
 
-class GaussianBlur(object):
-    """Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709"""
-    """Borrowed from MoCo implementation"""
 
-    def __init__(self, sigma=[.1, 2.]):
+class GaussianBlur(object):
+    """
+    Gaussian blur augmentation in SimCLR https://arxiv.org/abs/2002.05709
+    Borrowed from MoCo implementation
+
+    """
+
+    def __init__(self, sigma=[0.1, 2.0]):
         self.sigma = sigma
 
     def __call__(self, x):
@@ -62,78 +63,87 @@ class GaussianBlur(object):
         x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
         return x
 
+
 class FixedRandomRotation:
     """Rotate by one of the given angles."""
+
     def __init__(self, angles):
         self.angles = angles
 
     def __call__(self, x):
         angle = random.choice(self.angles)
-        return transforms.functional.rotate(x, angle)
+        return TF.rotate(x, angle)
+
 
 class Denormalize(object):
     def __init__(self, mean, std, inplace=False):
         self.mean = mean
-        self.demean = [-m/s for m, s in zip(mean, std)]
+        self.demean = [-m / s for m, s in zip(mean, std)]
         self.std = std
-        self.destd = [1/s for s in std]
+        self.destd = [1 / s for s in std]
         self.inplace = inplace
 
     def __call__(self, tensor):
-        tensor = F.normalize(tensor, self.demean, self.destd, self.inplace)
+        tensor = TF.normalize(tensor, self.demean, self.destd, self.inplace)
         # clamp to get rid of numerical errors
         return torch.clamp(tensor, 0.0, 1.0)
 
-def concat_torchvision_transforms(eval: bool, aug: dict):
 
+def concat_torchvision_transforms(eval: bool, aug: dict):
+    # assuming transform is given tensor inputs
     trans = []
 
-    trans.append(lambda x: x.astype(np.float32))
-    trans.append(transforms.ToPILImage())
+    trans.append(T.ConvertImageDtype(torch.float32))
 
-    if aug["resize"]:
-        trans.append(transforms.Resize(aug["resize"]))
+    # not ok for qpi
+    # if aug["resize"]:
+    #     trans.append(T.Resize(aug["resize"]))
 
-    if aug["randcrop"] and aug["scale"] and not eval:
-        trans.append(transforms.RandomResizedCrop(aug["randcrop"], scale=aug["scale"]))
+    # not ok for qpi
+    # if aug["randcrop"] and aug["scale"] and not eval:
+    #     trans.append(T.RandomResizedCrop(size=aug["randcrop"], scale=aug["scale"]))
 
-    if aug["randcrop"] and eval:
-        trans.append(transforms.CenterCrop(aug["randcrop"]))
+    # not ok for qpi
+    # if aug["randcrop"] and eval:
+    #     trans.append(T.CenterCrop(aug["randcrop"]))
 
+    # ok for qpi
     if aug["flip"] and not eval:
-        trans.append(transforms.RandomHorizontalFlip(p=0.5))
-        trans.append(transforms.RandomVerticalFlip(p=0.5))
-    
+        trans.append(T.RandomHorizontalFlip(p=0.5))
+        trans.append(T.RandomVerticalFlip(p=0.5))
 
+    # not ok for qpi
     # if aug["jitter_d"] and not eval:
-    #     trans.append(transforms.RandomApply(
-    #         [transforms.ColorJitter(0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.8*aug["jitter_d"], 0.2*aug["jitter_d"])],
-    #          p=aug["jitter_p"]))
+    #     trans.append(
+    #         T.RandomApply(
+    #             [
+    #                 T.ColorJitter(
+    #                     0.8 * aug["jitter_d"], 0.8 * aug["jitter_d"], 0.8 * aug["jitter_d"], 0.2 * aug["jitter_d"]
+    #                 )
+    #             ],
+    #             p=aug["jitter_p"],
+    #         )
+    #     )
 
-    # ---
-
+    # ok for qpi?
     if aug["gaussian_blur"] and not eval:
-        trans.append(transforms.RandomApply([GaussianBlur([.1, 2.])], p=aug["gaussian_blur"]))
+        trans.append(T.RandomApply([GaussianBlur([0.1, 2.0])], p=aug["gaussian_blur"]))
 
+    # ok for qpi
     if aug["rotation"] and not eval:
         trans.append(FixedRandomRotation(angles=[0, 90, 180, 270]))
 
-    
-    if aug["grayscale"]:
-        trans.append(transforms.Grayscale())
-        trans.append(transforms.ToTensor())
-        trans.append(transforms.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
-    elif aug["mean"]:
-        trans.append(transforms.ToTensor())
-        trans.append(transforms.Normalize(mean=aug["mean"], std=aug["std"]))
-    else:
-        trans.append(transforms.ToTensor())
-
-    trans.append(TileChannels2d(3))
+    # not ok for qpi
+    # if aug["grayscale"]:
+    #     trans.append(T.Grayscale())
+    #     trans.append(T.Normalize(mean=aug["bw_mean"], std=aug["bw_std"]))
+    # elif aug["mean"]:
+    #     trans.append(T.Normalize(mean=aug["mean"], std=aug["std"]))
 
     return trans
 
-def get_rgb_transforms(opt, eval=False):
+
+def simclr_transform(opt, eval=False):
     aug = {
         "resize": None,
         "randcrop": opt.image_size,
@@ -158,12 +168,7 @@ def get_rgb_transforms(opt, eval=False):
         # "bw_std": [0.2570],
     }
 
-    transform_func = transforms.Compose(concat_torchvision_transforms(eval=eval, aug=aug))
-    
-    return lambda x: (transform_func(x), transform_func(x))
-
-def get_transforms(opt, eval=False):
-    return get_rgb_transforms(opt, eval)
+    return T.Compose(concat_torchvision_transforms(eval, aug))
 
 
 def reindex_for_ood(

@@ -70,11 +70,11 @@ class Config:
             data_dir or self.data_dir,
             batch_size or self.batch_size,
             ood or self.ood,
-            args = self.args
         )
         self.datamodule = dm
         self.labels = dm.targets
         self.image_chw = dm.shape
+        self.args.image_size = dm.shape # NOTE this should be set for simclr_transform() to work
 
     def get_model(self):
         from models import get_model
@@ -159,8 +159,6 @@ def load_config() -> Config:
     
     ## SSL Augmentation parameters
     # Common augmentations
-    # parser.add_argument("--image_size", type=int, default=224) - original
-    parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--scale",  nargs=2, type=float, default=[0.2, 1.0])
     parser.add_argument("--train_supervised", type=bool, default=False)
     parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
