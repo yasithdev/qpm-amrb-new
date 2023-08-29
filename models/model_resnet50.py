@@ -1,4 +1,4 @@
-from typing import Callable, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn.functional as F
@@ -126,13 +126,7 @@ class Model(BaseModel):
         losses_mb: dict[str, torch.Tensor] = {}
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x[0], "y_true": y}
 
-        if stage == "train":
-            eval = False
-        else:
-            eval = True
-
         if self.encoder_loss == "simclr":
-            assert self.simclr_transform is not None
             # get two augmentations of x
             x_a = self.augment_fn[stage](x)
             x_b = self.augment_fn[stage](x)

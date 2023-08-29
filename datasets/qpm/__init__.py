@@ -15,6 +15,8 @@ class DataModule(pl.LightningDataModule):
         batch_size: int,
         ood: list[int],
         target_label: str,
+        aug_hw_224: bool = False,
+        aug_ch_3: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -22,6 +24,8 @@ class DataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.ood = ood
         self.target_label = target_label
+        self.aug_hw_224 = aug_hw_224
+        self.aug_ch_3 = aug_ch_3
         self.trainset = None
         self.valset = None
         self.testset = None
@@ -29,8 +33,6 @@ class DataModule(pl.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
-        self.transform = None
-        self.shape = None
         # define targets
         strains = [
             "AB",
@@ -72,16 +74,25 @@ class DataModule(pl.LightningDataModule):
         mapping = list(map(self.permuted_targets.index, self.targets))
         self.target_transform = mapping.__getitem__
 
-        # image transforms and shape
-        self.shape = (1, 64, 64)
-        self.transform = Compose(
-            [
-                ToTensor(),
-                ZeroPad2D(2, 2, 2, 2),
-                # Resize((224, 224), antialias=True),  # type: ignore
-                # TileChannels2d(3),
-            ]
-        )
+        # pre-transform shape
+        self.orig_shape = (1, 60, 60)
+        c, h, w = self.orig_shape
+        
+        # transform
+        trans = []
+        trans.append(ToTensor())
+        trans.append(ZeroPad2D(2, 2, 2, 2))
+        h = w = 64
+        if self.aug_hw_224:
+            trans.append(Resize(size=(224, 224), antialias=True))
+            h = w = 224
+        if self.aug_ch_3:
+            trans.append(TileChannels2d(3))
+            c = 3
+        self.transform = Compose(trans)
+        
+        # post-transform shape
+        self.shape = (c, h, w)
 
     def get_label_splits(self):
         ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]

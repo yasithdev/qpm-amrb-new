@@ -43,6 +43,11 @@ class Config:
         for k in self.ood_k.split(':'):
             if len(k) > 0:
                 self.ood.append(int(k))
+        # model-dependent data params
+        if model_name.startswith("resnet18") or model_name.startswith("resnet50"):
+            self.args.expand_3ch = True
+        else:
+            self.args.expand_3ch = False
 
     def load_data(
         self,
@@ -70,6 +75,7 @@ class Config:
             data_dir or self.data_dir,
             batch_size or self.batch_size,
             ood or self.ood,
+            aug_ch_3 = self.args.expand_3ch,
         )
         self.datamodule = dm
         self.labels = dm.targets

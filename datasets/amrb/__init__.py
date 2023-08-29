@@ -1,8 +1,8 @@
 import lightning.pytorch as pt
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor
+from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import AddGaussianNoise, reindex_for_ood, take_splits
+from ..transforms import AddGaussianNoise, TileChannels2d, reindex_for_ood, take_splits
 from .amrb import create_datasets, get_target_map
 
 
@@ -14,6 +14,9 @@ class DataModule(pt.LightningDataModule):
         ood: list,
         version: str,
         target_label: str,
+        aug_hw_224: bool = False,
+        aug_ch_3: bool = False,
+        add_noise: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -22,19 +25,37 @@ class DataModule(pt.LightningDataModule):
         self.ood = ood
         self.version = version
         self.target_label = target_label
+        self.aug_hw_224 = aug_hw_224
+        self.aug_ch_3 = aug_ch_3
+        self.add_noise = add_noise
         self.trainset = None
         self.testset = None
         self.train_data = None
         self.val_data = None
         self.test_data = None
         self.ood_data = None
-        self.shape = (1, 40, 40)
-        self.transform = Compose(
-            [
-                ToTensor(),
-                AddGaussianNoise(mean=0.0, std=0.01),
-            ]
-        )
+
+        # pre-transform shape
+        self.orig_shape = (1, 40, 40)
+        c, h, w = self.orig_shape
+
+        # transform
+        trans = []
+        trans.append(ToTensor())
+        if self.aug_hw_224:
+            trans.append(Resize((224, 224), antialias=True))
+            h = w = 224
+        if self.aug_ch_3:
+            trans.append(TileChannels2d(3))
+            c = 3
+        if self.add_noise:
+            trans.append(AddGaussianNoise(mean=0.0, std=0.01))
+        self.transform = Compose(trans)
+
+        # post-transform shape
+        self.shape = (c, h, w)
+
+        # targets
         target_map = get_target_map(data_root, version, target_label)
         self.targets = sorted(target_map.keys())
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)

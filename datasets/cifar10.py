@@ -9,21 +9,42 @@ from .transforms import AddGaussianNoise, reindex_for_ood, take_splits
 
 
 class DataModule(pl.LightningDataModule):
-    def __init__(self, data_root: str, batch_size: int, ood: List[int] = []) -> None:
+    def __init__(
+        self,
+        data_root: str,
+        batch_size: int,
+        ood: List[int] = [],
+        add_noise: bool = True,
+    ) -> None:
         super().__init__()
         self.N = 4
         self.targets = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
-        self.shape = (3, 32, 32)
         self.data_root = data_root
         self.ood = ood
         self.batch_size = batch_size
+        self.add_noise = add_noise
         self.trainset = None
         self.testset = None
         self.train_data = None
         self.val_data = None
         self.test_data = None
         self.ood_data = None
-        self.transform = Compose([ToTensor(), AddGaussianNoise(mean=0.0, std=0.01)])
+        
+        # pre-transform shape
+        self.orig_shape = (3, 32, 32)
+        c, h, w = self.orig_shape
+        
+        # transform
+        trans = []
+        trans.append(ToTensor())
+        if self.add_noise:
+            trans.append(AddGaussianNoise(mean=0.0, std=0.01))
+        self.transform = Compose(trans)
+        
+        # post-transform shape
+        self.shape = (c, h, w)
+        
+        # targets
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
         mapping = list(map(self.permuted_targets.index, self.targets))
         self.target_transform = mapping.__getitem__
