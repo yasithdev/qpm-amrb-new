@@ -8,3 +8,6 @@ uq_project/
 *.out
 **/.ipynb_checkpoints/**
 **/*.ckpt
+*.npy
+*.npz
+*.mat
