@@ -82,7 +82,7 @@ class Model(BaseModel):
         stage: str,
     ) -> torch.Tensor:
         # get batch data
-        x, y = batch
+        x, y, *_ = batch
         x = x.float()
         y = y.long()
 

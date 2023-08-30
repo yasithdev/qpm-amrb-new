@@ -197,21 +197,21 @@ def take_splits(
     # train set data
     trn_od_idx = []
     trn_id_idx = []
-    for idx, (_, target) in enumerate(tqdm(trn_set)):  # type: ignore
+    for idx, (_, target, *_) in enumerate(tqdm(trn_set)):  # type: ignore
         dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
         dest.append(idx)
     print("Train - OK")
     # validation set data
     val_od_idx = []
     val_id_idx = []
-    for idx, (_, target) in enumerate(tqdm(val_set)):  # type: ignore
+    for idx, (_, target, *_) in enumerate(tqdm(val_set)):  # type: ignore
         dest = val_od_idx if permuted_idx[target] in ood_labels else val_id_idx
         dest.append(idx)
     print("Val - OK")
     # test set data
     tst_od_idx = []
     tst_id_idx = []
-    for idx, (_, target) in enumerate(tqdm(tst_set)):  # type: ignore
+    for idx, (_, target, *_) in enumerate(tqdm(tst_set)):  # type: ignore
         dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
         dest.append(idx)
     print("Test - OK")

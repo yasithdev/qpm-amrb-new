@@ -83,8 +83,7 @@ def get_model(
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
 
     # DEFAULTS
-
-    # load requested module, if available
+    
     try:
         module = importlib.__import__(
             name=f"model_{model_name}",

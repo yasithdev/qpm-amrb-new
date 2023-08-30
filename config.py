@@ -6,10 +6,10 @@ from lightning.pytorch import LightningDataModule
 
 import argparse
 
+
 class Config:
     def __init__(
         self,
-        ood_k: str,
         data_dir: str,
         dataset_name: str,
         model_name: str,
@@ -21,9 +21,9 @@ class Config:
         train_epochs: int,
         checkpoint_metric: str,
         checkpoint_mode: str,
-        args : argparse.Namespace
+        ood: str,
+        args: argparse.Namespace,
     ) -> None:
-        self.ood_k = ood_k
         self.data_dir = data_dir
         self.dataset_name = dataset_name
         self.model_name = model_name
@@ -35,14 +35,15 @@ class Config:
         self.train_epochs = train_epochs
         self.checkpoint_metric = checkpoint_metric
         self.checkpoint_mode = checkpoint_mode
+        self.ood = [int(x) for x in ood.split(":") if x != '']
+        self.args = args
+
+        # data params - initialized when load_data() is called
         self.image_chw: Tuple[int, int, int] | None = None
         self.labels: List[str] | None = None
+        self.cat_k: int | None = None
         self.datamodule: LightningDataModule | None = None
-        self.ood: List[int] = []
-        self.args = args
-        for k in self.ood_k.split(':'):
-            if len(k) > 0:
-                self.ood.append(int(k))
+
         # model-dependent data params
         if model_name.startswith("resnet18") or model_name.startswith("resnet50"):
             self.args.expand_3ch = True
@@ -70,43 +71,59 @@ class Config:
             ood (list[int], optional): Targets to treat as OOD.
         """
         from datasets import get_data
+
         dm = get_data(
             dataset_name or self.dataset_name,
             data_dir or self.data_dir,
             batch_size or self.batch_size,
             ood or self.ood,
-            aug_ch_3 = self.args.expand_3ch,
+            aug_ch_3=self.args.expand_3ch,
         )
-        self.datamodule = dm
-        self.labels = dm.targets
         self.image_chw = dm.shape
-        self.args.image_size = dm.shape # NOTE this should be set for simclr_transform() to work
+        self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
+        self.cat_k = len(self.labels) - len(self.ood)
+        self.datamodule = dm
+        self.args.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
 
     def get_model(self):
-        from models import get_model
-        from datasets.transforms import reindex_for_ood
-        assert self.labels is not None
+        """
+        Creates a model. Must be called after get_data(), as it requires
+        self.image_chw, self.cat_k, and self.labels to be initialized.
+
+        Returns:
+            BaseModel: Model object
+
+        """
+        # prerequisites
         assert self.image_chw is not None
-        cat_k = len(self.get_ind_labels())
+        assert self.labels is not None
+        assert self.cat_k is not None
+        # logic
+        from models import get_model
+
         return get_model(
             self.image_chw,
             self.model_name,
-            reindex_for_ood(self.labels, self.ood),
-            cat_k,
+            self.labels,
+            self.cat_k,
             self.manifold_d,
             self.optim_lr,
             self.args,
         )
 
     def get_ind_labels(self) -> List[str]:
+        # prerequisites
         assert self.labels is not None
-        ind_labels = [x for i, x in enumerate(self.labels) if i not in self.ood]
-        return ind_labels
+        assert self.cat_k is not None
+        # logic
+        return self.labels[: self.cat_k]
 
     def get_ood_labels(self) -> List[str]:
+        # prerequisites
         assert self.labels is not None
-        ood_labels = [x for i, x in enumerate(self.labels) if i in self.ood]
-        return ood_labels
+        assert self.cat_k is not None
+        # logic
+        return self.labels[self.cat_k :]
 
     def print_labels(
         self,
@@ -118,7 +135,6 @@ class Config:
         self,
     ) -> dict[str, int | str | float]:
         return dict(
-            ood_k=self.ood_k,
             data_dir=self.data_dir,
             dataset_name=self.dataset_name,
             model_name=self.model_name,
@@ -130,7 +146,9 @@ class Config:
             train_epochs=self.train_epochs,
             checkpoint_metric=self.checkpoint_metric,
             checkpoint_mode=self.checkpoint_mode,
+            ood_k=":".join(map(str, self.ood)),
         )
+
 
 def default_env(key) -> dict:
     val = os.environ.get(key, default="")
@@ -145,44 +163,44 @@ def load_config() -> Config:
     logging.info(f"LOG_LEVEL={log_level}")
 
     import matplotlib
+
     matplotlib.rcParams["figure.figsize"] = [16, 12]
 
     load_dotenv()
 
     parser = argparse.ArgumentParser(description="configuration")
-    parser.add_argument('--ood_k', **default_env("OOD_K"))
-    parser.add_argument('--data_dir', **default_env("DATA_DIR"))
-    parser.add_argument('--dataset_name', **default_env("DATASET_NAME"))
-    parser.add_argument('--model_name', **default_env("MODEL_NAME"))
-    parser.add_argument('--experiment_base', **default_env("EXPERIMENT_BASE"))
-    parser.add_argument('--manifold_d', **default_env("MANIFOLD_D"))
-    parser.add_argument('--batch_size', **default_env("BATCH_SIZE"))
-    parser.add_argument('--optim_lr', **default_env("OPTIM_LR"))
-    parser.add_argument('--optim_m', **default_env("OPTIM_M"))
-    parser.add_argument('--train_epochs', **default_env("TRAIN_EPOCHS"))
-    parser.add_argument('--checkpoint_metric', **default_env("CHECKPOINT_METRIC"))
-    parser.add_argument('--checkpoint_mode', **default_env("CHECKPOINT_MODE"))
-    
+    parser.add_argument("--ood", **default_env("OOD"))
+    parser.add_argument("--data_dir", **default_env("DATA_DIR"))
+    parser.add_argument("--dataset_name", **default_env("DATASET_NAME"))
+    parser.add_argument("--model_name", **default_env("MODEL_NAME"))
+    parser.add_argument("--experiment_base", **default_env("EXPERIMENT_BASE"))
+    parser.add_argument("--manifold_d", **default_env("MANIFOLD_D"))
+    parser.add_argument("--batch_size", **default_env("BATCH_SIZE"))
+    parser.add_argument("--optim_lr", **default_env("OPTIM_LR"))
+    parser.add_argument("--optim_m", **default_env("OPTIM_M"))
+    parser.add_argument("--train_epochs", **default_env("TRAIN_EPOCHS"))
+    parser.add_argument("--checkpoint_metric", **default_env("CHECKPOINT_METRIC"))
+    parser.add_argument("--checkpoint_mode", **default_env("CHECKPOINT_MODE"))
+
     ## SSL Augmentation parameters
     # Common augmentations
-    parser.add_argument("--scale",  nargs=2, type=float, default=[0.2, 1.0])
+    parser.add_argument("--scale", nargs=2, type=float, default=[0.2, 1.0])
     parser.add_argument("--train_supervised", type=bool, default=False)
-    parser.add_argument('--temperature', default=0.5, type=float, help='Temperature used in softmax')
+    parser.add_argument("--temperature", default=0.5, type=float, help="Temperature used in softmax")
 
     # RGB augmentations
-    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (only on rgb)" )
-    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (only on rgb)" )
-    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(only on rgb)" )
+    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (only on rgb)")
+    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (only on rgb)")
+    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(only on rgb)")
     parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb only)")
     parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb only)")
-    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (only on rgb)" )
-    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (only on rgb)" )
+    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (only on rgb)")
+    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (only on rgb)")
 
     args, _ = parser.parse_known_args()
     logging.info(args.__dict__)
 
     return Config(
-        ood_k=str(args.ood_k),
         data_dir=str(args.data_dir),
         dataset_name=str(args.dataset_name),
         model_name=str(args.model_name),
@@ -194,5 +212,6 @@ def load_config() -> Config:
         train_epochs=int(args.train_epochs),
         checkpoint_metric=str(args.checkpoint_metric),
         checkpoint_mode=str(args.checkpoint_mode),
-        args = args
+        ood=str(args.ood),
+        args=args,
     )

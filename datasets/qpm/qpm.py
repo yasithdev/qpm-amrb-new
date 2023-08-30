@@ -49,7 +49,7 @@ class bacteria_dataset(Dataset):
                      therefore, specify which label you need as follows:
                         | label_type              | Description
                         |------------------------ |---------------
-                        | 'class' (default)       | Strain (0-20)
+                        | 'strain' (default)      | Strain (0-20)
                         | 'antibiotic_resistant'  | Non wild type (1) / Wild type (0)
                         | 'gram_strain'           | Gram Positive (1) / Gram Negative (0)
                         | 'species'               | Species (0-4)
@@ -62,12 +62,12 @@ class bacteria_dataset(Dataset):
         type_: str,
         transform=None,
         target_transform=None,
-        label_type="class",
+        label_type="strain",
         balance_data=False,
     ):
         # validation
         assert type_ in ["train", "val", "test"]
-        
+
         # params
         self.transform = transform
         self.target_transform = target_transform
@@ -87,7 +87,7 @@ class bacteria_dataset(Dataset):
         min_class_count = 1000000000
 
         # if dataset needs to be balanced in terms of count per each class (strain)
-        if (balance_data):
+        if balance_data:
             for i in range(0, 21):
                 count = dirs[i].shape[0]
                 if count < min_class_count:
@@ -104,31 +104,30 @@ class bacteria_dataset(Dataset):
 
             # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
             self.images.extend(dirs[i][: int(count), ..., None])
-            self.targets.extend([i]*int(count))
+            self.targets.extend([i] * int(count))
 
         print(f"Loaded {len(self.images)} images")
 
     def __len__(self):
         return len(self.images)
 
-    def __getclass_(self, target, label_type):
-        if label_type == "class":
-            return target
-
+    def __getclass_(self, strain, label_type):
+        if label_type == "strain":
+            return strain
         elif label_type == "species":
-            return species_mapping_dict[target]  # map class to species
+            return species_mapping_dict[strain]  # map class to species
 
         else:
             raise Exception("Invalid label type")
 
     def __getitem__(self, idx):
-        image, target = self.images[idx], self.targets[idx]
-        label = self.__getclass_(target, self.label_type)
+        image, strain = self.images[idx], self.targets[idx]
+        target = self.__getclass_(strain, self.label_type)
 
         if self.transform:
             image = self.transform(image)
 
         if self.target_transform:
-            label = self.target_transform(label)
+            target = self.target_transform(target)
 
-        return image, label
+        return image, target, strain

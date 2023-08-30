@@ -34,7 +34,7 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         # define targets
-        strains = [
+        self.strains = [
             "AB",
             "BS",
             "EC_K12",
@@ -57,7 +57,7 @@ class DataModule(pl.LightningDataModule):
             "AB_K57-06",
             "AB_K71-71",
         ]
-        species = [
+        self.species = [
             "AB",
             "BS",
             "EC",
@@ -65,9 +65,9 @@ class DataModule(pl.LightningDataModule):
             "SA",
         ]
         if target_label == "species":
-            self.targets = species
+            self.targets = self.species
         elif target_label == "strain":
-            self.targets = strains
+            self.targets = self.strains
         else:
             raise ValueError()
         self.permuted_targets = reindex_for_ood(self.targets, self.ood)
