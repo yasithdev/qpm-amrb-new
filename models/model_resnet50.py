@@ -5,11 +5,12 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision.models as models
 
+from config import Config
+
 from .common import simclr_loss, vicreg_loss, edl_loss, edl_probs, margin_loss
 from datasets.transforms import simclr_transform
 
 from .base import BaseModel
-import argparse
 
 
 class Model(BaseModel):
@@ -25,7 +26,7 @@ class Model(BaseModel):
         manifold_d: int,
         image_chw: tuple[int, int, int],
         optim_lr: float,
-        opt: argparse.Namespace,
+        opt: Config,
         with_classifier: bool = False,
         encoder_loss: str = "simclr",
         classifier_loss: str = "edl",

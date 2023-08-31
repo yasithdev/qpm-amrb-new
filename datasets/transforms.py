@@ -9,6 +9,8 @@ from PIL import ImageFilter
 from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
 from tqdm.auto import tqdm
 
+from config import Config
+
 
 class AddGaussianNoise(object):
     def __init__(self, mean: float, std: float):
@@ -143,7 +145,7 @@ def concat_torchvision_transforms(eval: bool, aug: dict):
     return trans
 
 
-def simclr_transform(opt, eval=False):
+def simclr_transform(opt: Config, eval=False):
     aug = {
         "resize": None,
         "randcrop": opt.image_size,

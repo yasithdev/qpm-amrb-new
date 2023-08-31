@@ -14,20 +14,20 @@ np.random.seed(42)
 torch.manual_seed(42)
 torch.set_float32_matmul_precision("medium")
 
-# initialize config, data attributes, and loaders
 config = load_config()
-config.load_data()
-config.print_labels()
-assert config.datamodule
 
-model = config.get_model()
+emb_path = f"assets/embeddings/{config.dataset_name}.npz"
+config.load_embedding(embedding_path=emb_path, num_dims=config.manifold_d, num_targets=21)
+
+model = config.get_model(model_name=config.model_name, in_dims=config.manifold_d, rand_dims=1000)
+
 run_name = f"{config.dataset_name}_{config.model_name}"
 wandb_logger = WandbLogger(
     project="uq_project", log_model="all", name=run_name, config={**config.as_dict(), **model.hparams}
 )
 wandb_logger.watch(model, log="all")
 
-checkpoint_callback = ModelCheckpoint(monitor=config.checkpoint_metric, mode=config.checkpoint_mode)
+checkpoint_callback = ModelCheckpoint(monitor="val_accuracy", mode="max")
 trainer = pl.Trainer(
     logger=wandb_logger,
     max_epochs=config.train_epochs,

@@ -1,54 +1,53 @@
+import argparse
 import logging
 import os
-from typing import Tuple, List
+from typing import List, Tuple
+
 from dotenv import load_dotenv
 from lightning.pytorch import LightningDataModule
 
-import argparse
 
+class Config(argparse.Namespace):
+    model_name: str
+    ood: list[int]
+    data_dir: str
+    dataset_name: str
+    experiment_base: str
+    manifold_d: int
+    batch_size: int
+    optim_lr: float
+    optim_m: float
+    train_epochs: int
+    checkpoint_metric: str
+    checkpoint_mode: str
+    scale: tuple[float, float]
+    train_supervised: bool
+    temperature: float
+    rgb_gaussian_blur_p: float
+    rgb_jitter_d: float
+    rgb_jitter_p: float
+    rgb_contrast: float
+    rgb_contrast_p: float
+    rgb_grid_distort_p: float
+    rgb_grid_shuffle_p: float
+    expand_3ch: bool
+    # data params - initialized when load_data() is called
+    image_chw: Tuple[int, int, int] | None = None
+    labels: List[str] | None = None
+    cat_k: int | None = None
+    datamodule: LightningDataModule | None = None
 
-class Config:
-    def __init__(
-        self,
-        data_dir: str,
-        dataset_name: str,
-        model_name: str,
-        experiment_base: str,
-        manifold_d: int,
-        batch_size: int,
-        optim_lr: float,
-        optim_m: float,
-        train_epochs: int,
-        checkpoint_metric: str,
-        checkpoint_mode: str,
-        ood: str,
-        args: argparse.Namespace,
-    ) -> None:
-        self.data_dir = data_dir
-        self.dataset_name = dataset_name
-        self.model_name = model_name
-        self.experiment_base = experiment_base
-        self.manifold_d = manifold_d
-        self.batch_size = batch_size
-        self.optim_lr = optim_lr
-        self.optim_m = optim_m
-        self.train_epochs = train_epochs
-        self.checkpoint_metric = checkpoint_metric
-        self.checkpoint_mode = checkpoint_mode
-        self.ood = [int(x) for x in ood.split(":") if x != ""]
-        self.args = args
-
-        # data params - initialized when load_data() is called
-        self.image_chw: Tuple[int, int, int] | None = None
-        self.labels: List[str] | None = None
-        self.cat_k: int | None = None
-        self.datamodule: LightningDataModule | None = None
-
-        # model-dependent data params
-        if model_name.startswith("resnet18") or model_name.startswith("resnet50"):
-            self.args.expand_3ch = True
-        else:
-            self.args.expand_3ch = False
+    def __setattr__(self, name, value):
+        if name == "ood":
+            if type(value) == str:
+                value = [int(x) for x in value.split(":") if x != ""]
+            elif type(value) == list[str]:
+                value = [int(x) for x in value]
+            else:
+                value = []
+        elif name == "model_name":
+            self.expand_3ch = value.startswith("resnet18") or value.startswith("resnet50")
+        super().__setattr__(name, value)
 
     def load_data(
         self,
@@ -77,13 +76,13 @@ class Config:
             data_dir or self.data_dir,
             batch_size or self.batch_size,
             ood or self.ood,
-            aug_ch_3=self.args.expand_3ch,
+            aug_ch_3=self.expand_3ch,
         )
         self.image_chw = dm.shape
+        self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
         self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
         self.cat_k = len(self.labels) - len(self.ood)
         self.datamodule = dm
-        self.args.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
 
     def load_embedding(
         self,
@@ -103,11 +102,11 @@ class Config:
             batch_size=batch_size or self.batch_size,
         )
         self.image_chw = (num_dims, 1, 1)
+        # self.image_size = (num_dims, 1, 1)  # NOTE this should be set for simclr_transform() to work
         # self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
         self.labels = [str(x) for x in range(num_targets)]
         self.cat_k = len(self.labels) - len(self.ood)
         self.datamodule = dm
-        # self.args.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
 
     def get_model(
         self,
@@ -148,7 +147,7 @@ class Config:
             image_chw=image_chw,
             labels=labels,
             cat_k=cat_k,
-            opt=self.args,
+            opt=self,
             **kwargs,
         )
 
@@ -175,20 +174,10 @@ class Config:
     def as_dict(
         self,
     ) -> dict[str, int | str | float]:
-        return dict(
-            data_dir=self.data_dir,
-            dataset_name=self.dataset_name,
-            model_name=self.model_name,
-            experiment_base=self.experiment_base,
-            manifold_d=self.manifold_d,
-            batch_size=self.batch_size,
-            optim_lr=self.optim_lr,
-            optim_m=self.optim_m,
-            train_epochs=self.train_epochs,
-            checkpoint_metric=self.checkpoint_metric,
-            checkpoint_mode=self.checkpoint_mode,
-            ood_k=":".join(map(str, self.ood)),
-        )
+        d = vars(self)
+        d["ood"] = ":".join(map(str, self.ood))
+        d.pop("dataloader", None)
+        return d
 
 
 def default_env(key) -> dict:
@@ -210,18 +199,18 @@ def load_config() -> Config:
     load_dotenv()
 
     parser = argparse.ArgumentParser(description="configuration")
-    parser.add_argument("--ood", **default_env("OOD"))
-    parser.add_argument("--data_dir", **default_env("DATA_DIR"))
-    parser.add_argument("--dataset_name", **default_env("DATASET_NAME"))
-    parser.add_argument("--model_name", **default_env("MODEL_NAME"))
-    parser.add_argument("--experiment_base", **default_env("EXPERIMENT_BASE"))
-    parser.add_argument("--manifold_d", **default_env("MANIFOLD_D"))
-    parser.add_argument("--batch_size", **default_env("BATCH_SIZE"))
-    parser.add_argument("--optim_lr", **default_env("OPTIM_LR"))
-    parser.add_argument("--optim_m", **default_env("OPTIM_M"))
-    parser.add_argument("--train_epochs", **default_env("TRAIN_EPOCHS"))
-    parser.add_argument("--checkpoint_metric", **default_env("CHECKPOINT_METRIC"))
-    parser.add_argument("--checkpoint_mode", **default_env("CHECKPOINT_MODE"))
+    parser.add_argument("--data_dir", type=str, **default_env("DATA_DIR"))
+    parser.add_argument("--dataset_name", type=str, **default_env("DATASET_NAME"))
+    parser.add_argument("--model_name", type=str, **default_env("MODEL_NAME"))
+    parser.add_argument("--experiment_base", type=str, **default_env("EXPERIMENT_BASE"))
+    parser.add_argument("--manifold_d", type=int, **default_env("MANIFOLD_D"))
+    parser.add_argument("--batch_size", type=int, **default_env("BATCH_SIZE"))
+    parser.add_argument("--optim_lr", type=float, **default_env("OPTIM_LR"))
+    parser.add_argument("--optim_m", type=float, **default_env("OPTIM_M"))
+    parser.add_argument("--train_epochs", type=int, **default_env("TRAIN_EPOCHS"))
+    parser.add_argument("--checkpoint_metric", type=str, **default_env("CHECKPOINT_METRIC"))
+    parser.add_argument("--checkpoint_mode", type=str, **default_env("CHECKPOINT_MODE"))
+    parser.add_argument("--ood", type=str, **default_env("OOD"))
 
     ## SSL Augmentation parameters
     # Common augmentations
@@ -238,21 +227,5 @@ def load_config() -> Config:
     parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (rgb)")
     parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (rgb)")
 
-    args, _ = parser.parse_known_args()
-    logging.info(args.__dict__)
-
-    return Config(
-        data_dir=str(args.data_dir),
-        dataset_name=str(args.dataset_name),
-        model_name=str(args.model_name),
-        experiment_base=str(args.experiment_base),
-        manifold_d=int(args.manifold_d),
-        batch_size=int(args.batch_size),
-        optim_lr=float(args.optim_lr),
-        optim_m=float(args.optim_m),
-        train_epochs=int(args.train_epochs),
-        checkpoint_metric=str(args.checkpoint_metric),
-        checkpoint_mode=str(args.checkpoint_mode),
-        ood=str(args.ood),
-        args=args,
-    )
+    args, _ = parser.parse_known_args(namespace=Config())
+    return args

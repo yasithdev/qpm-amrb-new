@@ -1,8 +1,7 @@
 import importlib
+from config import Config
 
 from models.base import BaseModel
-
-import argparse
 
 def get_model(
     model_name: str,
@@ -11,7 +10,7 @@ def get_model(
     image_chw: tuple[int, int, int],
     labels: list[str],
     cat_k: int,
-    opt: argparse.Namespace,
+    opt: Config,
     in_dims: int | None = None,
     rand_dims: int | None = None,
 ) -> BaseModel:

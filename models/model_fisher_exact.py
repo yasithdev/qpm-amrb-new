@@ -79,7 +79,6 @@ class Model(BaseModel):
         targets = self.P.to(y.device)[:, y]  # (N, B)
         assert list(candidates.shape) == [N, B, K]
         assert list(targets.shape) == [N, B]
-        
 
         # classifier loss
         losses = F.cross_entropy(candidates.reshape(-1, K), targets.reshape(-1), reduction="none").reshape(N, B).mean(-1)
