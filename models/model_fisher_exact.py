@@ -21,6 +21,7 @@ class Model(BaseModel):
         in_dims: int,
         rand_perms: int,
         optim_lr: float,
+        classifier_loss: str = "crossent",
     ) -> None:
         super().__init__(
             labels=labels,
@@ -39,11 +40,11 @@ class Model(BaseModel):
         K = self.cat_k
         E = self.in_dims
         N = self.rand_perms
-        # (N x K) permutation matrix for targets (GT_index = 0)
-        self.P = torch.stack([torch.arange(K), *[torch.randperm(K) for _ in range(N - 1)]], dim=0)
+        # (K x N) permutation matrix for targets (GT_index = 0)
+        self.P = torch.stack([torch.arange(K), *[torch.randperm(K) for _ in range(N - 1)]], dim=1)
         # weight matrix and bias for linear classifier
-        self.W = torch.nn.Parameter(torch.randn(N, E, K))
-        self.B = torch.nn.Parameter(torch.randn(N, 1, 1))
+        self.W = torch.nn.Parameter(torch.randn(E, K, N))
+        self.B = torch.nn.Parameter(torch.randn(1, 1, N))
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -53,7 +54,7 @@ class Model(BaseModel):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        z = einops.einsum(x, self.W, "B E, N E K -> N B K") + self.B
+        z = einops.einsum(x, self.W, "B E, E K N -> B K N") + self.B
         return z
 
     def compute_losses(
@@ -75,22 +76,23 @@ class Model(BaseModel):
         B = y.size(0)
         N = self.rand_perms
         K = self.cat_k
-        candidates = self(x)  # (N, B, K)
-        targets = self.P.to(y.device)[:, y]  # (N, B)
-        assert list(candidates.shape) == [N, B, K]
-        assert list(targets.shape) == [N, B]
-
-        # classifier loss
-        losses = F.cross_entropy(candidates.reshape(-1, K), targets.reshape(-1), reduction="none").reshape(N, B).mean(-1)
-        assert list(losses.shape) == [N]
         
-        loss_true = losses[0]
-        loss_rand = losses[1:].mean()
+        preds = self(x)  # (B, K, N)
+        assert list(preds.shape) == [B, K, N]
+
+        targets = self.P.to(y.device)[y, ...]  # (B, N)
+        assert list(targets.shape) == [B, N]
+
+        losses = F.cross_entropy(preds, targets, reduction="none") # (B, N)
+        assert list(losses.shape) == [B, N]
+        
+        loss_true = losses[..., 0].mean()
+        loss_rand = losses[..., 1:].mean()
         losses_mb["loss_y_true"] = loss_true
         losses_mb["loss_y_rand"] = loss_rand
 
         # classifier metrics
-        pY = candidates[0]
+        pY = preds[..., 0]
         uY = 1 - pY.amax(-1)
         metrics_mb["y_prob"] = pY
         metrics_mb["y_pred"] = pY.argmax(-1)

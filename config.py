@@ -1,17 +1,85 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Tuple, TypeVar
 
+import matplotlib
 from dotenv import load_dotenv
 from lightning.pytorch import LightningDataModule
 
+T = TypeVar("T", str, float, int)
+
+
+def env(key: str, type: type[T], default: T) -> dict:
+    val = type(os.environ.get(key, default))
+    if isinstance(val, str):
+        val = os.path.expanduser(val)
+        val = os.path.expandvars(val)
+    return dict(type=type, default=val)
+
+
+def load_config() -> Config:
+    log_level = logging.WARN
+    logging.basicConfig(level=log_level)
+    logging.info(f"LOG_LEVEL={log_level}")
+    matplotlib.rcParams["figure.figsize"] = [16, 12]
+    load_dotenv()
+
+    config = Config()
+
+    parser = argparse.ArgumentParser(description="configuration")
+    parser.add_argument("--data_dir", **env("DATA_DIR", type=str, default=""))
+    parser.add_argument("--dataset_name", **env("DATASET_NAME", type=str, default=""))
+    parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default=""))
+    parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=""))
+    parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=0))
+    parser.add_argument("--rand_nums", **env("RAND_NUMS", type=int, default=0))
+    parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
+    parser.add_argument("--experiment_base", **env("EXPERIMENT_BASE", type=str, default=""))
+    parser.add_argument("--manifold_d", **env("MANIFOLD_D", type=int, default=128))
+    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=256))
+    parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
+    parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
+    parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=100))
+    parser.add_argument("--checkpoint_metric", **env("CHECKPOINT_METRIC", type=str, default="val_loss"))
+    parser.add_argument("--checkpoint_mode", **env("CHECKPOINT_MODE", type=str, default="min"))
+    parser.add_argument("--ood", **env("OOD", type=str, default=""))
+    ## SSL Augmentation parameters
+    # Common augmentations
+    parser.add_argument("--scale", nargs=2, type=float, default=[0.2, 1.0])
+    parser.add_argument("--train_supervised", type=bool, default=False)
+    parser.add_argument("--temperature", default=0.5, type=float, help="Temperature used in softmax")
+    # RGB augmentations
+    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (rgb)")
+    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (rgb)")
+    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(rgb)")
+    parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb)")
+    parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb)")
+    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (rgb)")
+    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (rgb)")
+
+    parser.parse_known_args(namespace=config)
+
+    return config
+
 
 class Config(argparse.Namespace):
+    """
+
+    Stores all configuration parameters and hyperparameters used in the project
+
+    """
+
     model_name: str
     ood: list[int]
     data_dir: str
     dataset_name: str
+    emb_dir: str
+    emb_name: str
+    emb_targets: int
+    rand_nums: int
     experiment_base: str
     manifold_d: int
     batch_size: int
@@ -30,6 +98,7 @@ class Config(argparse.Namespace):
     rgb_contrast_p: float
     rgb_grid_distort_p: float
     rgb_grid_shuffle_p: float
+
     expand_3ch: bool
     # data params - initialized when load_data() is called
     image_chw: Tuple[int, int, int] | None = None
@@ -56,6 +125,7 @@ class Config(argparse.Namespace):
         data_dir: str | None = None,
         batch_size: int | None = None,
         ood: list[int] | None = None,
+        expand_3ch: bool | None = None
     ) -> None:
         """
         Load data modules.
@@ -64,10 +134,11 @@ class Config(argparse.Namespace):
         If you need to override anything in code, specify them in the function args.
 
         Args:
-            dataset_name (str, optional): Name of the dataset.
-            data_dir (str, optional): Location of the data directory.
-            batch_size (int, optional): Batch size to use.
-            ood (list[int], optional): Targets to treat as OOD.
+            dataset_name (str): Name of the dataset.
+            data_dir (str): Location of the data directory.
+            batch_size (int): Batch size to use.
+            ood (list[int]): Targets to treat as OOD.
+            expand_3ch (bool): Whether to expand image data from 1ch to 3ch.
         """
         from datasets import get_data
 
@@ -81,7 +152,6 @@ class Config(argparse.Namespace):
         self.image_chw = dm.shape
         self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
         self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
-        self.cat_k = len(self.labels) - len(self.ood)
         self.datamodule = dm
 
     def load_embedding(
@@ -105,7 +175,6 @@ class Config(argparse.Namespace):
         # self.image_size = (num_dims, 1, 1)  # NOTE this should be set for simclr_transform() to work
         # self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
         self.labels = [str(x) for x in range(num_targets)]
-        self.cat_k = len(self.labels) - len(self.ood)
         self.datamodule = dm
 
     def get_model(
@@ -150,82 +219,37 @@ class Config(argparse.Namespace):
             opt=self,
             **kwargs,
         )
+    
+    @property
+    def cat_k(self) -> int:
+        # prerequisites
+        assert self.labels is not None
+        assert self.ood is not None
+        return len(self.labels) - len(self.ood)
 
-    def get_ind_labels(self) -> List[str]:
+    @property
+    def ind_labels(self) -> List[str]:
         # prerequisites
         assert self.labels is not None
         assert self.cat_k is not None
         # logic
         return self.labels[: self.cat_k]
 
-    def get_ood_labels(self) -> List[str]:
+    @property
+    def ood_labels(self) -> List[str]:
         # prerequisites
         assert self.labels is not None
         assert self.cat_k is not None
         # logic
         return self.labels[self.cat_k :]
 
-    def print_labels(
-        self,
-    ) -> None:
-        logging.info(f"Labels (train, test): {self.get_ind_labels()}")
-        logging.info(f"Labels (ood): {self.get_ood_labels()}")
+    def print_labels(self) -> None:
+        logging.info(f"Labels (train, test): {self.ind_labels}")
+        logging.info(f"Labels (ood): {self.ood_labels}")
 
-    def as_dict(
-        self,
-    ) -> dict[str, int | str | float]:
+    @property
+    def params(self) -> dict[str, int | str | float]:
         d = vars(self)
         d["ood"] = ":".join(map(str, self.ood))
         d.pop("dataloader", None)
         return d
-
-
-def default_env(key) -> dict:
-    val = os.environ.get(key, default="")
-    val = os.path.expanduser(val)
-    val = os.path.expandvars(val)
-    return dict(default=val)
-
-
-def load_config() -> Config:
-    log_level = logging.WARN
-    logging.basicConfig(level=log_level)
-    logging.info(f"LOG_LEVEL={log_level}")
-
-    import matplotlib
-
-    matplotlib.rcParams["figure.figsize"] = [16, 12]
-
-    load_dotenv()
-
-    parser = argparse.ArgumentParser(description="configuration")
-    parser.add_argument("--data_dir", type=str, **default_env("DATA_DIR"))
-    parser.add_argument("--dataset_name", type=str, **default_env("DATASET_NAME"))
-    parser.add_argument("--model_name", type=str, **default_env("MODEL_NAME"))
-    parser.add_argument("--experiment_base", type=str, **default_env("EXPERIMENT_BASE"))
-    parser.add_argument("--manifold_d", type=int, **default_env("MANIFOLD_D"))
-    parser.add_argument("--batch_size", type=int, **default_env("BATCH_SIZE"))
-    parser.add_argument("--optim_lr", type=float, **default_env("OPTIM_LR"))
-    parser.add_argument("--optim_m", type=float, **default_env("OPTIM_M"))
-    parser.add_argument("--train_epochs", type=int, **default_env("TRAIN_EPOCHS"))
-    parser.add_argument("--checkpoint_metric", type=str, **default_env("CHECKPOINT_METRIC"))
-    parser.add_argument("--checkpoint_mode", type=str, **default_env("CHECKPOINT_MODE"))
-    parser.add_argument("--ood", type=str, **default_env("OOD"))
-
-    ## SSL Augmentation parameters
-    # Common augmentations
-    parser.add_argument("--scale", nargs=2, type=float, default=[0.2, 1.0])
-    parser.add_argument("--train_supervised", type=bool, default=False)
-    parser.add_argument("--temperature", default=0.5, type=float, help="Temperature used in softmax")
-
-    # RGB augmentations
-    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (rgb)")
-    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (rgb)")
-    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(rgb)")
-    parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb)")
-    parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb)")
-    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (rgb)")
-    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (rgb)")
-
-    args, _ = parser.parse_known_args(namespace=Config())
-    return args

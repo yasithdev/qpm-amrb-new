@@ -16,14 +16,21 @@ torch.set_float32_matmul_precision("medium")
 
 config = load_config()
 
-emb_path = f"assets/embeddings/{config.dataset_name}.npz"
-config.load_embedding(embedding_path=emb_path, num_dims=config.manifold_d, num_targets=21)
+config.load_embedding(
+    embedding_path=f"{config.emb_dir}/{config.emb_name}.npz",
+    num_dims=config.manifold_d,
+    num_targets=config.emb_targets,
+)
 
-model = config.get_model(model_name=config.model_name, in_dims=config.manifold_d, rand_dims=1000)
+model = config.get_model(
+    model_name=config.model_name,
+    in_dims=config.manifold_d,
+    rand_dims=config.rand_nums,
+)
 
-run_name = f"{config.dataset_name}_{config.model_name}"
+run_name = f"{config.emb_name}_{config.model_name}"
 wandb_logger = WandbLogger(
-    project="uq_project", log_model="all", name=run_name, config={**config.as_dict(), **model.hparams}
+    project="uq_project", log_model="all", name=run_name, config={**config.params, **model.hparams}
 )
 wandb_logger.watch(model, log="all")
 
