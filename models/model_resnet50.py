@@ -33,12 +33,12 @@ class Model(BaseModel):
         super().__init__(
             labels=labels,
             cat_k=cat_k,
-            manifold_d=manifold_d,
-            image_chw=image_chw,
             optim_lr=optim_lr,
             with_classifier=with_classifier,
             with_decoder=False,
         )
+        self.manifold_d = manifold_d
+        self.image_chw = image_chw
         self.temperature = opt.temperature
         self.encoder_loss = encoder_loss
         self.classifier_loss = classifier_loss

@@ -5,21 +5,23 @@ from models.base import BaseModel
 import argparse
 
 def get_model(
-    image_chw: tuple[int, int, int],
     model_name: str,
-    labels: list[str],
-    cat_k: int,
     manifold_d: int,
     optim_lr: float,
+    image_chw: tuple[int, int, int],
+    labels: list[str],
+    cat_k: int,
     opt: argparse.Namespace,
+    in_dims: int | None = None,
+    rand_dims: int | None = None,
 ) -> BaseModel:
 
     args: dict = dict(
+        manifold_d=manifold_d,
+        optim_lr=optim_lr,
+        image_chw=image_chw,
         labels=labels,
         cat_k=cat_k,
-        manifold_d=manifold_d,
-        image_chw=image_chw,
-        optim_lr=optim_lr,
     )
 
     # VARIANTS
@@ -81,6 +83,13 @@ def get_model(
     elif model_name == "flow_mse":
         from .model_flow import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
+
+    # fisher exact
+    elif model_name == "fisher_exact_ce":
+        assert in_dims is not None
+        assert rand_dims is not None
+        from .model_fisher_exact import Model
+        return Model(labels, cat_k, in_dims, rand_dims, optim_lr)
 
     # DEFAULTS
     

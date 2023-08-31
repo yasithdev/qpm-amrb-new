@@ -29,12 +29,12 @@ class Model(BaseModel):
         super().__init__(
             labels=labels,
             cat_k=cat_k,
-            manifold_d=manifold_d,
-            image_chw=image_chw,
             optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=with_decoder,
         )
+        self.manifold_d = manifold_d
+        self.image_chw = image_chw
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()

@@ -1,17 +1,16 @@
 from typing import Tuple
+import einops
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision.models as models
 
 from .base import BaseModel
-from .common import edl_loss, edl_probs, margin_loss
 
 
 class Model(BaseModel):
     """
-    ResNet18 Encoder + Classifier (No Decoder)
+    Classifier with Fisher Exact Randomization Targets
 
     """
 
@@ -19,10 +18,9 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
-        image_chw: tuple[int, int, int],
+        in_dims: int,
+        rand_perms: int,
         optim_lr: float,
-        classifier_loss: str = "edl",
     ) -> None:
         super().__init__(
             labels=labels,
@@ -31,27 +29,21 @@ class Model(BaseModel):
             with_classifier=True,
             with_decoder=False,
         )
-        self.manifold_d = manifold_d
-        self.image_chw = image_chw
-        self.classifier_loss = classifier_loss
+        self.in_dims = in_dims
+        self.rand_perms = rand_perms
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
         K = self.cat_k
-        # pretrained resnet18 model
-        weights = models.ResNet18_Weights.IMAGENET1K_V1
-        model = models.resnet18(weights=weights)
-        # (B, C, H, W) -> (B, D)
-        self.encoder = torch.nn.Sequential(
-            *list(model.children())[:-1],
-        )
-        # (B, D) -> (B, K)
-        self.classifier = torch.nn.Linear(
-            in_features=model.fc.in_features,
-            out_features=K,
-        )
+        E = self.in_dims
+        N = self.rand_perms
+        # (N x K) permutation matrix for targets (GT_index = 0)
+        self.P = torch.stack([torch.arange(K), *[torch.randperm(K) for _ in range(N - 1)]], dim=0)
+        # weight matrix and bias for linear classifier
+        self.W = torch.nn.Parameter(torch.randn(N, E, K))
+        self.B = torch.nn.Parameter(torch.randn(N, 1, 1))
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -60,10 +52,9 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        z = self.encoder(x)
-        logits = self.classifier(z)
-        return z, logits
+    ) -> torch.Tensor:
+        z = einops.einsum(x, self.W, "B E, N E K -> N B K") + self.B
+        return z
 
     def compute_losses(
         self,
@@ -81,24 +72,27 @@ class Model(BaseModel):
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         # forward pass
-        z, logits = self(x)
+        B = y.size(0)
+        N = self.rand_perms
+        K = self.cat_k
+        candidates = self(x)  # (N, B, K)
+        targets = self.P.to(y.device)[:, y]  # (N, B)
+        assert list(candidates.shape) == [N, B, K]
+        assert list(targets.shape) == [N, B]
+        
 
         # classifier loss
-        if self.classifier_loss == "edl":
-            pY, uY = edl_probs(logits)
-            losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
-        elif self.classifier_loss == "crossent":
-            pY = logits.softmax(-1)
-            uY = 1 - pY.amax(-1)
-            losses_mb["loss_y"] = F.cross_entropy(logits, y)
-        elif self.classifier_loss == "margin":
-            pY = logits.sigmoid()
-            uY = 1 - pY.amax(-1)
-            losses_mb["loss_y"] = margin_loss(pY, y).mean()
-        else:
-            raise ValueError(self.classifier_loss)
+        losses = F.cross_entropy(candidates.reshape(-1, K), targets.reshape(-1), reduction="none").reshape(N, B).mean(-1)
+        assert list(losses.shape) == [N]
+        
+        loss_true = losses[0]
+        loss_rand = losses[1:].mean()
+        losses_mb["loss_y_true"] = loss_true
+        losses_mb["loss_y_rand"] = loss_rand
 
         # classifier metrics
+        pY = candidates[0]
+        uY = 1 - pY.amax(-1)
         metrics_mb["y_prob"] = pY
         metrics_mb["y_pred"] = pY.argmax(-1)
         metrics_mb["y_ucty"] = uY

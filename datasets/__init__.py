@@ -1,4 +1,4 @@
-from . import amrb, cifar10, mnist, qpm
+from . import amrb, cifar10, mnist, qpm, embeddings
 
 def get_data(
     dataset_name: str,
@@ -22,3 +22,16 @@ def get_data(
         raise ValueError(f"Dataset '{dataset_name}' is unsupported")
 
     return dm
+
+def get_embedding(
+    embedding_path: str,
+    num_dims: int,
+    num_targets: int,
+    batch_size: int,
+):
+    return embeddings.DataModule(
+        embedding_path=embedding_path,
+        num_dims=num_dims,
+        num_targets=num_targets,
+        batch_size=batch_size,
+    )

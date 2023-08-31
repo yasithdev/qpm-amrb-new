@@ -35,7 +35,7 @@ class Config:
         self.train_epochs = train_epochs
         self.checkpoint_metric = checkpoint_metric
         self.checkpoint_mode = checkpoint_mode
-        self.ood = [int(x) for x in ood.split(":") if x != '']
+        self.ood = [int(x) for x in ood.split(":") if x != ""]
         self.args = args
 
         # data params - initialized when load_data() is called
@@ -85,7 +85,41 @@ class Config:
         self.datamodule = dm
         self.args.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
 
-    def get_model(self):
+    def load_embedding(
+        self,
+        *,
+        embedding_path: str,
+        num_dims: int,
+        num_targets: int,
+        batch_size: int | None = None,
+        ood: list[int] | None = None,
+    ) -> None:
+        from datasets import get_embedding
+
+        dm = get_embedding(
+            embedding_path=embedding_path,
+            num_dims=num_dims or self.manifold_d,
+            num_targets=num_targets,
+            batch_size=batch_size or self.batch_size,
+        )
+        self.image_chw = (num_dims, 1, 1)
+        # self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
+        self.labels = [str(x) for x in range(num_targets)]
+        self.cat_k = len(self.labels) - len(self.ood)
+        self.datamodule = dm
+        # self.args.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
+
+    def get_model(
+        self,
+        *,
+        model_name: str | None = None,
+        manifold_d: int | None = None,
+        optim_lr: float | None = None,
+        image_chw: tuple[int, int, int] | None = None,
+        labels: list[str] | None = None,
+        cat_k: int | None = None,
+        **kwargs,
+    ):
         """
         Creates a model. Must be called after get_data(), as it requires
         self.image_chw, self.cat_k, and self.labels to be initialized.
@@ -94,21 +128,28 @@ class Config:
             BaseModel: Model object
 
         """
+        # given value or default value
+        image_chw = image_chw or self.image_chw
+        labels = labels or self.labels
+        cat_k = cat_k or self.cat_k
+
         # prerequisites
-        assert self.image_chw is not None
-        assert self.labels is not None
-        assert self.cat_k is not None
+        assert image_chw is not None
+        assert labels is not None
+        assert cat_k is not None
+
         # logic
         from models import get_model
 
         return get_model(
-            self.image_chw,
-            self.model_name,
-            self.labels,
-            self.cat_k,
-            self.manifold_d,
-            self.optim_lr,
-            self.args,
+            model_name=model_name or self.model_name,
+            manifold_d=manifold_d or self.manifold_d,
+            optim_lr=optim_lr or self.optim_lr,
+            image_chw=image_chw,
+            labels=labels,
+            cat_k=cat_k,
+            opt=self.args,
+            **kwargs,
         )
 
     def get_ind_labels(self) -> List[str]:
@@ -189,13 +230,13 @@ def load_config() -> Config:
     parser.add_argument("--temperature", default=0.5, type=float, help="Temperature used in softmax")
 
     # RGB augmentations
-    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (only on rgb)")
-    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (only on rgb)")
-    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(only on rgb)")
-    parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb only)")
-    parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb only)")
-    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (only on rgb)")
-    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (only on rgb)")
+    parser.add_argument("--rgb_gaussian_blur_p", type=float, default=0, help="probability of using gaussian blur (rgb)")
+    parser.add_argument("--rgb_jitter_d", type=float, default=1, help="color jitter 0.8*d, val 0.2*d (rgb)")
+    parser.add_argument("--rgb_jitter_p", type=float, default=0.8, help="probability of using color jitter(rgb)")
+    parser.add_argument("--rgb_contrast", type=float, default=0.2, help="value of contrast (rgb)")
+    parser.add_argument("--rgb_contrast_p", type=float, default=0, help="prob of using contrast (rgb)")
+    parser.add_argument("--rgb_grid_distort_p", type=float, default=0, help="probability of using grid distort (rgb)")
+    parser.add_argument("--rgb_grid_shuffle_p", type=float, default=0, help="probability of using grid shuffle (rgb)")
 
     args, _ = parser.parse_known_args()
     logging.info(args.__dict__)

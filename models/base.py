@@ -17,8 +17,6 @@ class BaseModel(pl.LightningModule):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
-        image_chw: tuple[int, int, int],
         optim_lr: float,
         with_classifier: bool = True,
         with_decoder: bool = True,
@@ -26,13 +24,9 @@ class BaseModel(pl.LightningModule):
         super().__init__()
         self.labels = labels
         self.cat_k = cat_k
-        self.manifold_d = manifold_d
-        self.image_chw = image_chw
         self.optim_lr = optim_lr
         self.with_classifier = with_classifier
         self.with_decoder = with_decoder
-        self.define_model()
-        self.define_metrics()
 
     def define_model(self):
         raise NotImplementedError()
