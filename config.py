@@ -24,6 +24,7 @@ def load_config() -> Config:
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
     matplotlib.rcParams["figure.figsize"] = [20, 15]
+    matplotlib.rcParams['savefig.dpi'] = 150
 
     config = Config()
 
@@ -36,7 +37,7 @@ def load_config() -> Config:
     parser.add_argument("--rand_nums", **env("RAND_NUMS", type=int, default=0))
     parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
     parser.add_argument("--manifold_d", **env("MANIFOLD_D", type=int, default=128))
-    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=128))
+    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=64))
     parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
     parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
     parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=100))

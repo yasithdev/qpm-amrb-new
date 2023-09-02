@@ -40,3 +40,7 @@ python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="r
 python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet50_vicreg" --checkpoint_metric="val_loss_vicreg" --checkpoint_mode="min"
 
 python -u train_emb.py --emb_name="QPM_species_resnet50_simclr_M128" --rand_nums=1000 --model_name="fisher_exact_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+
+
+python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet_ce_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"

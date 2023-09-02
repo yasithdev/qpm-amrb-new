@@ -92,7 +92,7 @@ class Model(BaseModel):
         losses_mb["loss_y_rand"] = loss_rand
 
         # classifier metrics
-        pY = preds[..., 0]
+        pY = preds[..., 0].softmax(-1)
         uY = 1 - pY.amax(-1)
         metrics_mb["y_prob"] = pY
         metrics_mb["y_pred"] = pY.argmax(-1)
