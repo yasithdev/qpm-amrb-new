@@ -20,7 +20,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
         classifier_loss: str = "edl",
@@ -34,7 +34,7 @@ class Model(BaseModel):
             with_decoder=with_decoder,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()
@@ -51,7 +51,7 @@ class Model(BaseModel):
         stride_caps = 2
 
         # compute output shapes at each layer
-        (c, h, w) = self.image_chw
+        (c, h, w) = self.input_shape
         (c1, d1, h1, w1) = 8, 16, h // stride_conv, w // stride_conv
         (c2, d2, h2, w2) = 8, 32, h1 // stride_caps, w1 // stride_caps
         (c3, d3, h3, w3) = 8, 32, h2 // stride_caps, w2 // stride_caps

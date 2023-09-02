@@ -22,7 +22,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         with_classifier: bool = False,
         classifier_loss: str = "edl",
@@ -36,7 +36,7 @@ class Model(BaseModel):
             with_decoder=True,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()
@@ -47,7 +47,7 @@ class Model(BaseModel):
         # params
         K = self.cat_k
         D = self.manifold_d
-        C, H, W = self.image_chw
+        C, H, W = self.input_shape
         CHW = C * H * W
         num_bins = 10
         cm, k0, k1 = 0, 4, 2

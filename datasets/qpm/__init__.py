@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits
-from .qpm import bacteria_dataset
+from .qpm import bacteria_dataset, species_mapping
 
 
 class DataModule(pl.LightningDataModule):

@@ -24,7 +24,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
         classifier_loss: str = "margin",
@@ -38,7 +38,7 @@ class Model(BaseModel):
             with_decoder=with_decoder,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()
@@ -48,7 +48,7 @@ class Model(BaseModel):
     def define_model(self):
         # params
         K = self.cat_k
-        (C, H, W) = self.image_chw
+        (C, H, W) = self.input_shape
         D = self.manifold_d
         # (B, C, H, W) -> (B, D, K)
         self.encoder = torch.nn.Sequential(
@@ -86,7 +86,7 @@ class Model(BaseModel):
         if self.with_decoder:
             self.decoder = get_decoder(
                 num_features=D,
-                output_chw=self.image_chw,
+                output_chw=self.input_shape,
             )
 
     def configure_optimizers(self):

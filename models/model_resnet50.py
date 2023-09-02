@@ -24,7 +24,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         opt: Config,
         with_classifier: bool = False,
@@ -39,7 +39,7 @@ class Model(BaseModel):
             with_decoder=False,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.temperature = opt.temperature
         self.encoder_loss = encoder_loss
         self.classifier_loss = classifier_loss

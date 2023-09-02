@@ -20,7 +20,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         classifier_loss: str = "edl",
     ) -> None:
@@ -32,7 +32,7 @@ class Model(BaseModel):
             with_decoder=False,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.save_hyperparameters()
         self.define_model()

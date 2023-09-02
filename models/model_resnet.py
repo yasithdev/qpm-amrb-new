@@ -20,7 +20,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         manifold_d: int,
-        image_chw: tuple[int, int, int],
+        input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
         classifier_loss: str = "edl",
@@ -34,7 +34,7 @@ class Model(BaseModel):
             with_decoder=with_decoder,
         )
         self.manifold_d = manifold_d
-        self.image_chw = image_chw
+        self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()
@@ -45,7 +45,7 @@ class Model(BaseModel):
         K = self.cat_k
         # (B, C, H, W) -> (B, D, 1, 1)
         self.encoder = get_encoder(
-            input_chw=self.image_chw,
+            input_chw=self.input_shape,
             num_features=self.manifold_d,
         )
         # (B, D, 1, 1) -> (B, K)
@@ -57,7 +57,7 @@ class Model(BaseModel):
         if self.with_decoder:
             self.decoder = get_decoder(
                 num_features=self.manifold_d,
-                output_chw=self.image_chw,
+                output_chw=self.input_shape,
             )
 
     def configure_optimizers(self):

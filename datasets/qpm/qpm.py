@@ -10,30 +10,7 @@ from torch.utils.data import Dataset
 # 3 => K. pneumoniae
 # 4 => S. aureus
 # More info => https://ruhsoft-my.sharepoint.com/:p:/g/personal/im_ramith_fyi/EYMDb528EVlClCp2y8nIM8oB9LBZ-lbqEiCXwcAZHX7wew?e=lAROoR
-
-species_mapping_dict = {
-    0: 0,
-    1: 1,
-    2: 2,
-    3: 4,
-    4: 2,
-    5: 2,
-    6: 2,
-    7: 3,
-    8: 4,
-    9: 2,
-    10: 2,
-    11: 2,
-    12: 3,
-    13: 3,
-    14: 3,
-    15: 3,
-    16: 0,
-    17: 0,
-    18: 0,
-    19: 0,
-    20: 0,
-}
+species_mapping = [0, 1, 2, 4, 2, 2, 2, 3, 4, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 0]
 
 
 class bacteria_dataset(Dataset):
@@ -115,7 +92,7 @@ class bacteria_dataset(Dataset):
         if label_type == "strain":
             return strain
         elif label_type == "species":
-            return species_mapping_dict[strain]  # map class to species
+            return species_mapping[strain]  # map class to species
 
         else:
             raise Exception("Invalid label type")

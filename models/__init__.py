@@ -7,7 +7,7 @@ def get_model(
     model_name: str,
     manifold_d: int,
     optim_lr: float,
-    image_chw: tuple[int, int, int],
+    input_shape: tuple[int, int, int],
     labels: list[str],
     cat_k: int,
     opt: Config,
@@ -18,7 +18,7 @@ def get_model(
     args: dict = dict(
         manifold_d=manifold_d,
         optim_lr=optim_lr,
-        image_chw=image_chw,
+        input_shape=input_shape,
         labels=labels,
         cat_k=cat_k,
     )

@@ -24,7 +24,7 @@ def load_config() -> Config:
     log_level = logging.WARN
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
-    matplotlib.rcParams["figure.figsize"] = [16, 12]
+    matplotlib.rcParams["figure.figsize"] = [20, 15]
     load_dotenv()
 
     config = Config()
@@ -101,9 +101,8 @@ class Config(argparse.Namespace):
 
     expand_3ch: bool
     # data params - initialized when load_data() is called
-    image_chw: Tuple[int, int, int] | None = None
+    input_shape: Tuple[int, ...] | None = None
     labels: List[str] | None = None
-    cat_k: int | None = None
     datamodule: LightningDataModule | None = None
 
     def __setattr__(self, name, value):
@@ -149,7 +148,7 @@ class Config(argparse.Namespace):
             ood or self.ood,
             aug_ch_3=self.expand_3ch,
         )
-        self.image_chw = dm.shape
+        self.input_shape = dm.shape
         self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
         self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
         self.datamodule = dm
@@ -158,23 +157,19 @@ class Config(argparse.Namespace):
         self,
         *,
         embedding_path: str,
-        num_dims: int,
-        num_targets: int,
         batch_size: int | None = None,
-        ood: list[int] | None = None,
     ) -> None:
         from datasets import get_embedding
 
         dm = get_embedding(
             embedding_path=embedding_path,
-            num_dims=num_dims or self.manifold_d,
-            num_targets=num_targets,
             batch_size=batch_size or self.batch_size,
         )
-        self.image_chw = (num_dims, 1, 1)
+        self.input_shape = dm.shape,
+        self.manifold_d = dm.shape
+        self.labels = dm.labels
         # self.image_size = (num_dims, 1, 1)  # NOTE this should be set for simclr_transform() to work
         # self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
-        self.labels = [str(x) for x in range(num_targets)]
         self.datamodule = dm
 
     def get_model(
@@ -183,26 +178,26 @@ class Config(argparse.Namespace):
         model_name: str | None = None,
         manifold_d: int | None = None,
         optim_lr: float | None = None,
-        image_chw: tuple[int, int, int] | None = None,
+        input_shape: tuple[int, int, int] | None = None,
         labels: list[str] | None = None,
         cat_k: int | None = None,
         **kwargs,
     ):
         """
         Creates a model. Must be called after get_data(), as it requires
-        self.image_chw, self.cat_k, and self.labels to be initialized.
+        self.input_shape, self.cat_k, and self.labels to be initialized.
 
         Returns:
             BaseModel: Model object
 
         """
         # given value or default value
-        image_chw = image_chw or self.image_chw
+        input_shape = input_shape or self.input_shape
         labels = labels or self.labels
         cat_k = cat_k or self.cat_k
 
         # prerequisites
-        assert image_chw is not None
+        assert input_shape is not None
         assert labels is not None
         assert cat_k is not None
 
@@ -213,7 +208,7 @@ class Config(argparse.Namespace):
             model_name=model_name or self.model_name,
             manifold_d=manifold_d or self.manifold_d,
             optim_lr=optim_lr or self.optim_lr,
-            image_chw=image_chw,
+            input_shape=input_shape,
             labels=labels,
             cat_k=cat_k,
             opt=self,
