@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, random_split
 
-from . import NDArrayDataset
+from .base import NDArrayDataset
 
 
 class DataModule(pl.LightningDataModule):
@@ -11,6 +11,7 @@ class DataModule(pl.LightningDataModule):
         self,
         embedding_path: str,
         batch_size: int,
+        labels: list[str] | None = None,
         target_transform=None,
     ) -> None:
         super().__init__()
@@ -27,7 +28,7 @@ class DataModule(pl.LightningDataModule):
             target_transform=self.target_transform,
         )
         self.shape = self.dataset.shape
-        self.labels = self.dataset.labels
+        self.labels = labels or self.dataset.labels
 
         self.train_data = None
         self.val_data = None

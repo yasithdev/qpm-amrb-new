@@ -1,18 +1,20 @@
 from typing import Tuple
 
 import lightning.pytorch as pl
+import pandas as pd
 import PIL.Image
+import seaborn as sns
 import torch
 from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from torchmetrics.aggregation import CatMetric
-from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
+from torchmetrics.classification import (MulticlassAccuracy,
+                                         MulticlassConfusionMatrix)
 from torchmetrics.regression import MeanSquaredError
 
 
 class BaseModel(pl.LightningModule):
-
     def __init__(
         self,
         labels: list[str],
@@ -131,7 +133,7 @@ class BaseModel(pl.LightningModule):
             self.log(f"{stage}_accuracy_top2", getattr(self, f"{stage}_accuracy_top2").compute(), sync_dist=True)
             # plot confusion matrix
             confusion_matrix: MulticlassConfusionMatrix = getattr(self, f"{stage}_confusion_matrix")
-            cm_fig: Figure = confusion_matrix.plot(add_text=True, labels=self.labels[:self.cat_k])[0]  # type: ignore
+            cm_fig: Figure = confusion_matrix.plot(add_text=True, labels=self.labels[: self.cat_k])[0]  # type: ignore
             cm_fig.canvas.draw()
             cm_img = PIL.Image.frombytes("RGB", cm_fig.canvas.get_width_height(), cm_fig.canvas.tostring_rgb())  # type: ignore
             logger.log_image(f"{stage}_confusion_matrix", [cm_img])
@@ -139,13 +141,12 @@ class BaseModel(pl.LightningModule):
             # plot model calibration
             uncertainty: torch.Tensor = getattr(self, f"{stage}_uncertainty").compute()
             correctness: torch.Tensor = getattr(self, f"{stage}_correctness").compute().bool()
-            bins = torch.linspace(0.0, 1.0, 101).tolist()
-            ucty_histc_T = uncertainty[correctness].histc(min=0.0, max=1.0, bins=100).tolist()
-            ucty_histc_F = uncertainty[~correctness].histc(min=0.0, max=1.0, bins=100).tolist()
+            ucty_T = pd.DataFrame({'ucty_T': uncertainty[correctness].tolist()})
+            ucty_F = pd.DataFrame({'ucty_F': uncertainty[~correctness].tolist()})
             fig = plt.figure()
             plt.yscale("log")
-            plt.stairs(ucty_histc_T, bins, alpha=0.5, fill=True, label="T")
-            plt.stairs(ucty_histc_F, bins, alpha=0.5, fill=True, label="F")
+            sns.kdeplot(ucty_T)
+            sns.kdeplot(ucty_F)
             plt.legend(loc="upper right")
             plt.title("Model Calibration")
             fig.canvas.draw()

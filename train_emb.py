@@ -16,11 +16,7 @@ torch.set_float32_matmul_precision("medium")
 
 config = load_config()
 
-config.load_embedding(
-    embedding_path=f"{config.emb_dir}/{config.emb_name}.npz",
-    num_dims=config.manifold_d,
-    num_targets=config.emb_targets,
-)
+config.load_embedding(embedding_path=f"{config.emb_dir}/{config.emb_name}.npz")
 
 model = config.get_model(
     model_name=config.model_name,

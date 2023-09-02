@@ -6,7 +6,6 @@ import os
 from typing import List, Tuple, TypeVar
 
 import matplotlib
-from dotenv import load_dotenv
 from lightning.pytorch import LightningDataModule
 
 T = TypeVar("T", str, float, int)
@@ -25,21 +24,19 @@ def load_config() -> Config:
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
     matplotlib.rcParams["figure.figsize"] = [20, 15]
-    load_dotenv()
 
     config = Config()
 
     parser = argparse.ArgumentParser(description="configuration")
-    parser.add_argument("--data_dir", **env("DATA_DIR", type=str, default=""))
+    parser.add_argument("--data_dir", **env("DATA_DIR", type=str, default="$HOME/datasets"))
     parser.add_argument("--dataset_name", **env("DATASET_NAME", type=str, default=""))
-    parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default=""))
+    parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default="assets/embeddings"))
     parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=""))
     parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=0))
     parser.add_argument("--rand_nums", **env("RAND_NUMS", type=int, default=0))
     parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
-    parser.add_argument("--experiment_base", **env("EXPERIMENT_BASE", type=str, default=""))
     parser.add_argument("--manifold_d", **env("MANIFOLD_D", type=int, default=128))
-    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=256))
+    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=128))
     parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
     parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
     parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=100))
@@ -80,7 +77,6 @@ class Config(argparse.Namespace):
     emb_name: str
     emb_targets: int
     rand_nums: int
-    experiment_base: str
     manifold_d: int
     batch_size: int
     optim_lr: float

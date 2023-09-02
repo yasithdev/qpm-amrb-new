@@ -7,6 +7,37 @@ from torchvision.transforms import Compose, Resize, ToTensor
 from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits
 from .qpm import bacteria_dataset, species_mapping
 
+strains = [
+    "AB",
+    "BS",
+    "EC_K12",
+    "SA",
+    "EC_CCUG_17620",
+    "EC_NCTC_13441",
+    "EC_A2-39",
+    "KP_A2-23",
+    "SA_CCUG_35600",
+    "EC_101",
+    "EC_102",
+    "EC_104",
+    "KP_210",
+    "KP_211",
+    "KP_212",
+    "KP_240",
+    "AB_K12-21",
+    "AB_K48-42",
+    "AB_K55-13",
+    "AB_K57-06",
+    "AB_K71-71",
+]
+species = [
+    "AB",
+    "BS",
+    "EC",
+    "KP",
+    "SA",
+]
+
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -34,36 +65,8 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         # define targets
-        self.strains = [
-            "AB",
-            "BS",
-            "EC_K12",
-            "SA",
-            "EC_CCUG_17620",
-            "EC_NCTC_13441",
-            "EC_A2-39",
-            "KP_A2-23",
-            "SA_CCUG_35600",
-            "EC_101",
-            "EC_102",
-            "EC_104",
-            "KP_210",
-            "KP_211",
-            "KP_212",
-            "KP_240",
-            "AB_K12-21",
-            "AB_K48-42",
-            "AB_K55-13",
-            "AB_K57-06",
-            "AB_K71-71",
-        ]
-        self.species = [
-            "AB",
-            "BS",
-            "EC",
-            "KP",
-            "SA",
-        ]
+        self.strains = strains
+        self.species = species
         if target_label == "species":
             self.targets = self.species
         elif target_label == "strain":
@@ -77,7 +80,7 @@ class DataModule(pl.LightningDataModule):
         # pre-transform shape
         self.orig_shape = (1, 60, 60)
         c, h, w = self.orig_shape
-        
+
         # transform
         trans = []
         trans.append(ToTensor())
@@ -90,7 +93,7 @@ class DataModule(pl.LightningDataModule):
             trans.append(TileChannels2d(3))
             c = 3
         self.transform = Compose(trans)
-        
+
         # post-transform shape
         self.shape = (c, h, w)
 
