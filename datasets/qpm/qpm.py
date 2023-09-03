@@ -40,15 +40,20 @@ class bacteria_dataset(Dataset):
         transform=None,
         target_transform=None,
         label_type="strain",
+        filter_labels=[],
+        filter_mode: str = "exclude",
         balance_data=False,
     ):
         # validation
         assert type_ in ["train", "val", "test"]
+        assert filter_mode in ["include", "exclude"]
 
         # params
         self.transform = transform
         self.target_transform = target_transform
         self.label_type = label_type
+        self.filter_labels = filter_labels
+        self.filter_mode = filter_mode
         self.type_ = type_
         print(f"Dataset type {type_} label type: {label_type}")
 
@@ -74,6 +79,8 @@ class bacteria_dataset(Dataset):
         self.images = []
         self.targets = []
         for i in range(0, 21):  # iterate through all classes
+            if self.__must_filter(i):
+                continue
             if balance_data:
                 count = min_class_count
             else:
@@ -88,18 +95,24 @@ class bacteria_dataset(Dataset):
     def __len__(self):
         return len(self.images)
 
-    def __getclass_(self, strain, label_type):
-        if label_type == "strain":
+    def __getclass_(self, strain):
+        if self.label_type == "strain":
             return strain
-        elif label_type == "species":
+        elif self.label_type == "species":
             return species_mapping[strain]  # map class to species
 
         else:
             raise Exception("Invalid label type")
 
+    def __must_filter(self, i) -> bool:
+        cls = self.__getclass_(i)
+        cond1 = self.filter_mode == "exclude"
+        cond2 = cls in self.filter_labels
+        return cond1 == cond2
+
     def __getitem__(self, idx):
         image, strain = self.images[idx], self.targets[idx]
-        target = self.__getclass_(strain, self.label_type)
+        target = self.__getclass_(strain)
 
         if self.transform:
             image = self.transform(image)

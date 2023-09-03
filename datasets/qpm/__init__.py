@@ -1,10 +1,10 @@
 from functools import partial
 
 import lightning.pytorch as pl
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood, take_splits
+from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood
 from .qpm import bacteria_dataset, species_mapping
 
 strains = [
@@ -111,12 +111,23 @@ class DataModule(pl.LightningDataModule):
             label_type=self.target_label,
             balance_data=False,
         )
-        if not self.trainset and not self.testset and not self.valset:
-            self.trainset = get_dataset(type_="train")
-            self.valset = get_dataset(type_="val")
-            self.testset = get_dataset(type_="test")
-            splits = take_splits(self.trainset, self.valset, self.testset, *self.get_label_splits())
-            self.train_data, self.val_data, self.test_data, self.ood_data = splits
+        if stage == "fit":
+            self.train_data = get_dataset(type_="train", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "validate":
+            self.val_data = get_dataset(type_="val", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "test":
+            self.test_data = get_dataset(type_="test", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "predict":
+            self.ood_data = ConcatDataset(
+                [
+                    get_dataset(type_="train", filter_labels=self.ood, filter_mode="include"),
+                    get_dataset(type_="val", filter_labels=self.ood, filter_mode="include"),
+                    get_dataset(type_="test", filter_labels=self.ood, filter_mode="include"),
+                ]
+            )
 
     def train_dataloader(self):
         assert self.train_data
