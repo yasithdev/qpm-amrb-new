@@ -1,7 +1,7 @@
 from functools import partial
 
 import lightning.pytorch as pl
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood
@@ -65,14 +65,14 @@ class DataModule(pl.LightningDataModule):
         self.strains = strains
         self.species = species
         if target_label == "species":
-            self.targets = self.species
+            self.target_labels = self.species
         elif target_label == "strain":
-            self.targets = self.strains
+            self.target_labels = self.strains
         else:
             raise ValueError()
-        self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        mapping = list(map(self.permuted_targets.index, self.targets))
-        self.target_transform = mapping.__getitem__
+        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
+        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
+        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
 
         # pre-transform shape
         self.orig_shape = (1, 60, 60)
@@ -93,11 +93,6 @@ class DataModule(pl.LightningDataModule):
 
         # post-transform shape
         self.shape = (c, h, w)
-
-    def get_label_splits(self):
-        ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
-        ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
-        return ind_targets, ood_targets
 
     def setup(self, stage: str) -> None:
         get_dataset = partial(

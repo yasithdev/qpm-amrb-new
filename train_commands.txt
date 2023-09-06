@@ -1,46 +1,46 @@
 # species           : Ab, Bs, Ec, Kp, Bs
 # order by accuracy : 1, 0, 2, 3, 4
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_ce_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_edl_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_ce_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_edl_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_ce_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_edl_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="flow_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_ce_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_edl_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="flow_mse" --ckpt_metric="val_decoder_mse" --ckpt_mode="min" --ood="1"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_margin_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_margin" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_edl_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_edl" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_margin_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_margin" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_edl_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_edl" --ckpt_metric="val_accuracy" --ckpt_mode="max"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_margin_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_margin" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_edl_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="rescaps_edl" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_margin_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_margin" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_edl_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="rescaps_edl" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_ce_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_edl_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_edl" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_ce_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_edl_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_edl" --ckpt_metric="val_accuracy" --ckpt_mode="max"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_ce_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_edl_mse" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet_edl" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_ce_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_edl_mse" --ckpt_metric="val_accuracy"  --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet_edl" --ckpt_metric="val_accuracy"  --ckpt_mode="max" --ood="1"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet18_ce" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet18_edl" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet18_ce" --ckpt_metric="val_accuracy"  --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet18_edl" --ckpt_metric="val_accuracy"  --ckpt_mode="max"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet18_ce" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max" --ood="1"
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet18_edl" --checkpoint_metric="val_accuracy"  --checkpoint_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet18_ce" --ckpt_metric="val_accuracy"  --ckpt_mode="max" --ood="1"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet18_edl" --ckpt_metric="val_accuracy"  --ckpt_mode="max" --ood="1"
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=512 --model_name="resnet50_simclr" --checkpoint_metric="val_loss_simclr" --checkpoint_mode="min"
-python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet50_simclr" --checkpoint_metric="val_loss_simclr" --checkpoint_mode="min"
-python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet50_vicreg" --checkpoint_metric="val_loss_vicreg" --checkpoint_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=512 --model_name="resnet50_simclr" --ckpt_metric="val_loss_simclr" --ckpt_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=128 --model_name="resnet50_simclr" --ckpt_metric="val_loss_simclr" --ckpt_mode="min"
+python -u train.py --dataset_name="QPM_species" --emb_dims=128 --model_name="resnet50_vicreg" --ckpt_metric="val_loss_vicreg" --ckpt_mode="min"
 
-python -u train_emb.py --emb_name="QPM_species_resnet50_simclr_M128" --rand_nums=1000 --model_name="fisher_exact_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+python -u train_emb.py --emb_name="QPM_species_resnet50_simclr_M128" --rand_nums=1000 --model_name="fisher_exact_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"
 
 
-python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet_ce" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
-python -u train.py --dataset_name="QPM_species" --manifold_d=128 --model_name="resnet_ce_mse" --checkpoint_metric="val_accuracy" --checkpoint_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=128 --model_name="resnet_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="QPM_species" --emb_dims=128 --model_name="resnet_ce_mse" --ckpt_metric="val_accuracy" --ckpt_mode="max"

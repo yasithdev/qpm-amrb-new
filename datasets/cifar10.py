@@ -1,11 +1,12 @@
+from functools import partial
 from typing import List
 
 import lightning.pytorch as pl
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, ToTensor
 
-from .transforms import AddGaussianNoise, reindex_for_ood, take_splits
+from .transforms import AddGaussianNoise, ind_ood_split, reindex_for_ood
 
 
 class DataModule(pl.LightningDataModule):
@@ -18,7 +19,6 @@ class DataModule(pl.LightningDataModule):
     ) -> None:
         super().__init__()
         self.N = 4
-        self.targets = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
         self.data_root = data_root
         self.ood = ood
         self.batch_size = batch_size
@@ -29,49 +29,66 @@ class DataModule(pl.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
-        
+
         # pre-transform shape
         self.orig_shape = (3, 32, 32)
         c, h, w = self.orig_shape
-        
+
         # transform
         trans = []
         trans.append(ToTensor())
         if self.add_noise:
             trans.append(AddGaussianNoise(mean=0.0, std=0.01))
         self.transform = Compose(trans)
-        
+
         # post-transform shape
         self.shape = (c, h, w)
-        
-        # targets
-        self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        mapping = list(map(self.permuted_targets.index, self.targets))
-        self.target_transform = mapping.__getitem__
 
-    def get_label_splits(self):
-        ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
-        ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
-        return ind_targets, ood_targets
+        # targets
+        self.target_labels = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
+        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
+        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
+
+    def prepare_data(self):
+        create_dataset = partial(
+            CIFAR10,
+            root=self.data_root,
+            download=True,
+            transform=None,
+            target_transform=None,
+        )
+        trn_id, trn_od = ind_ood_split(create_dataset(train=True), self.ood)
+        tst_id, tst_od = ind_ood_split(create_dataset(train=False), self.ood)
+        pivot = int(len(trn_id) * 0.8)
+        trn_id, val_id = trn_id[:pivot], trn_id[pivot:]
+        self.trn_id = trn_id
+        self.val_id = val_id
+        self.tst_id = tst_id
+        self.trn_od = trn_od
+        self.tst_od = tst_od
 
     def setup(self, stage: str) -> None:
-        if not self.trainset and not self.testset:
-            self.trainset = CIFAR10(
-                root=self.data_root,
-                train=True,
-                download=True,
-                transform=self.transform,
-                target_transform=self.target_transform,
+        create_dataset = partial(
+            CIFAR10,
+            root=self.data_root,
+            download=False,
+            transform=self.transform,
+            target_transform=self.target_transform,
+        )
+        if stage == "fit":
+            self.train_data = Subset(create_dataset(train=True), self.trn_id)
+        if stage == "validate":
+            self.val_data = Subset(create_dataset(train=True), self.val_id)
+        if stage == "test":
+            self.test_data = Subset(create_dataset(train=False), self.tst_id)
+        if stage == "predict":
+            self.ood_data = ConcatDataset(
+                [
+                    Subset(create_dataset(train=True), self.trn_od),
+                    Subset(create_dataset(train=False), self.tst_od),
+                ]
             )
-            self.testset = CIFAR10(
-                root=self.data_root,
-                train=False,
-                download=True,
-                transform=self.transform,
-                target_transform=self.target_transform,
-            )
-            splits = take_splits(self.trainset, None, self.testset, *self.get_label_splits())
-            self.train_data, self.val_data, self.test_data, self.ood_data = splits
 
     def train_dataloader(self):
         assert self.train_data

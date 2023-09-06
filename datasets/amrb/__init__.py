@@ -57,10 +57,10 @@ class DataModule(pt.LightningDataModule):
 
         # targets
         target_map = get_target_map(data_root, version, target_label)
-        self.targets = sorted(target_map.keys())
-        self.permuted_targets = reindex_for_ood(self.targets, self.ood)
-        mapping = list(map(self.permuted_targets.index, self.targets))
-        self.target_transform = mapping.__getitem__
+        self.target_labels = sorted(target_map.keys())
+        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
+        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
+        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
 
     def setup(self, stage: str) -> None:
         create_fn = partial(

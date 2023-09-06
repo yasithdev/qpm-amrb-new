@@ -41,16 +41,16 @@ def log_p_x(
 
 def proj(
     z: torch.Tensor,
-    manifold_dims: int,
+    emb_dimsims: int,
 ) -> torch.Tensor:
     """
     Project Density Tensor from Ambient Space into Manifold Space
 
     :param z: Density in Ambient Space
-    :param manifold_dims: Dimensions of Manifold Space
+    :param emb_dimsims: Dimensions of Manifold Space
     :return: Projection of Density from Ambient Space into Manifold Space
     """
-    zu = z[:, :manifold_dims]
+    zu = z[:, :emb_dimsims]
     return zu
 
 
@@ -59,17 +59,17 @@ def proj(
 
 def pad(
     m: torch.Tensor,
-    off_manifold_dims: int,
+    off_emb_dimsims: int,
 ) -> torch.Tensor:
     """
     Project Density Tensor from Manifold Space into Ambient Space
 
     :param m: Density in Manifold Space
-    :param off_manifold_dims: Dimensions of Off-Manifold Space
+    :param off_emb_dimsims: Dimensions of Off-Manifold Space
     :param chw: Tuple of [C, H, W]
     :return: Projection of Density from Manifold Space into Ambient Space
     """
-    z = torch.nn.functional.pad(m, (0, 0, 0, 0, 0, off_manifold_dims))
+    z = torch.nn.functional.pad(m, (0, 0, 0, 0, 0, off_emb_dimsims))
     return z
 
 

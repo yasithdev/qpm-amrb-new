@@ -19,7 +19,7 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
+        emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
@@ -33,7 +33,7 @@ class Model(BaseModel):
             with_classifier=True,
             with_decoder=with_decoder,
         )
-        self.manifold_d = manifold_d
+        self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
@@ -44,7 +44,7 @@ class Model(BaseModel):
     def define_model(self):
         # params
         K = self.cat_k
-        D = self.manifold_d
+        D = self.emb_dims
         kernel_conv = (9, 9)
         kernel_caps = (3, 3)
         stride_conv = 1

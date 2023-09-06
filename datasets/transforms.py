@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 from PIL import ImageFilter
-from torch.utils.data import ConcatDataset, Dataset, Subset, random_split
+from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
 from config import Config
@@ -179,50 +179,17 @@ def reindex_for_ood(
 ) -> List[str]:
     ind_targets = [y for i, y in enumerate(targets) if i not in ood]
     ood_targets = [y for i, y in enumerate(targets) if i in ood]
-    permuted_targets = ind_targets + ood_targets
-    return permuted_targets
+    permuted_labels = ind_targets + ood_targets
+    return permuted_labels
 
 
-def take_splits(
-    trn_set: Dataset,
-    val_set: Dataset | None,
-    tst_set: Dataset,
-    ind_labels: List[str],
-    ood_labels: List[str],
-) -> Tuple[Dataset, Dataset, Dataset, Dataset]:
-    # reference indices of targets
-    permuted_idx = ind_labels + ood_labels
-    # if no validation set give, create one
-    if val_set is None:
-        trn_set, val_set = random_split(trn_set, [0.8, 0.2], torch.manual_seed(42))
-    print("Performing ind/ood split")
-    # train set data
-    trn_od_idx = []
-    trn_id_idx = []
-    for idx, (_, target, *_) in enumerate(tqdm(trn_set)):  # type: ignore
-        dest = trn_od_idx if permuted_idx[target] in ood_labels else trn_id_idx
+def ind_ood_split(
+    dataset: Dataset,
+    ood: list[int],
+) -> tuple[list[int], list[int]]:
+    ind_idx = []
+    ood_idx = []
+    for idx, (x, y) in enumerate(tqdm(dataset)):
+        dest = ood_idx if y in ood else ind_idx
         dest.append(idx)
-    print("Train - OK")
-    # validation set data
-    val_od_idx = []
-    val_id_idx = []
-    for idx, (_, target, *_) in enumerate(tqdm(val_set)):  # type: ignore
-        dest = val_od_idx if permuted_idx[target] in ood_labels else val_id_idx
-        dest.append(idx)
-    print("Val - OK")
-    # test set data
-    tst_od_idx = []
-    tst_id_idx = []
-    for idx, (_, target, *_) in enumerate(tqdm(tst_set)):  # type: ignore
-        dest = tst_od_idx if permuted_idx[target] in ood_labels else tst_id_idx
-        dest.append(idx)
-    print("Test - OK")
-    print("Performed ind/ood split")
-
-    trn = Subset(trn_set, trn_id_idx)
-    val = Subset(val_set, val_id_idx)
-    tst = Subset(tst_set, tst_id_idx)
-    ood = ConcatDataset([Subset(trn_set, trn_od_idx), Subset(val_set, val_od_idx), Subset(tst_set, tst_od_idx)])
-
-    print(len(trn), len(val), len(tst), len(ood))
-    return trn, val, tst, ood
+    return ind_idx, ood_idx

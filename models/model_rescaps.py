@@ -23,7 +23,7 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
+        emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
@@ -37,7 +37,7 @@ class Model(BaseModel):
             with_classifier=True,
             with_decoder=with_decoder,
         )
-        self.manifold_d = manifold_d
+        self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
@@ -49,7 +49,7 @@ class Model(BaseModel):
         # params
         K = self.cat_k
         (C, H, W) = self.input_shape
-        D = self.manifold_d
+        D = self.emb_dims
         # (B, C, H, W) -> (B, D, K)
         self.encoder = torch.nn.Sequential(
             ResidualBlock(

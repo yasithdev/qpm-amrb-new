@@ -21,7 +21,7 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
+        emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         with_classifier: bool = False,
@@ -35,7 +35,7 @@ class Model(BaseModel):
             with_classifier=with_classifier,
             with_decoder=True,
         )
-        self.manifold_d = manifold_d
+        self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
@@ -46,7 +46,7 @@ class Model(BaseModel):
     def define_model(self):
         # params
         K = self.cat_k
-        D = self.manifold_d
+        D = self.emb_dims
         C, H, W = self.input_shape
         CHW = C * H * W
         num_bins = 10
@@ -56,10 +56,10 @@ class Model(BaseModel):
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
         c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
-        # adjust manifold_d to closest possible value
+        # adjust emb_dims to closest possible value
         cm = D // (h2 * w2)
         D = cm * h2 * w2
-        self.manifold_d = D
+        self.emb_dims = D
         self.cm = cm
 
         # spatial flow

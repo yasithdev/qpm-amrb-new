@@ -19,7 +19,7 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
+        emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         with_decoder: bool = True,
@@ -33,7 +33,7 @@ class Model(BaseModel):
             with_classifier=True,
             with_decoder=with_decoder,
         )
-        self.manifold_d = manifold_d
+        self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
@@ -46,17 +46,17 @@ class Model(BaseModel):
         # (B, C, H, W) -> (B, D, 1, 1)
         self.encoder = get_encoder(
             input_chw=self.input_shape,
-            num_features=self.manifold_d,
+            num_features=self.emb_dims,
         )
         # (B, D, 1, 1) -> (B, K)
         self.classifier = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(self.manifold_d, K),
+            torch.nn.Linear(self.emb_dims, K),
         )
         # (B, D, 1, 1) -> (B, C, H, W)
         if self.with_decoder:
             self.decoder = get_decoder(
-                num_features=self.manifold_d,
+                num_features=self.emb_dims,
                 output_chw=self.input_shape,
             )
 

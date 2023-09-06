@@ -29,7 +29,7 @@ wandb_logger = WandbLogger(
 )
 wandb_logger.watch(model, log="all")
 
-checkpoint_callback = ModelCheckpoint(monitor=config.checkpoint_metric, mode=config.checkpoint_mode)
+checkpoint_callback = ModelCheckpoint(monitor=config.ckpt_metric, mode=config.ckpt_mode)
 trainer = pl.Trainer(
     logger=wandb_logger,
     max_epochs=config.train_epochs,

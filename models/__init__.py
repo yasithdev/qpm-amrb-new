@@ -5,7 +5,7 @@ from models.base import BaseModel
 
 def get_model(
     model_name: str,
-    manifold_d: int,
+    emb_dims: int,
     optim_lr: float,
     input_shape: tuple[int, int, int],
     labels: list[str],
@@ -14,7 +14,7 @@ def get_model(
 ) -> BaseModel:
 
     args: dict = dict(
-        manifold_d=manifold_d,
+        emb_dims=emb_dims,
         optim_lr=optim_lr,
         input_shape=input_shape,
         labels=labels,
@@ -92,7 +92,7 @@ def get_model(
             cat_k=opt.cat_k,
             grp_k=len(opt.groups),
             grp_fn=opt.group_fn,
-            in_dims=opt.manifold_d,
+            in_dims=opt.emb_dims,
             rand_perms=opt.rand_perms,
             optim_lr=opt.optim_lr,
         )

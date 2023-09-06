@@ -15,14 +15,14 @@
 # ==========
 
 train-mnist-%:
-	DATASET_NAME=MNIST MANIFOLD_D=32  MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=MNIST EMB_DIMS=32  MODEL_NAME=$* python -u 2_training.py
 train-cifar10-%:
-	DATASET_NAME=CIFAR10 MANIFOLD_D=64  MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=CIFAR10 EMB_DIMS=64  MODEL_NAME=$* python -u 2_training.py
 train-amrb2_species-%:
-	DATASET_NAME=AMRB2_species MANIFOLD_D=512 MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=AMRB2_species EMB_DIMS=512 MODEL_NAME=$* python -u 2_training.py
 train-amrb2_strain-%:
-	DATASET_NAME=AMRB2_strain MANIFOLD_D=512 MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=AMRB2_strain EMB_DIMS=512 MODEL_NAME=$* python -u 2_training.py
 train-qpm_species-%:
-	DATASET_NAME=QPM_species MANIFOLD_D=512 MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=QPM_species EMB_DIMS=512 MODEL_NAME=$* python -u 2_training.py
 train-qpm_strain-%:
-	DATASET_NAME=QPM_strain MANIFOLD_D=512 MODEL_NAME=$* python -u 2_training.py
+	DATASET_NAME=QPM_strain EMB_DIMS=512 MODEL_NAME=$* python -u 2_training.py

@@ -26,18 +26,18 @@ class DataModule(pl.LightningDataModule):
         self.emb_dir = emb_dir
         self.emb_name = emb_name
         self.batch_size = batch_size
-        self.target_labels = target_labels
-        self.group_labels = group_labels
-        self.target_group_fn = target_group_fn
         self.ood = ood
         # load info
-        with open(f"{self.emb_dir}/{self.emb_name}.json") as fp:
+        with open(f"{self.emb_dir}/{self.emb_name}/info.json") as fp:
             info = json.load(fp)
         self.shape: tuple[int, ...] = tuple(info.shape)
         # get target mapping
-        self.permuted_targets = reindex_for_ood(self.target_labels, self.ood)
-        mapping = list(map(self.permuted_targets.index, self.target_labels))
-        self.target_transform = mapping.__getitem__
+        self.target_labels = target_labels
+        self.group_labels = group_labels
+        self.target_group_fn = target_group_fn
+        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
+        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
+        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
 
         self.train_data = None
         self.val_data = None
@@ -50,7 +50,6 @@ class DataModule(pl.LightningDataModule):
             emb_dir=self.emb_dir,
             emb_name=self.emb_name,
             target_transform=self.target_transform,
-            target_group_fn=self.target_group_fn,
         )
 
         if stage == "fit":

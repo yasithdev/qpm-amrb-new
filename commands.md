@@ -1,3 +1,4 @@
 # Train Commands
 
-python -u train.py --dataset_name="mnist" --manifold_d=128 --model_name="flow_ce_mse" --checkpoint_metric="val_decoder_mse" --checkpoint_mode="min"
+python -u train.py --dataset_name="MNIST" --model_name="resnet_ce_mse" --emb_dims=128 --ckpt_metric="val_accuracy" --ckpt_mode="max"
+python -u train.py --dataset_name="CIFAR10" --model_name="resnet_ce_mse" --emb_dims=128 --ckpt_metric="val_accuracy" --ckpt_mode="max"

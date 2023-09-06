@@ -97,13 +97,13 @@ class Proj(FlowTransform):
     def __init__(
         self,
         ambient_dims: int,
-        manifold_dims: int,
+        emb_dimsims: int,
     ) -> None:
 
         super().__init__()
         self.ambient_dims = ambient_dims
-        self.manifold_dims = manifold_dims
-        self.padding = self.ambient_dims - self.manifold_dims
+        self.emb_dimsims = emb_dimsims
+        self.padding = self.ambient_dims - self.emb_dimsims
 
     def _inverse(
         self,
@@ -122,7 +122,7 @@ class Proj(FlowTransform):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         B, C = z.size(0), z.size(1)
-        return z.narrow(dim=1, start=0, length=self.manifold_dims), z.new_zeros(B)
+        return z.narrow(dim=1, start=0, length=self.emb_dimsims), z.new_zeros(B)
 
 
 class Squeeze(FlowTransform):

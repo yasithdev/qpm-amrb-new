@@ -35,19 +35,18 @@ def get_embedding(
         # map strains to species
         from .qpm import species, species_mapping, strains
 
-        labels = strains
-        groups = species
-        group_fn = species_mapping.__getitem__
-
-        return embeddings.DataModule(
-            emb_dir=emb_dir,
-            emb_name=emb_name,
-            batch_size=batch_size,
-            target_labels=labels,
-            group_labels=groups,
-            target_group_fn=group_fn,
-            ood=ood,
-        )
-
+        target_labels = strains
+        group_labels = species
+        target_group_fn = species_mapping.__getitem__
     else:
         raise ValueError()
+
+    return embeddings.DataModule(
+        emb_dir=emb_dir,
+        emb_name=emb_name,
+        batch_size=batch_size,
+        target_labels=target_labels,
+        group_labels=group_labels,
+        target_group_fn=target_group_fn,
+        ood=ood,
+    )

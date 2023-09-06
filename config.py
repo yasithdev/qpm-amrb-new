@@ -33,16 +33,16 @@ def load_config() -> Config:
     parser.add_argument("--dataset_name", **env("DATASET_NAME", type=str, default=""))
     parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default="assets/embeddings"))
     parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=""))
+    parser.add_argument("--emb_dims", **env("EMB_DIMS", type=int, default=128))
     parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=0))
     parser.add_argument("--rand_perms", **env("RAND_PERMS", type=int, default=0))
     parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
-    parser.add_argument("--manifold_d", **env("MANIFOLD_D", type=int, default=128))
     parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=64))
     parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
     parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
     parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=100))
-    parser.add_argument("--checkpoint_metric", **env("CHECKPOINT_METRIC", type=str, default="val_loss"))
-    parser.add_argument("--checkpoint_mode", **env("CHECKPOINT_MODE", type=str, default="min"))
+    parser.add_argument("--ckpt_metric", **env("CKPT_METRIC", type=str, default="val_loss"))
+    parser.add_argument("--ckpt_mode", **env("CKPT_MODE", type=str, default="min"))
     parser.add_argument("--ood", **env("OOD", type=str, default=""))
     ## SSL Augmentation parameters
     # Common augmentations
@@ -78,13 +78,13 @@ class Config(argparse.Namespace):
     emb_name: str
     emb_targets: int
     rand_perms: int
-    manifold_d: int
+    emb_dims: int
     batch_size: int
     optim_lr: float
     optim_m: float
     train_epochs: int
-    checkpoint_metric: str
-    checkpoint_mode: str
+    ckpt_metric: str
+    ckpt_mode: str
     scale: tuple[float, float]
     train_supervised: bool
     temperature: float
@@ -162,8 +162,8 @@ class Config(argparse.Namespace):
             )
             assert len(dm.shape) == 1
             self.input_shape = dm.shape
-            self.manifold_d = dm.shape[0]
-            self.labels = dm.permuted_targets # NOTE must have ind_labels first and ood_labels last
+            self.emb_dims = dm.shape[0]
+            self.labels = dm.permuted_labels # NOTE must have ind_labels first and ood_labels last
             self.groups = dm.group_labels
             self.group_fn = dm.target_group_fn
             self.datamodule = dm
@@ -183,14 +183,14 @@ class Config(argparse.Namespace):
             raise ValueError()
         self.input_shape = dm.shape
         self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
-        self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
+        self.labels = dm.permuted_labels  # NOTE must have ind_labels first and ood_labels last
         self.datamodule = dm
 
     def get_model(
         self,
         *,
         model_name: str | None = None,
-        manifold_d: int | None = None,
+        emb_dims: int | None = None,
         optim_lr: float | None = None,
         input_shape: tuple[int, int, int] | None = None,
         labels: list[str] | None = None,
@@ -207,7 +207,7 @@ class Config(argparse.Namespace):
         """
         # given value or default value
         model_name = model_name or self.model_name
-        manifold_d = manifold_d or self.manifold_d
+        emb_dims = emb_dims or self.emb_dims
         optim_lr = optim_lr or self.optim_lr
         input_shape = input_shape or self.input_shape
         labels = labels or self.labels
@@ -223,13 +223,12 @@ class Config(argparse.Namespace):
 
         return get_model(
             model_name=model_name,
-            manifold_d=manifold_d,
+            emb_dims=emb_dims,
             optim_lr=optim_lr,
             input_shape=input_shape,
             labels=labels,
             cat_k=cat_k,
             opt=self,
-            **kwargs,
         )
 
     @property

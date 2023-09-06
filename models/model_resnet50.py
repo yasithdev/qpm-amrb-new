@@ -23,7 +23,7 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        manifold_d: int,
+        emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         opt: Config,
@@ -38,7 +38,7 @@ class Model(BaseModel):
             with_classifier=with_classifier,
             with_decoder=False,
         )
-        self.manifold_d = manifold_d
+        self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.temperature = opt.temperature
         self.encoder_loss = encoder_loss
@@ -54,7 +54,7 @@ class Model(BaseModel):
         self.define_metrics()
 
     def define_model(self):
-        D = self.manifold_d
+        D = self.emb_dims
         K = self.cat_k
         # pretrained resnet50 model
         weights = models.ResNet50_Weights.IMAGENET1K_V1

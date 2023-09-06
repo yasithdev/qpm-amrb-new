@@ -16,7 +16,6 @@ class EmbeddingDataset(Dataset):
         filter_mode: str = "exclude",
         transform=None,
         target_transform=None,
-        target_group_fn=None,
     ) -> None:
         super().__init__()
         self.emb_dir = emb_dir
@@ -26,7 +25,6 @@ class EmbeddingDataset(Dataset):
         self.filter_mode = filter_mode
         self.transform = transform
         self.target_transform = target_transform
-        self.target_group_fn = target_group_fn
 
         # load embeddings and targets
         embeddings = []
@@ -53,14 +51,10 @@ class EmbeddingDataset(Dataset):
         if self.transform:
             value = self.transform(value)
 
-        group = target
-        if self.target_group_fn:
-            group = self.target_group_fn(target)
-
         if self.target_transform:
             target = self.target_transform(target)
 
-        return value, target, group
+        return value, target
 
     def __len__(self):
         return self.targets.shape[0]
