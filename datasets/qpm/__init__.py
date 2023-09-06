@@ -105,8 +105,6 @@ class DataModule(pl.LightningDataModule):
         )
         if stage == "fit":
             self.train_data = get_dataset(type_="train", filter_labels=self.ood, filter_mode="exclude")
-
-        if stage == "validate":
             self.val_data = get_dataset(type_="val", filter_labels=self.ood, filter_mode="exclude")
 
         if stage == "test":

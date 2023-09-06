@@ -75,8 +75,6 @@ class DataModule(pt.LightningDataModule):
         )
         if stage == "fit":
             self.train_data = create_fn(split_id=0, filter_labels=self.ood, filter_mode="exclude")
-
-        if stage == "validate":
             self.val_data = create_fn(split_id=1, filter_labels=self.ood, filter_mode="exclude")
 
         if stage == "test":

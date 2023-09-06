@@ -83,7 +83,6 @@ class DataModule(pl.LightningDataModule):
         )
         if stage == "fit":
             self.train_data = Subset(create_dataset(train=True), self.trn_id)
-        if stage == "validate":
             self.val_data = Subset(create_dataset(train=True), self.val_id)
         if stage == "test":
             self.test_data = Subset(create_dataset(train=False), self.tst_id)
