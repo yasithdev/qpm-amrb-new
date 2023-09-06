@@ -1,9 +1,11 @@
+from functools import partial
+
 import lightning.pytorch as pt
-from torch.utils.data import DataLoader
+from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import AddGaussianNoise, TileChannels2d, reindex_for_ood, take_splits
-from .amrb import create_datasets, get_target_map
+from ..transforms import AddGaussianNoise, TileChannels2d, reindex_for_ood
+from .amrb import create_dataset, get_target_map
 
 
 class DataModule(pt.LightningDataModule):
@@ -28,8 +30,6 @@ class DataModule(pt.LightningDataModule):
         self.aug_hw_224 = aug_hw_224
         self.aug_ch_3 = aug_ch_3
         self.add_noise = add_noise
-        self.trainset = None
-        self.testset = None
         self.train_data = None
         self.val_data = None
         self.test_data = None
@@ -62,22 +62,34 @@ class DataModule(pt.LightningDataModule):
         mapping = list(map(self.permuted_targets.index, self.targets))
         self.target_transform = mapping.__getitem__
 
-    def get_label_splits(self):
-        ind_targets = [x for i, x in enumerate(self.targets) if i not in self.ood]
-        ood_targets = [x for i, x in enumerate(self.targets) if i in self.ood]
-        return ind_targets, ood_targets
-
     def setup(self, stage: str) -> None:
-        if not self.trainset and not self.testset:
-            self.trainset, self.testset = create_datasets(
-                data_root=self.data_root,
-                version=self.version,
-                target_label=self.target_label,
-                transform=self.transform,
-                target_transform=self.target_transform,
+        create_fn = partial(
+            create_dataset,
+            data_root=self.data_root,
+            version=self.version,
+            target_label=self.target_label,
+            splits=[0.6, 0.2, 0.2],
+            balance_data=False,
+            transform=self.transform,
+            target_transform=self.target_transform,
+        )
+        if stage == "fit":
+            self.train_data = create_fn(split_id=0, filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "validate":
+            self.val_data = create_fn(split_id=1, filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "test":
+            self.test_data = create_fn(split_id=2, filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "predict":
+            self.ood_data = ConcatDataset(
+                [
+                    create_fn(split_id=0, filter_labels=self.ood, filter_mode="include"),
+                    create_fn(split_id=0, filter_labels=self.ood, filter_mode="include"),
+                    create_fn(split_id=0, filter_labels=self.ood, filter_mode="include"),
+                ]
             )
-            splits = take_splits(self.trainset, None, self.testset, *self.get_label_splits())
-            self.train_data, self.val_data, self.test_data, self.ood_data = splits
 
     def train_dataloader(self):
         assert self.train_data

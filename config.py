@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from typing import List, Tuple, TypeVar
+from typing import Callable, List, Tuple, TypeVar
 
 import matplotlib
 from lightning.pytorch import LightningDataModule
@@ -24,7 +24,7 @@ def load_config() -> Config:
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
     matplotlib.rcParams["figure.figsize"] = [20, 15]
-    matplotlib.rcParams['savefig.dpi'] = 150
+    matplotlib.rcParams["savefig.dpi"] = 150
 
     config = Config()
 
@@ -34,7 +34,7 @@ def load_config() -> Config:
     parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default="assets/embeddings"))
     parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=""))
     parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=0))
-    parser.add_argument("--rand_nums", **env("RAND_NUMS", type=int, default=0))
+    parser.add_argument("--rand_perms", **env("RAND_PERMS", type=int, default=0))
     parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
     parser.add_argument("--manifold_d", **env("MANIFOLD_D", type=int, default=128))
     parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=64))
@@ -77,7 +77,7 @@ class Config(argparse.Namespace):
     emb_dir: str
     emb_name: str
     emb_targets: int
-    rand_nums: int
+    rand_perms: int
     manifold_d: int
     batch_size: int
     optim_lr: float
@@ -100,6 +100,8 @@ class Config(argparse.Namespace):
     # data params - initialized when load_data() is called
     input_shape: Tuple[int, ...] | None = None
     labels: List[str] | None = None
+    groups: List[str] | None = None
+    group_fn: Callable[[int], int] | None = None
     datamodule: LightningDataModule | None = None
 
     def __setattr__(self, name, value):
@@ -118,55 +120,70 @@ class Config(argparse.Namespace):
         self,
         *,
         dataset_name: str | None = None,
+        emb_name: str | None = None,
         data_dir: str | None = None,
+        emb_dir: str | None = None,
         batch_size: int | None = None,
         ood: list[int] | None = None,
-        expand_3ch: bool | None = None
+        expand_3ch: bool | None = None,
     ) -> None:
         """
-        Load data modules.
+        Load data modules (from datasets of embeddings)
 
         This function uses pre-configured parameters by default.
         If you need to override anything in code, specify them in the function args.
 
         Args:
             dataset_name (str): Name of the dataset.
-            data_dir (str): Location of the data directory.
+            emb_name (str): Name of the embedding.
+            data_dir (str): Location of the directory containing dataset.
+            emb_dir (str): Location of the directory containing embedding.
             batch_size (int): Batch size to use.
             ood (list[int]): Targets to treat as OOD.
             expand_3ch (bool): Whether to expand image data from 1ch to 3ch.
         """
-        from datasets import get_data
+        dataset_name = dataset_name or self.dataset_name
+        emb_name = emb_name or self.emb_name
+        data_dir = data_dir or self.data_dir
+        emb_dir = emb_dir or self.emb_dir
+        batch_size = batch_size or self.batch_size
+        ood = ood or self.ood
+        expand_3ch = expand_3ch or self.expand_3ch
 
-        dm = get_data(
-            dataset_name or self.dataset_name,
-            data_dir or self.data_dir,
-            batch_size or self.batch_size,
-            ood or self.ood,
-            aug_ch_3=self.expand_3ch,
-        )
+        if len(emb_name) > 0 and len(emb_dir) > 0:
+            # embedding mode
+            from datasets import get_embedding
+
+            dm = get_embedding(
+                emb_dir=emb_dir,
+                emb_name=emb_name,
+                batch_size=batch_size,
+                ood=ood,
+            )
+            assert len(dm.shape) == 1
+            self.input_shape = dm.shape
+            self.manifold_d = dm.shape[0]
+            self.labels = dm.permuted_targets # NOTE must have ind_labels first and ood_labels last
+            self.groups = dm.group_labels
+            self.group_fn = dm.target_group_fn
+            self.datamodule = dm
+
+        elif len(dataset_name) > 0 and len(data_dir) > 0:
+            # dataset mode
+            from datasets import get_data
+
+            dm = get_data(
+                data_dir=data_dir,
+                dataset_name=dataset_name,
+                batch_size=batch_size,
+                ood=ood,
+                aug_ch_3=expand_3ch,
+            )
+        else:
+            raise ValueError()
         self.input_shape = dm.shape
         self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
         self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
-        self.datamodule = dm
-
-    def load_embedding(
-        self,
-        *,
-        embedding_path: str,
-        batch_size: int | None = None,
-    ) -> None:
-        from datasets import get_embedding
-
-        dm = get_embedding(
-            embedding_path=embedding_path,
-            batch_size=batch_size or self.batch_size,
-        )
-        self.input_shape = dm.shape,
-        self.manifold_d = dm.shape
-        self.labels = dm.labels
-        # self.image_size = (num_dims, 1, 1)  # NOTE this should be set for simclr_transform() to work
-        # self.labels = dm.permuted_targets  # NOTE must have ind_labels first and ood_labels last
         self.datamodule = dm
 
     def get_model(
@@ -189,6 +206,9 @@ class Config(argparse.Namespace):
 
         """
         # given value or default value
+        model_name = model_name or self.model_name
+        manifold_d = manifold_d or self.manifold_d
+        optim_lr = optim_lr or self.optim_lr
         input_shape = input_shape or self.input_shape
         labels = labels or self.labels
         cat_k = cat_k or self.cat_k
@@ -202,16 +222,16 @@ class Config(argparse.Namespace):
         from models import get_model
 
         return get_model(
-            model_name=model_name or self.model_name,
-            manifold_d=manifold_d or self.manifold_d,
-            optim_lr=optim_lr or self.optim_lr,
+            model_name=model_name,
+            manifold_d=manifold_d,
+            optim_lr=optim_lr,
             input_shape=input_shape,
             labels=labels,
             cat_k=cat_k,
             opt=self,
             **kwargs,
         )
-    
+
     @property
     def cat_k(self) -> int:
         # prerequisites

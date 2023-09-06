@@ -1,43 +1,75 @@
-import lightning.pytorch as pl
-import numpy as np
-import torch
-from torch.utils.data import DataLoader, random_split
+import json
+from functools import partial
+from typing import Callable
 
-from .base import NDArrayDataset
+import lightning.pytorch as pl
+from torch.utils.data import ConcatDataset, DataLoader
+
+from .common import EmbeddingDataset
+from .transforms import reindex_for_ood
 
 
 class DataModule(pl.LightningDataModule):
     def __init__(
         self,
-        embedding_path: str,
+        emb_dir: str,
+        emb_name: str,
         batch_size: int,
-        labels: list[str] | None = None,
-        target_transform=None,
+        target_labels: list[str],
+        group_labels: list[str] | None = None,
+        target_group_fn: Callable[[int], int] | None = None,
+        ood: list[int] = [],
     ) -> None:
         super().__init__()
 
         self.N = 4
-        self.embedding_path = embedding_path
+        self.emb_dir = emb_dir
+        self.emb_name = emb_name
         self.batch_size = batch_size
-        self.target_transform = target_transform
-
-        data: dict[str, np.ndarray] = np.load(self.embedding_path)
-        self.dataset = NDArrayDataset(
-            values=data["z"],
-            targets=data["s"],
-            target_transform=self.target_transform,
-        )
-        self.shape = self.dataset.shape
-        self.labels = labels or self.dataset.labels
+        self.target_labels = target_labels
+        self.group_labels = group_labels
+        self.target_group_fn = target_group_fn
+        self.ood = ood
+        # load info
+        with open(f"{self.emb_dir}/{self.emb_name}.json") as fp:
+            info = json.load(fp)
+        self.shape: tuple[int, ...] = tuple(info.shape)
+        # get target mapping
+        self.permuted_targets = reindex_for_ood(self.target_labels, self.ood)
+        mapping = list(map(self.permuted_targets.index, self.target_labels))
+        self.target_transform = mapping.__getitem__
 
         self.train_data = None
         self.val_data = None
         self.test_data = None
+        self.ood_data = None
 
     def setup(self, stage: str) -> None:
-        if (self.train_data or self.val_data or self.test_data) is None:
-            splits = random_split(self.dataset, [0.6, 0.2, 0.2], torch.manual_seed(42))
-            self.train_data, self.val_data, self.test_data = splits
+        create_fn = partial(
+            EmbeddingDataset,
+            emb_dir=self.emb_dir,
+            emb_name=self.emb_name,
+            target_transform=self.target_transform,
+            target_group_fn=self.target_group_fn,
+        )
+
+        if stage == "fit":
+            self.train_data = create_fn(emb_type="train", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "validate":
+            self.val_data = create_fn(emb_type="val", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "test":
+            self.test_data = create_fn(emb_type="test", filter_labels=self.ood, filter_mode="exclude")
+
+        if stage == "predict":
+            self.ood_data = ConcatDataset(
+                [
+                    create_fn(emb_type="train", filter_labels=self.ood, filter_mode="include"),
+                    create_fn(emb_type="val", filter_labels=self.ood, filter_mode="include"),
+                    create_fn(emb_type="test", filter_labels=self.ood, filter_mode="include"),
+                ]
+            )
 
     def train_dataloader(self):
         assert self.train_data
@@ -50,3 +82,7 @@ class DataModule(pl.LightningDataModule):
     def test_dataloader(self):
         assert self.test_data
         return DataLoader(self.test_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)
+
+    def predict_dataloader(self):
+        assert self.ood_data
+        return DataLoader(self.ood_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=False)

@@ -63,7 +63,7 @@ class bacteria_dataset(Dataset):
         for x in all_files:
             # read strain class, encoded in folder name (x.split('/')[-2][:-4])
             class_ = int(x.split("/")[-1][:-4])
-            dirs[class_] = np.load(x, mmap_mode="r")
+            dirs[class_] = np.load(x, mmap_mode="c")
 
         ## Get the class with minimum count
         min_class_count = 1000000000

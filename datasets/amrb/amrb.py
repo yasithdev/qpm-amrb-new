@@ -3,8 +3,9 @@ import logging
 import os
 from collections import defaultdict
 from functools import partial
+from itertools import accumulate
 from time import time
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -64,15 +65,23 @@ def get_target_map(
     return target_map
 
 
-def create_datasets(
+def create_dataset(
     data_root: str,
     version: str,
     target_label: str,
-    split_frac: float = 0.6,
-    balance_train_data: bool = False,
+    split_id: int,
+    splits: list[float],
+    balance_data: bool = False,
     transform: Optional[Callable] = None,
     target_transform: Optional[Callable] = None,
-) -> Tuple[Dataset, Dataset]:
+    filter_labels: list[int] = [],
+    filter_mode: str = "exclude",
+) -> Dataset:
+    # sanity checks
+    assert sum(splits) == 1.0
+    assert 0 <= split_id < len(splits)
+    assert filter_mode in ["include", "exclude"]
+
     # start time
     t_start = time()
 
@@ -82,7 +91,7 @@ def create_datasets(
     # load data
     ds_data_path = os.path.join(ds_path, "ctr_1_fit_f32.imag.npz")
     logging.info(f"Dataset file: {ds_data_path}")
-    src_data = np.load(ds_data_path)
+    src_data: dict[str, np.ndarray] = np.load(ds_data_path)
 
     # load targets
     target_map = get_target_map(data_root, version, target_label)
@@ -90,44 +99,52 @@ def create_datasets(
 
     # some helper functions
     _concat = partial(np.concatenate, axis=0)
-    _bsize = lambda x: int(x.shape[0])
 
-    # perform train/test split
-    trn_data: Dict[str, np.ndarray] = {}
-    tst_data: Dict[str, np.ndarray] = {}
+    # extract split
+    sizes = [0] * len(target_map)
+    tmp_data: dict[str, list[np.ndarray]] = defaultdict(lambda: [])
 
-    for target, strains in target_map.items():
-        target_data = _concat([src_data[s] for s in strains])
-        pivot = int(_bsize(target_data) * split_frac)
-        trn_data[target], tst_data[target] = target_data[:pivot], target_data[pivot:]
-    logging.info("[preparation] performed train/test split")
-    # from here on, what's used are trn_data and tst_data
+    for i, (target, strains) in enumerate(target_map.items()):
+        # filtering criteria
+        cond1 = filter_mode == "exclude"
+        cond2 = i in filter_labels
+        for strain in strains:
+            strain_data = src_data[strain]
+            B = strain_data.shape[0]
+            bounds = [0] + [int(B * N) for N in accumulate(splits)]
+            lo, hi = bounds[split_id], bounds[split_id + 1]
+            split_data = strain_data[lo:hi]
+            sizes[i] += B
+            # filtering criteria
+            if cond1 == cond2:
+                continue
+            tmp_data[target].append(split_data)
+    logging.info("[preparation] extracted data split")
 
-    if balance_train_data:
-        # augment train data
-        trn_sizes = [_bsize(d) for d in trn_data.values()]
-        trn_N = min(max(trn_sizes), min(trn_sizes) * 4)
-        trn_data = {k: augment_by_rotation(v, trn_N) for k, v in trn_data.items()}
+    data: dict[str, np.ndarray] = {}
+    N = min(max(sizes), min(sizes) * 6)
+
+    for k, v in tmp_data.items():
+        v = _concat(v)
+        if balance_data:
+            data[k] = augment_by_rotation(v, N)
+        else:
+            data[k] = v
 
     # reference order of targets
     targets = sorted(target_map.keys())
 
-    # prepare train dataset
-    trn_x = _concat(list(trn_data.values()))
-    trn_y = _concat([[targets.index(k)] * _bsize(v) for k, v in trn_data.items()])
-    trn_ds = InMemoryDataset(trn_x, trn_y, transform, target_transform)
-
-    # prepare test dataset
-    tst_x = _concat(list(tst_data.values()))
-    tst_y = _concat([[targets.index(k)] * _bsize(v) for k, v in tst_data.items()])
-    tst_ds = InMemoryDataset(tst_x, tst_y, transform, target_transform)
+    # prepare dataset
+    X = _concat(list(data.values()))
+    Y = _concat(list([targets.index(k)] * v.shape[0] for k, v in data.items()))
+    dataset = InMemoryDataset(X, Y, transform, target_transform)
 
     # end time
     t_end = time()
-    logging.info(f"Prepared datasets in {t_end - t_start} s")
+    logging.info(f"Prepared dataset in {t_end - t_start} s")
 
     # return prepared datasets
-    return trn_ds, tst_ds
+    return dataset
 
 
 def augment_by_rotation(
@@ -142,12 +159,14 @@ def augment_by_rotation(
         target_images = source_images[: diff or None]
 
     else:
-        # define a pool of augmented images (by rotating 90, 180, and 270)
+        # define a pool of augmented images
         aug_pool = np.concatenate(
             [
-                np.rot90(source_images, k=1, axes=(1, 2)),
-                np.rot90(source_images, k=2, axes=(1, 2)),
-                np.rot90(source_images, k=3, axes=(1, 2)),
+                np.rot90(source_images, k=1, axes=(1, 2)),  # 90 degree rotation
+                np.rot90(source_images, k=2, axes=(1, 2)),  # 180 degree rotation
+                np.rot90(source_images, k=3, axes=(1, 2)),  # 270 degree rotation
+                source_images[:,::-1,:],                    # vertical flip
+                source_images[:,:,::-1],                    # horizontal flip
             ],
             axis=0,
         )

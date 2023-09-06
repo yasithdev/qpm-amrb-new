@@ -14,19 +14,22 @@ np.random.seed(42)
 torch.manual_seed(42)
 torch.set_float32_matmul_precision("medium")
 
+# initialize config, data attributes, and loaders
 config = load_config()
-
-config.load_embedding(embedding_path=f"{config.emb_dir}/{config.emb_name}.npz")
+config.load_data()
+config.print_labels()
+assert config.datamodule
 
 model = config.get_model(
     model_name=config.model_name,
     in_dims=config.manifold_d,
-    rand_dims=config.rand_nums,
+    rand_dims=config.rand_perms,
 )
-
-run_name = f"{config.emb_name}_{config.model_name}"
 wandb_logger = WandbLogger(
-    project="uq_project", log_model="all", name=run_name, config={**config.params, **model.hparams}
+    project="robust_ml",
+    log_model="all",
+    name=f"{config.emb_name}_{config.model_name}",
+    config={**config.params, **model.hparams},
 )
 wandb_logger.watch(model, log="all")
 

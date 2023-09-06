@@ -1,9 +1,10 @@
-from typing import Tuple
-import einops
+from typing import Callable, Tuple
 
+import einops
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from random import shuffle
 
 from .base import BaseModel
 
@@ -17,7 +18,9 @@ class Model(BaseModel):
     def __init__(
         self,
         labels: list[str],
-        cat_k: int,
+        cat_k: int, # 21 for bacteria
+        grp_k: int, # 5 for bacteria
+        grp_fn: Callable[[int], int],
         in_dims: int,
         rand_perms: int,
         optim_lr: float,
@@ -30,20 +33,30 @@ class Model(BaseModel):
             with_classifier=True,
             with_decoder=False,
         )
+        self.grp_k = grp_k
+        self.grp_fn = grp_fn
         self.in_dims = in_dims
         self.rand_perms = rand_perms
+        self.classifier_loss = classifier_loss
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
         K = self.cat_k
+        G = self.grp_k
         E = self.in_dims
         N = self.rand_perms
+        # (N x K) list to build permutations
+        P = []
+        seq = [*range(K)]
+        for _ in range(N):
+            P.append([self.grp_fn(i) for i in seq])
+            shuffle(seq)
         # (K x N) permutation matrix for targets (GT_index = 0)
-        self.P = torch.stack([torch.arange(K), *[torch.randperm(K) for _ in range(N - 1)]], dim=1)
+        self.P = torch.as_tensor(P).T
         # weight matrix and bias for linear classifier
-        self.W = torch.nn.Parameter(torch.randn(E, K, N))
+        self.W = torch.nn.Parameter(torch.randn(E, G, N))
         self.B = torch.nn.Parameter(torch.randn(1, 1, N))
 
     def configure_optimizers(self):
@@ -75,10 +88,10 @@ class Model(BaseModel):
         # forward pass
         B = y.size(0)
         N = self.rand_perms
-        K = self.cat_k
+        G = self.grp_k
         
-        preds = self(x)  # (B, K, N)
-        assert list(preds.shape) == [B, K, N]
+        preds = self(x)  # (B, G, N)
+        assert list(preds.shape) == [B, G, N]
 
         targets = self.P.to(y.device)[y, ...]  # (B, N)
         assert list(targets.shape) == [B, N]

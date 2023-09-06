@@ -11,8 +11,6 @@ def get_model(
     labels: list[str],
     cat_k: int,
     opt: Config,
-    in_dims: int | None = None,
-    rand_dims: int | None = None,
 ) -> BaseModel:
 
     args: dict = dict(
@@ -85,10 +83,19 @@ def get_model(
 
     # fisher exact
     elif model_name == "fisher_exact_ce":
-        assert in_dims is not None
-        assert rand_dims is not None
+        assert opt.groups is not None
+        assert opt.cat_k is not None
+        assert opt.group_fn is not None
         from .model_fisher_exact import Model
-        return Model(labels, cat_k, in_dims, rand_dims, optim_lr)
+        return Model(
+            labels=labels,
+            cat_k=opt.cat_k,
+            grp_k=len(opt.groups),
+            grp_fn=opt.group_fn,
+            in_dims=opt.manifold_d,
+            rand_perms=opt.rand_perms,
+            optim_lr=opt.optim_lr,
+        )
 
     # DEFAULTS
     

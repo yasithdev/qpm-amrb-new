@@ -13,8 +13,7 @@ def load_gensim_dict(
     gensim_labels: List[str] = list(gensim[0].astype(str))
     gensim_data = gensim[1:].astype(np.float32)
     gensim_dict = {
-        k1: {k2: float(gensim_data[i, j]) for j, k2 in enumerate(gensim_labels)}
-        for i, k1 in enumerate(gensim_labels)
+        k1: {k2: float(gensim_data[i, j]) for j, k2 in enumerate(gensim_labels)} for i, k1 in enumerate(gensim_labels)
     }
     return gensim_dict
 
@@ -28,8 +27,8 @@ def gensim(
     mode: Literal[1, 2] = 1,
 ) -> np.ndarray:
     # split the two gensim measures into two symmetric matrices
-    s1 = np.triu(gensim_y) + np.triu(gensim_y, 1).T
-    s2 = np.tril(gensim_y) + np.tril(gensim_y, -1).T
+    s1 = np.triu(gensim_y) + np.triu(gensim_y, 1).T  # type: ignore
+    s2 = np.tril(gensim_y) + np.tril(gensim_y, -1).T  # type: ignore
     sim = (s1 + s2) / 2
     logging.info(f"Gensim Matrix: {sim.shape}")
 

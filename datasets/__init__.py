@@ -26,21 +26,28 @@ def get_data(
 
 
 def get_embedding(
-    embedding_path: str,
+    emb_name: str,
+    emb_dir: str,
     batch_size: int,
-    target_transform=None,
+    ood: list[int],
 ):
-    labels = None
-    if "QPM_species" in embedding_path:
+    if "QPM_species" in emb_name:
         # map strains to species
-        from .qpm import species_mapping, species
+        from .qpm import species, species_mapping, strains
 
-        target_transform = species_mapping.__getitem__
-        labels = species
+        labels = strains
+        groups = species
+        group_fn = species_mapping.__getitem__
 
-    return embeddings.DataModule(
-        embedding_path=embedding_path,
-        batch_size=batch_size,
-        labels=labels,
-        target_transform=target_transform,
-    )
+        return embeddings.DataModule(
+            emb_dir=emb_dir,
+            emb_name=emb_name,
+            batch_size=batch_size,
+            target_labels=labels,
+            group_labels=groups,
+            target_group_fn=group_fn,
+            ood=ood,
+        )
+
+    else:
+        raise ValueError()

@@ -57,9 +57,6 @@ class DataModule(pl.LightningDataModule):
         self.target_label = target_label
         self.aug_hw_224 = aug_hw_224
         self.aug_ch_3 = aug_ch_3
-        self.trainset = None
-        self.valset = None
-        self.testset = None
         self.train_data = None
         self.val_data = None
         self.test_data = None
