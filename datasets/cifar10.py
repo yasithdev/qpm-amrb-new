@@ -50,7 +50,7 @@ class DataModule(pl.LightningDataModule):
         self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
         self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
 
-    def prepare_data(self):
+        # indexing
         create_dataset = partial(
             CIFAR10,
             root=self.data_root,

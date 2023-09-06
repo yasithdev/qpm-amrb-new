@@ -381,7 +381,7 @@ def edl_probs(
         b = e / S
         u = K / S
 
-    return p, u
+    return p, u.squeeze(dim=-1)
 
 
 def simclr_loss(
