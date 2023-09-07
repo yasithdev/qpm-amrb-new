@@ -1,10 +1,9 @@
-from typing import Callable, Tuple
+import random
 
 import einops
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from random import shuffle
 
 from .base import BaseModel
 
@@ -17,10 +16,9 @@ class Model(BaseModel):
 
     def __init__(
         self,
+        source_labels: list[str],
+        grouping: list[int],
         labels: list[str],
-        cat_k: int, # 21 for bacteria
-        grp_k: int, # 5 for bacteria
-        grp_fn: Callable[[int], int],
         in_dims: int,
         rand_perms: int,
         optim_lr: float,
@@ -28,13 +26,13 @@ class Model(BaseModel):
     ) -> None:
         super().__init__(
             labels=labels,
-            cat_k=cat_k,
+            cat_k=len(labels),
             optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=False,
         )
-        self.grp_k = grp_k
-        self.grp_fn = grp_fn
+        self.src_k = len(source_labels)
+        self.grouping = grouping
         self.in_dims = in_dims
         self.rand_perms = rand_perms
         self.classifier_loss = classifier_loss
@@ -43,21 +41,23 @@ class Model(BaseModel):
         self.define_metrics()
 
     def define_model(self):
+        S = self.src_k
         K = self.cat_k
-        G = self.grp_k
         E = self.in_dims
         N = self.rand_perms
-        # (N x K) list to build permutations
+        # (N x S) list to build permutations
         P = []
-        seq = [*range(K)]
+        idxs = list(range(S))
+        random.seed(42)
         for _ in range(N):
-            P.append([self.grp_fn(i) for i in seq])
-            shuffle(seq)
-        # (K x N) permutation matrix for targets (GT_index = 0)
-        self.P = torch.as_tensor(P).T
+            P.append(list(map(self.grouping.__getitem__, idxs)))
+            random.shuffle(idxs)
+        # (S x N) permutation matrix for targets (GT_index = 0)
+        self.P = torch.tensor(P).T
+        assert list(self.P.shape) == [S, N]
         # weight matrix and bias for linear classifier
-        self.W = torch.nn.Parameter(torch.randn(E, G, N))
-        self.B = torch.nn.Parameter(torch.randn(1, 1, N))
+        self.W = torch.nn.Parameter(torch.randn(E, K, N))
+        self.B = torch.nn.Parameter(torch.randn(1, K, N))
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -72,7 +72,7 @@ class Model(BaseModel):
 
     def compute_losses(
         self,
-        batch: Tuple[torch.Tensor, torch.Tensor],
+        batch: tuple[torch.Tensor, torch.Tensor],
         batch_idx: int,
         stage: str,
     ) -> torch.Tensor:
@@ -87,18 +87,18 @@ class Model(BaseModel):
 
         # forward pass
         B = y.size(0)
+        K = self.cat_k
         N = self.rand_perms
-        G = self.grp_k
-        
-        preds = self(x)  # (B, G, N)
-        assert list(preds.shape) == [B, G, N]
+
+        preds = self(x)  # (B, K, N)
+        assert list(preds.shape) == [B, K, N]
 
         targets = self.P.to(y.device)[y, ...]  # (B, N)
         assert list(targets.shape) == [B, N]
 
-        losses = F.cross_entropy(preds, targets, reduction="none") # (B, N)
+        losses = F.cross_entropy(preds, targets, reduction="none")  # (B, N)
         assert list(losses.shape) == [B, N]
-        
+
         loss_true = losses[..., 0].mean()
         loss_rand = losses[..., 1:].mean()
         losses_mb["loss_y_true"] = loss_true
@@ -106,10 +106,12 @@ class Model(BaseModel):
 
         # classifier metrics
         pY = preds[..., 0].softmax(-1)
+        assert list(pY.shape) == [B, K]
         uY = 1 - pY.amax(-1)
-        metrics_mb["y_prob"] = pY
-        metrics_mb["y_pred"] = pY.argmax(-1)
-        metrics_mb["y_ucty"] = uY
+        assert list(uY.shape) == [B]
+        metrics_mb["y_prob"] = pY  # (B, K)
+        metrics_mb["y_pred"] = pY.argmax(-1)  # (B, )
+        metrics_mb["y_ucty"] = uY  # (B, )
 
         # overall metrics
         losses_mb["loss"] = torch.as_tensor(sum(losses_mb.values()))

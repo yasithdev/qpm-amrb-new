@@ -99,9 +99,9 @@ class Config(argparse.Namespace):
     expand_3ch: bool
     # data params - initialized when load_data() is called
     input_shape: Tuple[int, ...] | None = None
+    source_labels: List[str] | None = None
+    grouping: List[int] | None = None
     labels: List[str] | None = None
-    groups: List[str] | None = None
-    group_fn: Callable[[int], int] | None = None
     datamodule: LightningDataModule | None = None
 
     def __setattr__(self, name, value):
@@ -163,9 +163,9 @@ class Config(argparse.Namespace):
             assert len(dm.shape) == 1
             self.input_shape = dm.shape
             self.emb_dims = dm.shape[0]
+            self.source_labels = dm.source_labels
+            self.grouping = dm.permuted_grouping # NOTE must have ind_labels first and ood_labels last
             self.labels = dm.permuted_labels # NOTE must have ind_labels first and ood_labels last
-            self.groups = dm.group_labels
-            self.group_fn = dm.target_group_fn
             self.datamodule = dm
 
         elif len(dataset_name) > 0 and len(data_dir) > 0:

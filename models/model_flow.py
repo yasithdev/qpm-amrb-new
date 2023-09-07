@@ -95,14 +95,12 @@ class Model(BaseModel):
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
                 #
                 flow.nn.Squeeze(factor=k1),
                 flow.nn.ActNorm(c2),
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
             ]
         )
 
@@ -114,7 +112,6 @@ class Model(BaseModel):
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_uA._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_uB._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_uA._asdict()),
                 #
                 flow.nn.ActNorm(cm),
                 #

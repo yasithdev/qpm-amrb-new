@@ -24,7 +24,7 @@ model = config.get_model()
 wandb_logger = WandbLogger(
     project="robust_ml",
     log_model="all",
-    name=f"{config.dataset_name}_{config.model_name}",
+    name=f"{config.dataset_name or config.emb_name}_{config.model_name}",
     config={**config.params, **model.hparams},
 )
 wandb_logger.watch(model, log="all")

@@ -1,5 +1,5 @@
 import random
-from typing import List, Tuple
+from typing import TypeVar
 
 import torch
 import torch.nn.functional as F
@@ -10,6 +10,8 @@ from torch.utils.data import Dataset
 from tqdm.auto import tqdm
 
 from config import Config
+
+L = TypeVar("L")
 
 
 class AddGaussianNoise(object):
@@ -174,9 +176,9 @@ def simclr_transform(opt: Config, eval=False):
 
 
 def reindex_for_ood(
-    targets: List[str],
-    ood: List[int],
-) -> List[str]:
+    targets: list[L],
+    ood: list[int],
+) -> list[L]:
     ind_targets = [y for i, y in enumerate(targets) if i not in ood]
     ood_targets = [y for i, y in enumerate(targets) if i in ood]
     permuted_labels = ind_targets + ood_targets
@@ -189,7 +191,7 @@ def ind_ood_split(
 ) -> tuple[list[int], list[int]]:
     ind_idx = []
     ood_idx = []
-    for idx, (x, y) in enumerate(tqdm(dataset)):
+    for idx, (_, y, *_) in enumerate(tqdm(dataset)): # type: ignore
         dest = ood_idx if y in ood else ind_idx
         dest.append(idx)
     return ind_idx, ood_idx

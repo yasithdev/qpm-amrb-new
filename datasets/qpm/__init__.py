@@ -102,20 +102,21 @@ class DataModule(pl.LightningDataModule):
             target_transform=self.target_transform,
             label_type=self.target_label,
             balance_data=False,
+            filter_labels=self.ood,
         )
         if stage == "fit":
-            self.train_data = get_dataset(type_="train", filter_labels=self.ood, filter_mode="exclude")
-            self.val_data = get_dataset(type_="val", filter_labels=self.ood, filter_mode="exclude")
+            self.train_data = get_dataset(type_="train", filter_mode="exclude")
+            self.val_data = get_dataset(type_="val", filter_mode="exclude")
 
         if stage == "test":
-            self.test_data = get_dataset(type_="test", filter_labels=self.ood, filter_mode="exclude")
+            self.test_data = get_dataset(type_="test", filter_mode="exclude")
 
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    get_dataset(type_="train", filter_labels=self.ood, filter_mode="include"),
-                    get_dataset(type_="val", filter_labels=self.ood, filter_mode="include"),
-                    get_dataset(type_="test", filter_labels=self.ood, filter_mode="include"),
+                    get_dataset(type_="train", filter_mode="include"),
+                    get_dataset(type_="val", filter_mode="include"),
+                    get_dataset(type_="test", filter_mode="include"),
                 ]
             )
 

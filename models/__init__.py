@@ -1,7 +1,8 @@
 import importlib
-from config import Config
 
+from config import Config
 from models.base import BaseModel
+
 
 def get_model(
     model_name: str,
@@ -12,7 +13,6 @@ def get_model(
     cat_k: int,
     opt: Config,
 ) -> BaseModel:
-
     args: dict = dict(
         emb_dims=emb_dims,
         optim_lr=optim_lr,
@@ -22,7 +22,7 @@ def get_model(
     )
 
     # VARIANTS
-    
+
     # resnet variants
     if model_name == "resnet_ce_mse":
         from .model_resnet import Model
@@ -36,7 +36,7 @@ def get_model(
     elif model_name == "resnet_edl":
         from .model_resnet import Model
         return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
-    
+
     # resnet18 variants
     elif model_name == "resnet18_ce":
         from .model_resnet18 import Model
@@ -44,7 +44,7 @@ def get_model(
     elif model_name == "resnet18_edl":
         from .model_resnet18 import Model
         return Model(**args, classifier_loss="edl")
-    
+
     # resnet50 variants
     elif model_name == "resnet50_simclr":
         from .model_resnet50 import Model
@@ -55,7 +55,7 @@ def get_model(
     elif model_name == "resnet50_ce":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=True, encoder_loss="N/A", classifier_loss="crossent", opt=opt)
-    
+
     # rescaps variants
     elif model_name == "rescaps_margin_mse":
         from .model_rescaps import Model
@@ -69,7 +69,7 @@ def get_model(
     elif model_name == "rescaps_edl":
         from .model_rescaps import Model
         return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
-    
+
     # flow variants
     elif model_name == "flow_ce_mse":
         from .model_flow import Model
@@ -83,22 +83,20 @@ def get_model(
 
     # fisher exact
     elif model_name == "fisher_exact_ce":
-        assert opt.groups is not None
-        assert opt.cat_k is not None
-        assert opt.group_fn is not None
+        assert opt.source_labels is not None
+        assert opt.grouping is not None
         from .model_fisher_exact import Model
         return Model(
+            source_labels=opt.source_labels,
+            grouping=opt.grouping,
             labels=labels,
-            cat_k=opt.cat_k,
-            grp_k=len(opt.groups),
-            grp_fn=opt.group_fn,
             in_dims=opt.emb_dims,
             rand_perms=opt.rand_perms,
             optim_lr=opt.optim_lr,
         )
 
     # DEFAULTS
-    
+
     try:
         module = importlib.__import__(
             name=f"model_{model_name}",

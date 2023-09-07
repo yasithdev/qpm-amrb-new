@@ -35,9 +35,9 @@ def get_embedding(
         # map strains to species
         from .qpm import species, species_mapping, strains
 
-        target_labels = strains
-        group_labels = species
-        target_group_fn = species_mapping.__getitem__
+        source_labels = strains
+        grouping = species_mapping
+        labels = species
     else:
         raise ValueError()
 
@@ -45,8 +45,8 @@ def get_embedding(
         emb_dir=emb_dir,
         emb_name=emb_name,
         batch_size=batch_size,
-        target_labels=target_labels,
-        group_labels=group_labels,
-        target_group_fn=target_group_fn,
+        source_labels=source_labels,
+        grouping=grouping,
+        labels=labels,
         ood=ood,
     )

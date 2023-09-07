@@ -1,6 +1,5 @@
 import json
 from functools import partial
-from typing import Callable
 
 import lightning.pytorch as pl
 from torch.utils.data import ConcatDataset, DataLoader
@@ -15,9 +14,9 @@ class DataModule(pl.LightningDataModule):
         emb_dir: str,
         emb_name: str,
         batch_size: int,
-        target_labels: list[str],
-        group_labels: list[str] | None = None,
-        target_group_fn: Callable[[int], int] | None = None,
+        source_labels: list[str],
+        grouping: list[int] | None = None,
+        labels: list[str] | None = None,
         ood: list[int] = [],
     ) -> None:
         super().__init__()
@@ -30,14 +29,15 @@ class DataModule(pl.LightningDataModule):
         # load info
         with open(f"{self.emb_dir}/{self.emb_name}/info.json") as fp:
             info = json.load(fp)
-        self.shape: tuple[int, ...] = tuple(info.shape)
+        self.shape: tuple[int, ...] = tuple(info["shape"])
         # get target mapping
-        self.target_labels = target_labels
-        self.group_labels = group_labels
-        self.target_group_fn = target_group_fn
-        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
-        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
-        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
+        self.source_labels = source_labels
+        self.grouping = grouping or list(range(len(self.source_labels)))  # by default, each target has its own group
+        self.labels = labels or self.source_labels
+        # ood adjustments
+        self.permuted_labels = reindex_for_ood(self.labels, self.ood)
+        self.permuted_grouping = list(map(self.permuted_labels.index, map(self.labels.__getitem__, self.grouping)))
+        self.target_transform = self.permuted_grouping.__getitem__
 
         self.train_data = None
         self.val_data = None
@@ -50,23 +50,19 @@ class DataModule(pl.LightningDataModule):
             emb_dir=self.emb_dir,
             emb_name=self.emb_name,
             target_transform=self.target_transform,
+            filter_labels=[i for i, x in enumerate(self.grouping) if x in self.ood],
         )
-
         if stage == "fit":
-            self.train_data = create_fn(emb_type="train", filter_labels=self.ood, filter_mode="exclude")
-
-        if stage == "validate":
-            self.val_data = create_fn(emb_type="val", filter_labels=self.ood, filter_mode="exclude")
-
+            self.train_data = create_fn(emb_type="train", filter_mode="exclude")
+            self.val_data = create_fn(emb_type="val", filter_mode="exclude")
         if stage == "test":
-            self.test_data = create_fn(emb_type="test", filter_labels=self.ood, filter_mode="exclude")
-
+            self.test_data = create_fn(emb_type="test", filter_mode="exclude")
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    create_fn(emb_type="train", filter_labels=self.ood, filter_mode="include"),
-                    create_fn(emb_type="val", filter_labels=self.ood, filter_mode="include"),
-                    create_fn(emb_type="test", filter_labels=self.ood, filter_mode="include"),
+                    create_fn(emb_type="train", filter_mode="include"),
+                    create_fn(emb_type="val", filter_mode="include"),
+                    create_fn(emb_type="test", filter_mode="include"),
                 ]
             )
 
