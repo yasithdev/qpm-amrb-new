@@ -8,7 +8,7 @@ def get_model(
     model_name: str,
     emb_dims: int,
     optim_lr: float,
-    input_shape: tuple[int, int, int],
+    input_shape: tuple[int, ...],
     labels: list[str],
     cat_k: int,
     opt: Config,
@@ -83,16 +83,18 @@ def get_model(
 
     # fisher exact
     elif model_name == "fisher_exact_ce":
-        assert opt.source_labels is not None
+        assert opt.src_labels is not None
         assert opt.grouping is not None
+        assert opt.labels is not None
         from .model_fisher_exact import Model
         return Model(
-            source_labels=opt.source_labels,
-            grouping=opt.grouping,
             labels=labels,
-            in_dims=opt.emb_dims,
+            src_k=len(opt.src_labels),
+            grouping=opt.grouping,
+            in_dims=emb_dims,
             rand_perms=opt.rand_perms,
-            optim_lr=opt.optim_lr,
+            optim_lr=optim_lr,
+            classifier_loss="crossent",
         )
 
     # DEFAULTS

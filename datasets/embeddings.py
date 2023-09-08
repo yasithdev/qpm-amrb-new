@@ -14,9 +14,9 @@ class DataModule(pl.LightningDataModule):
         emb_dir: str,
         emb_name: str,
         batch_size: int,
-        source_labels: list[str],
-        grouping: list[int] | None = None,
-        labels: list[str] | None = None,
+        labels: list[str],
+        src_labels: list[str],
+        grouping: list[int],
         ood: list[int] = [],
     ) -> None:
         super().__init__()
@@ -31,13 +31,17 @@ class DataModule(pl.LightningDataModule):
             info = json.load(fp)
         self.shape: tuple[int, ...] = tuple(info["shape"])
         # get target mapping
-        self.source_labels = source_labels
-        self.grouping = grouping or list(range(len(self.source_labels)))  # by default, each target has its own group
-        self.labels = labels or self.source_labels
+        assert len(src_labels) == len(grouping)
+        self.labels = labels
+        self.src_labels = src_labels
+        self.grouping = grouping
         # ood adjustments
         self.permuted_labels = reindex_for_ood(self.labels, self.ood)
         self.permuted_grouping = list(map(self.permuted_labels.index, map(self.labels.__getitem__, self.grouping)))
-        self.target_transform = self.permuted_grouping.__getitem__
+        # sanity check
+        if len(ood) == 0:
+            assert self.permuted_labels == self.labels
+            assert self.permuted_grouping == self.grouping
 
         self.train_data = None
         self.val_data = None
@@ -49,14 +53,18 @@ class DataModule(pl.LightningDataModule):
             EmbeddingDataset,
             emb_dir=self.emb_dir,
             emb_name=self.emb_name,
-            target_transform=self.target_transform,
+            # NOTE target_transform must be None
+            # as the fisher exact method must be able to permute the source labels
+            target_transform=None,
             filter_labels=[i for i, x in enumerate(self.grouping) if x in self.ood],
         )
         if stage == "fit":
             self.train_data = create_fn(emb_type="train", filter_mode="exclude")
             self.val_data = create_fn(emb_type="val", filter_mode="exclude")
+            print("train=", len(self.train_data), ", val=", len(self.val_data))
         if stage == "test":
             self.test_data = create_fn(emb_type="test", filter_mode="exclude")
+            print("test=", len(self.test_data))
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
@@ -65,6 +73,7 @@ class DataModule(pl.LightningDataModule):
                     create_fn(emb_type="test", filter_mode="include"),
                 ]
             )
+            print("predict=", len(self.ood_data))
 
     def train_dataloader(self):
         assert self.train_data

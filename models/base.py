@@ -9,8 +9,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from torchmetrics.aggregation import CatMetric
-from torchmetrics.classification import (MulticlassAccuracy,
-                                         MulticlassConfusionMatrix)
+from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
 from torchmetrics.regression import MeanSquaredError
 
 
@@ -65,6 +64,9 @@ class BaseModel(pl.LightningModule):
                 setattr(self, f"{stage}_correctness", CatMetric())
                 setattr(self, f"{stage}_batch_y_pred", CatMetric())
                 setattr(self, f"{stage}_batch_y_ucty", CatMetric())
+                # permutation metrics
+                setattr(self, f"{stage}_uncertainty_rand", CatMetric())
+                setattr(self, f"{stage}_correctness_rand", CatMetric())
             # decoder metrics
             if self.with_decoder:
                 setattr(self, f"{stage}_decoder_mse", MeanSquaredError())
@@ -81,6 +83,9 @@ class BaseModel(pl.LightningModule):
             getattr(self, f"{stage}_correctness").reset()
             getattr(self, f"{stage}_batch_y_pred").reset()
             getattr(self, f"{stage}_batch_y_ucty").reset()
+            # permutation metrics
+            getattr(self, f"{stage}_uncertainty_rand").reset()
+            getattr(self, f"{stage}_correctness_rand").reset()
         if self.with_decoder:
             getattr(self, f"{stage}_decoder_mse").reset()
             getattr(self, f"{stage}_batch_x_pred").reset()
@@ -94,16 +99,22 @@ class BaseModel(pl.LightningModule):
         if "y_pred" in metrics and "y_true" in metrics:
             arg = metrics["y_pred"].eq(metrics["y_true"])
             getattr(self, f"{stage}_correctness")(arg)
-
         if "y_ucty" in metrics:
             arg = metrics["y_ucty"]
             getattr(self, f"{stage}_uncertainty")(arg)
-
         if "y_prob" in metrics and "y_true" in metrics:
             args = metrics["y_prob"], metrics["y_true"]
             getattr(self, f"{stage}_accuracy")(*args)
             getattr(self, f"{stage}_accuracy_top2")(*args)
             getattr(self, f"{stage}_confusion_matrix")(*args)
+
+        # permutation metrics
+        if "y_pred_rand" in metrics and "y_true_rand" in metrics:
+            arg = metrics["y_pred_rand"].eq(metrics["y_true_rand"])
+            getattr(self, f"{stage}_correctness_rand")(arg)
+        if "y_ucty_rand" in metrics:
+            arg = metrics["y_ucty_rand"]
+            getattr(self, f"{stage}_uncertainty_rand")(arg)
 
         if "x_pred" in metrics and "x_true" in metrics:
             args = metrics["x_pred"].flatten(start_dim=1), metrics["x_true"].flatten(start_dim=1)
@@ -125,12 +136,15 @@ class BaseModel(pl.LightningModule):
         # get wandb logger
         assert self.logger
         logger: WandbLogger = self.logger  # type: ignore
+        K = self.cat_k
 
         # classifier related plots
         if self.with_classifier:
             # log accuracy
-            self.log(f"{stage}_accuracy", getattr(self, f"{stage}_accuracy").compute(), sync_dist=True)
-            self.log(f"{stage}_accuracy_top2", getattr(self, f"{stage}_accuracy_top2").compute(), sync_dist=True)
+            acc: torch.Tensor = getattr(self, f"{stage}_accuracy").compute()
+            acc2: torch.Tensor = getattr(self, f"{stage}_accuracy_top2").compute()
+            self.log(f"{stage}_accuracy", acc, sync_dist=True)
+            self.log(f"{stage}_accuracy_top2", acc2, sync_dist=True)
             # plot confusion matrix
             confusion_matrix: MulticlassConfusionMatrix = getattr(self, f"{stage}_confusion_matrix")
             cm_fig: Figure = confusion_matrix.plot(add_text=True, labels=self.labels[: self.cat_k])[0]  # type: ignore
@@ -141,19 +155,47 @@ class BaseModel(pl.LightningModule):
             # plot model calibration
             uncertainty: torch.Tensor = getattr(self, f"{stage}_uncertainty").compute()
             correctness: torch.Tensor = getattr(self, f"{stage}_correctness").compute().bool()
-            ucty_T = pd.DataFrame({'ucty': uncertainty[correctness].tolist()})
-            ucty_F = pd.DataFrame({'ucty': uncertainty[~correctness].tolist()})
+            ucty_T = pd.DataFrame({"ucty": uncertainty[correctness].tolist()})
+            ucty_F = pd.DataFrame({"ucty": uncertainty[~correctness].tolist()})
             fig = plt.figure()
             if len(ucty_T) > 0:
-                sns.kdeplot(ucty_T, x="ucty", fill=True, label='Correct Predictions')
+                sns.kdeplot(ucty_T, x="ucty", fill=True, label="Correct Predictions")
             if len(ucty_F) > 0:
-                sns.kdeplot(ucty_F, x="ucty", fill=True, label='Incorrect Predictions')
+                sns.kdeplot(ucty_F, x="ucty", fill=True, label="Incorrect Predictions")
             plt.legend(loc="upper right")
             plt.title("Model Calibration")
             fig.canvas.draw()
             cd_img = PIL.Image.frombytes("RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb())  # type: ignore
             logger.log_image(f"{stage}_calibration", [cd_img])
             plt.close()
+
+            # plot null distribution from permutations
+            if hasattr(self, f"{stage}_uncertainty_rand") and hasattr(self, f"{stage}_correctness_rand"):
+                # TODO check if this working is correct
+                uncertainty_rand: torch.Tensor = getattr(self, f"{stage}_uncertainty_rand").compute()  # (B, N-1)
+                correctness_rand: torch.Tensor = getattr(self, f"{stage}_correctness_rand").compute()  # (B, N-1)
+                acc_distribution = correctness_rand.mean(dim=0)  # (N-1)
+                ucty_distribution = uncertainty_rand.mean(dim=0)  # (N-1)
+                dist_data = pd.DataFrame({
+                    "acc": acc_distribution.tolist(),
+                    "ucty": ucty_distribution.tolist(),
+                })
+                fig = plt.figure()
+                sns.kdeplot(dist_data, x="acc", fill=True)
+                plt.axvline(acc.item(), color='red')
+                plt.title("Null Distribution (Accuracy)")
+                fig.canvas.draw()
+                cd_img = PIL.Image.frombytes("RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb())  # type: ignore
+                logger.log_image(f"{stage}_null_dist_acc", [cd_img])
+                plt.close()
+                fig = plt.figure()
+                sns.kdeplot(dist_data, x="ucty", fill=True)
+                plt.axvline(uncertainty.mean().item(), color='red')
+                plt.title("Null Distribution (Uncertainty)")
+                fig.canvas.draw()
+                cd_img = PIL.Image.frombytes("RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb())  # type: ignore
+                logger.log_image(f"{stage}_null_dist_ucty", [cd_img])
+                plt.close()
 
         # decoder related plots
         if self.with_decoder:
