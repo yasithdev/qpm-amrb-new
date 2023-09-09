@@ -10,52 +10,39 @@ from .base import BaseModel
 
 class Model(BaseModel):
     """
-    Linear Classifier with Fisher Exact Randomization Targets
+    Linear Classifier with Label Permutations for Hypothesis Testing
 
     """
 
     def __init__(
         self,
         labels: list[str],
-        src_k: int,
-        grouping: list[int],
+        cat_k: int,
         in_dims: int,
-        rand_perms: int,
+        permutations: list[list[int]],
         optim_lr: float,
         classifier_loss: str = "crossent",
     ) -> None:
         super().__init__(
             labels=labels,
-            cat_k=len(labels),
+            cat_k=cat_k,
             optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=False,
         )
-        self.src_k = src_k
-        self.grouping = grouping
-        assert len(grouping) == src_k
         self.in_dims = in_dims
-        self.rand_perms = rand_perms
+        self.permutations = permutations
         self.classifier_loss = classifier_loss
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
-        S = self.src_k
         K = self.cat_k
         E = self.in_dims
-        N = self.rand_perms
-        # (N x S) list to build permutations
-        P = []
-        idxs = list(range(S))
-        random.seed(42)
-        for _ in range(N):
-            P.append(list(map(self.grouping.__getitem__, idxs)))
-            random.shuffle(idxs)
-        # (S x N) permutation matrix for targets (GT_index = 0)
-        self.P = torch.tensor(P).T
-        assert list(self.P.shape) == [S, N]
+        # (S x N) permutation matrix for targets (GT at N=0)
+        self.perm = torch.nn.Parameter(torch.tensor(self.permutations), requires_grad=False)
+        S, N = self.perm.shape
         # weight matrix and bias for linear classifier
         self.cls_weights = torch.nn.Parameter(torch.randn(E, K, N))
         self.cls_bias = torch.nn.Parameter(torch.randn(1, K, N))
@@ -89,13 +76,13 @@ class Model(BaseModel):
         # forward pass
         B = y.size(0)
         K = self.cat_k
-        N = self.rand_perms
+        S, N = self.perm.shape
 
         preds = self(x)  # (B, K, N)
         assert list(preds.shape) == [B, K, N]
 
         # expand y with permutations
-        y = self.P.to(y.device)[y, ...].detach()  # (B, N)
+        y = self.perm.to(y.device)[y, ...].detach()  # (B, N)
         assert list(y.shape) == [B, N]
         metrics_mb["y_true"] = y[..., 0]
         metrics_mb["y_true_rand"] = y[..., 1:]

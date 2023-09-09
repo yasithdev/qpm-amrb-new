@@ -42,10 +42,6 @@ train_qpm_species_resnet50_vicreg:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg" --emb_dims=128 --ckpt_metric="val_loss_vicreg" --ckpt_mode="min"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg" --emb_dims=128 --ckpt_metric="val_loss_vicreg" --ckpt_mode="min" --ood="1:2"; \
 
-train_qpm_species_resnet50_emb_fisher:
-	python -u train.py --emb_name="QPM_species_resnet50_simclr_M128" --emb_dims=1024 --rand_perms=1000 --model_name="fisher_exact_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
-	python -u train.py --emb_name="QPM_species_resnet50_vicreg_M128" --emb_dims=1024 --rand_perms=1000 --model_name="fisher_exact_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
-
 train_qpm_species_resnet18_simclr:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_simclr" --emb_dims=128 --ckpt_metric="val_loss_simclr" --ckpt_mode="min"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_simclr" --emb_dims=128 --ckpt_metric="val_loss_simclr" --ckpt_mode="min" --ood="1:2"; \
@@ -54,14 +50,25 @@ train_qpm_species_resnet18_vicreg:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg" --emb_dims=128 --ckpt_metric="val_loss_vicreg" --ckpt_mode="min"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg" --emb_dims=128 --ckpt_metric="val_loss_vicreg" --ckpt_mode="min" --ood="1:2"; \
 
-train_qpm_species_resnet18_emb_fisher:
-	python -u train.py --emb_name="QPM_species_resnet18_simclr_M128" --emb_dims=512 --rand_perms=1000 --model_name="fisher_exact_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
-	python -u train.py --emb_name="QPM_species_resnet18_vicreg_M128" --emb_dims=512 --rand_perms=1000 --model_name="fisher_exact_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
-
-train_qpm_species_flow_mse:
+train_qpm_species_flow_mse_ood:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="3"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="4"; \
 
+train_qpm_species_resnet50_perm_linear:
+	python -u train.py --emb_name="QPM_species_resnet50_simclr_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
+	python -u train.py --emb_name="QPM_species_resnet50_vicreg_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
+
+train_qpm_species_resnet50_perm_linear_ood:
+	python -u train.py --emb_name="QPM_species_resnet50_simclr_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
+	python -u train.py --emb_name="QPM_species_resnet50_vicreg_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
+
+train_qpm_species_resnet50_perm_mlp:
+	python -u train.py --emb_name="QPM_species_resnet50_simclr_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_mlp_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
+	python -u train.py --emb_name="QPM_species_resnet50_vicreg_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_mlp_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
+
+train_qpm_species_resnet50_perm_mlp_ood:
+	python -u train.py --emb_name="QPM_species_resnet50_simclr_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_mlp_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
+	python -u train.py --emb_name="QPM_species_resnet50_vicreg_M128" --emb_dims=1024 --rand_perms=1000 --model_name="ht_mlp_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \	

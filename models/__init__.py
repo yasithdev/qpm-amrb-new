@@ -2,6 +2,7 @@ import importlib
 
 from config import Config
 from models.base import BaseModel
+from .common import generate_rand_perms
 
 
 def get_model(
@@ -27,75 +28,76 @@ def get_model(
     if model_name == "resnet_ce_mse":
         from .model_resnet import Model
         return Model(**args, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
-    elif model_name == "resnet_ce":
+    if model_name == "resnet_ce":
         from .model_resnet import Model
         return Model(**args, with_decoder=False, classifier_loss="crossent", decoder_loss="N/A")
-    elif model_name == "resnet_edl_mse":
+    if model_name == "resnet_edl_mse":
         from .model_resnet import Model
         return Model(**args, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
-    elif model_name == "resnet_edl":
+    if model_name == "resnet_edl":
         from .model_resnet import Model
         return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
 
     # resnet18 variants
-    elif model_name == "resnet18_ce":
+    if model_name == "resnet18_ce":
         from .model_resnet18 import Model
         return Model(**args, classifier_loss="crossent")
-    elif model_name == "resnet18_edl":
+    if model_name == "resnet18_edl":
         from .model_resnet18 import Model
         return Model(**args, classifier_loss="edl")
 
     # resnet50 variants
-    elif model_name == "resnet50_simclr":
+    if model_name == "resnet50_simclr":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=False, encoder_loss="simclr", classifier_loss="N/A", opt=opt)
-    elif model_name == "resnet50_vicreg":
+    if model_name == "resnet50_vicreg":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=False, encoder_loss="vicreg", classifier_loss="N/A", opt=opt)
-    elif model_name == "resnet50_ce":
+    if model_name == "resnet50_ce":
         from .model_resnet50 import Model
         return Model(**args, with_classifier=True, encoder_loss="N/A", classifier_loss="crossent", opt=opt)
 
     # rescaps variants
-    elif model_name == "rescaps_margin_mse":
+    if model_name == "rescaps_margin_mse":
         from .model_rescaps import Model
         return Model(**args, with_decoder=True, classifier_loss="margin", decoder_loss="mse")
-    elif model_name == "rescaps_margin":
+    if model_name == "rescaps_margin":
         from .model_rescaps import Model
         return Model(**args, with_decoder=False, classifier_loss="margin", decoder_loss="N/A")
-    elif model_name == "rescaps_edl_mse":
+    if model_name == "rescaps_edl_mse":
         from .model_rescaps import Model
         return Model(**args, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
-    elif model_name == "rescaps_edl":
+    if model_name == "rescaps_edl":
         from .model_rescaps import Model
         return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
 
     # flow variants
-    elif model_name == "flow_ce_mse":
+    if model_name == "flow_ce_mse":
         from .model_flow import Model
         return Model(**args, with_classifier=True, classifier_loss="crossent", decoder_loss="mse")
-    elif model_name == "flow_edl_mse":
+    if model_name == "flow_edl_mse":
         from .model_flow import Model
         return Model(**args, with_classifier=True, classifier_loss="edl", decoder_loss="mse")
-    elif model_name == "flow_mse":
+    if model_name == "flow_mse":
         from .model_flow import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
 
-    # fisher exact
-    elif model_name == "fisher_exact_ce":
-        assert opt.src_labels is not None
+    # hypothesis testing variants
+    if model_name.startswith("ht_"):
         assert opt.grouping is not None
-        assert opt.labels is not None
-        from .model_fisher_exact import Model
-        return Model(
+        ht_args: dict = dict(
             labels=labels,
-            src_k=len(opt.src_labels),
-            grouping=opt.grouping,
+            cat_k=cat_k,
             in_dims=emb_dims,
-            rand_perms=opt.rand_perms,
+            permutations=generate_rand_perms(opt.rand_perms, cat_k, opt.grouping),
             optim_lr=optim_lr,
-            classifier_loss="crossent",
         )
+        if model_name == "ht_linear_ce":
+            from .model_ht_linear import Model
+            return Model(**ht_args, classifier_loss="crossent")
+        if model_name == "ht_mlp_ce":
+            from .model_ht_mlp import Model
+            return Model(**ht_args, hidden_dims=256, classifier_loss="crossent")
 
     # DEFAULTS
 

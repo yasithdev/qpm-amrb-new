@@ -2,6 +2,7 @@ import logging
 import os
 from functools import partial
 from typing import Callable, List, Optional, Tuple
+import random
 
 import numpy as np
 import torch
@@ -472,3 +473,21 @@ def vicreg_loss(
     loss = w1 * repr_loss + w2 * std_loss + w3 * cov_loss
 
     return loss
+
+
+def generate_rand_perms(
+    num_perms: int,
+    num_targets: int,
+    grouping: list[int],
+) -> list[list[int]]:
+    random.seed(42)
+    perms: list[list[int]] = []
+    idxs = list(range(num_targets))
+    while len(perms) < num_perms:
+        perm = list(map(grouping.__getitem__, idxs))
+        if perm not in perms:
+            perms.append(perm)
+        random.shuffle(idxs)
+    # convert perms from (perm_i, target_j) -> (target_i, perm_j)
+    perms = np.array(perms).T.tolist()
+    return perms
