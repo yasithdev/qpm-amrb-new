@@ -2,7 +2,6 @@ import logging
 import os
 from functools import partial
 from typing import Callable, List, Optional, Tuple
-import random
 
 import numpy as np
 import torch
@@ -477,17 +476,32 @@ def vicreg_loss(
 
 def generate_rand_perms(
     num_perms: int,
-    num_targets: int,
+    cat_k: int,
     grouping: list[int],
-) -> list[list[int]]:
-    random.seed(42)
-    perms: list[list[int]] = []
-    idxs = list(range(num_targets))
+) -> np.ndarray:
+    """
+    Generate random permutations of a given grouping
+
+    Args:
+        num_perms (int): number of permutations
+        cat_k (int): only permute targets having group id < cat_k
+        grouping (list[int]): list of group ids of each target
+
+    Returns:
+        np/ndarray: permutations of the grouping
+    """
+    np.random.seed(42)
+    gt_grp = np.array(grouping)
+    idx = np.argwhere(gt_grp < cat_k)
+    
+    perms = []
+    rand_grp = gt_grp[idx]
     while len(perms) < num_perms:
-        perm = list(map(grouping.__getitem__, idxs))
-        if perm not in perms:
-            perms.append(perm)
-        random.shuffle(idxs)
+        if rand_grp.tolist() not in perms:
+            arr = gt_grp.copy()
+            arr[idx] = rand_grp.copy()
+            perms.append(arr.tolist())
+        np.random.shuffle(rand_grp)
     # convert perms from (perm_i, target_j) -> (target_i, perm_j)
     perms = np.array(perms).T.tolist()
     return perms

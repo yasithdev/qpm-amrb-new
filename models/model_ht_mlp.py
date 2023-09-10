@@ -60,9 +60,10 @@ class Model(BaseModel):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        z = einops.einsum(x, self.cls_weights_1, "B E, E H N -> B H N") + self.cls_bias_1
+        z = x
+        z = einops.einsum(z, self.cls_weights_1, "B E, E H N -> B H N") + self.cls_bias_1
         z = F.relu(z)
-        z = einops.einsum(x, self.cls_weights_2, "B H N, H K N -> B K N") + self.cls_bias_2
+        z = einops.einsum(z, self.cls_weights_2, "B H N, H K N -> B K N") + self.cls_bias_2
         return z
 
     def compute_losses(
