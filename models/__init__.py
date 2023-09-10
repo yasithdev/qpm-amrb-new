@@ -97,7 +97,7 @@ def get_model(
             return Model(**ht_args, classifier_loss="crossent")
         if model_name == "ht_mlp_ce":
             from .model_ht_mlp import Model
-            return Model(**ht_args, hidden_dims=256, classifier_loss="crossent")
+            return Model(**ht_args, hidden_dims=32, classifier_loss="crossent")
 
     # DEFAULTS
 
