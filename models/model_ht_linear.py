@@ -29,6 +29,7 @@ class Model(BaseModel):
             optim_lr=optim_lr,
             with_classifier=True,
             with_decoder=False,
+            with_permutations=True,
         )
         self.in_dims = in_dims
         self.permutations = permutations

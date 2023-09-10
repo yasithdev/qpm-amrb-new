@@ -21,6 +21,7 @@ class BaseModel(pl.LightningModule):
         optim_lr: float,
         with_classifier: bool = True,
         with_decoder: bool = True,
+        with_permutations: bool = False,
     ) -> None:
         super().__init__()
         self.labels = labels
@@ -28,6 +29,7 @@ class BaseModel(pl.LightningModule):
         self.optim_lr = optim_lr
         self.with_classifier = with_classifier
         self.with_decoder = with_decoder
+        self.with_permutations = with_permutations
 
     def define_model(self):
         raise NotImplementedError()
@@ -64,7 +66,8 @@ class BaseModel(pl.LightningModule):
                 setattr(self, f"{stage}_correctness", CatMetric())
                 setattr(self, f"{stage}_batch_y_pred", CatMetric())
                 setattr(self, f"{stage}_batch_y_ucty", CatMetric())
-                # permutation metrics
+            # permutation metrics
+            if self.with_permutations:
                 setattr(self, f"{stage}_uncertainty_rand", CatMetric())
                 setattr(self, f"{stage}_correctness_rand", CatMetric())
             # decoder metrics
@@ -83,7 +86,8 @@ class BaseModel(pl.LightningModule):
             getattr(self, f"{stage}_correctness").reset()
             getattr(self, f"{stage}_batch_y_pred").reset()
             getattr(self, f"{stage}_batch_y_ucty").reset()
-            # permutation metrics
+        # permutation metrics
+        if self.with_permutations:
             getattr(self, f"{stage}_uncertainty_rand").reset()
             getattr(self, f"{stage}_correctness_rand").reset()
         if self.with_decoder:
@@ -170,7 +174,7 @@ class BaseModel(pl.LightningModule):
             plt.close()
 
             # plot null distribution from permutations
-            if hasattr(self, f"{stage}_uncertainty_rand") and hasattr(self, f"{stage}_correctness_rand"):
+            if self.with_permutations:
                 # TODO check if this working is correct
                 uncertainty_rand: torch.Tensor = getattr(self, f"{stage}_uncertainty_rand").compute()  # (B, N-1)
                 correctness_rand: torch.Tensor = getattr(self, f"{stage}_correctness_rand").compute()  # (B, N-1)
