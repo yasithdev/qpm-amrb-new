@@ -1,3 +1,7 @@
+wandb_fetch:
+	python -u wandb_cleanup_runs.py; \
+	python -u wandb_get_runs.py; \
+
 train_mnist:
 	python -u train.py --dataset_name="MNIST" --model_name="resnet_ce_mse" --emb_dims=128 --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
 	python -u train.py --dataset_name="MNIST" --model_name="resnet_edl_mse" --emb_dims=128 --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
