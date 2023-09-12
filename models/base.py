@@ -176,25 +176,25 @@ class BaseModel(pl.LightningModule):
             # plot null distribution from permutations
             if self.with_permutations:
                 # TODO check if this working is correct
+                uncertainty_gt: torch.Tensor = uncertainty.mean()
+                correctness_gt: torch.Tensor = correctness.float().mean()
                 uncertainty_rand: torch.Tensor = getattr(self, f"{stage}_uncertainty_rand").compute()  # (B, N-1)
                 correctness_rand: torch.Tensor = getattr(self, f"{stage}_correctness_rand").compute()  # (B, N-1)
-                acc_distribution = correctness_rand.mean(dim=0)  # (N-1)
-                ucty_distribution = uncertainty_rand.mean(dim=0)  # (N-1)
                 dist_data = pd.DataFrame({
-                    "acc": acc_distribution.tolist(),
-                    "ucty": ucty_distribution.tolist(),
+                    "correctness_rand": correctness_rand.float().mean(0).tolist(), # (N-1,)
+                    "uncertainty_rand": uncertainty_rand.float().mean(0).tolist(), # (N-1,)
                 })
                 fig = plt.figure()
-                sns.kdeplot(dist_data, x="acc", fill=True)
-                plt.axvline(acc.item(), color='red')
+                sns.histplot(dist_data, x="correctness_rand", fill=True, kde=True)
+                plt.axvline(correctness_gt.item(), color='red')
                 plt.title("Null Distribution (Accuracy)")
                 fig.canvas.draw()
                 cd_img = PIL.Image.frombytes("RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb())  # type: ignore
                 logger.log_image(f"{stage}_null_dist_acc", [cd_img])
                 plt.close()
                 fig = plt.figure()
-                sns.kdeplot(dist_data, x="ucty", fill=True)
-                plt.axvline(uncertainty.mean().item(), color='red')
+                sns.histplot(dist_data, x="uncertainty_rand", fill=True, kde=True)
+                plt.axvline(uncertainty_gt.item(), color='red')
                 plt.title("Null Distribution (Uncertainty)")
                 fig.canvas.draw()
                 cd_img = PIL.Image.frombytes("RGB", fig.canvas.get_width_height(), fig.canvas.tostring_rgb())  # type: ignore
