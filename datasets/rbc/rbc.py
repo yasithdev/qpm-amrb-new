@@ -3,31 +3,7 @@ import glob
 import numpy as np
 from torch.utils.data import Dataset
 
-mapping = {
-    ## Train data
-    "220930_S3" : 1,
-    "221012_A1" : 0,
-    "221012_A2" : 0,
-    "221012_A3" : 0,
-    "221012_A4" : 0,
-    "221012_S1" : 1,
-    "221012_S2" : 1,
-    "221012_S3" : 1,
-    "221012_S4" : 1,
-    "221103_H1" : 0,
-
-    ## Val data
-    "220914_H1" : 0,
-    "220914_H2" : 0,
-    "220914_S1" : 1,
-    "220914_S2" : 1,
-    
-    ## Test data
-    "220921_H1" : 0,
-    "220921_H2" : 0,
-    "220921_S1" : 1,
-    "220921_S2" : 1
-    }
+patient_to_binary_mapping = [1,0,0,0,0,1,1,1,1,0]
 
 class rbc_dataset(Dataset):
     """
@@ -67,12 +43,19 @@ class rbc_dataset(Dataset):
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
         all_files = glob.glob(f"{data_dir}/{self.type_}/*.npy")
+        
+        
+        print(f"RRRR => {len(all_files)}")
         for x in all_files:
-            # read class, embedded in filename (e.g. "220930_S3.npy" -> sickel cell disease -> 1)
-            class_ = mapping[x.split('/')[-1].split('.')[0]]
+            # read class, embedded in filename (e.g. "0.npy" -> sickel cell disease -> 1)
+            class_ = patient_to_binary_mapping[int(x.split("/")[-1].split(".")[0])]
+            data = np.load(x)
             
             # npy files are in (res, res, count) format. Need to bring to (count, res, res) format
-            dirs[class_] = np.load(x).transpose(2, 0, 1)
+            if(class_ in dirs.keys()):
+                dirs[class_] = np.concatenate((dirs[class_], data), axis=0)
+            else:
+                dirs[class_] = data
 
         self.images = []
         self.targets = []
@@ -105,4 +88,4 @@ class rbc_dataset(Dataset):
         if self.target_transform:
             target = self.target_transform(target)
 
-        return image, target, None
+        return image, target, target

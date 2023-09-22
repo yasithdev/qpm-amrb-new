@@ -5,7 +5,20 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood
-from .rbc import rbc_dataset, mapping
+from .rbc import rbc_dataset, patient_to_binary_mapping
+
+patients = [
+    "220930_S3",
+    "221012_A1",
+    "221012_A2",
+    "221012_A3",
+    "221012_A4",
+    "221012_S1",
+    "221012_S2",
+    "221012_S3",
+    "221012_S4",
+    "221103_H1",
+]
 
 classes = [
     "Healthy Cell",
@@ -65,12 +78,11 @@ class DataModule(pl.LightningDataModule):
 
     def setup(self, stage: str) -> None:
         get_dataset = partial(
-            bacteria_dataset,
+            rbc_dataset,
             data_dir=self.data_root,
             transform=self.transform,
             target_transform=self.target_transform,
             label_type=self.target_label,
-            balance_data=False,
             filter_labels=self.ood,
         )
         if stage == "fit":

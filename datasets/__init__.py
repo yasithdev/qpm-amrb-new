@@ -1,4 +1,4 @@
-from . import amrb, cifar10, embeddings, mnist, qpm
+from . import amrb, cifar10, embeddings, mnist, qpm, rbc
 
 
 def get_data(
@@ -19,6 +19,9 @@ def get_data(
     elif dataset_name.startswith("QPM"):
         label_type = dataset_name[4:]
         dm = qpm.DataModule(data_dir, batch_size, ood, label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
+    elif dataset_name.startswith("RBC"):
+        label_type = dataset_name[4:]
+        dm = rbc.DataModule(data_dir, batch_size, ood, label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
     else:
         raise ValueError(f"Dataset '{dataset_name}' is unsupported")
 
@@ -38,6 +41,12 @@ def get_embedding(
         src_labels = strains
         grouping = species_mapping
         labels = species
+    elif "RBC" in emb_name:
+        from .rbc import classes, patient_to_binary_mapping, patients
+
+        src_labels = patients
+        grouping = patient_to_binary_mapping
+        labels = classes
     else:
         raise ValueError()
 
