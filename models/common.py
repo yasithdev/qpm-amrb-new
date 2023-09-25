@@ -477,31 +477,36 @@ def vicreg_loss(
 def generate_rand_perms(
     num_perms: int,
     cat_k: int,
-    grouping: list[int],
-) -> np.ndarray:
+    mapping_gt: list[int] | np.ndarray,
+) -> list[list[int]]:
     """
-    Generate random permutations of a given grouping
+    Generate random permutations of a given mapping
 
     Args:
         num_perms (int): number of permutations
         cat_k (int): only permute targets having group id < cat_k
-        grouping (list[int]): list of group ids of each target
+        mapping_gt (list[int]): ground truth mapping
 
     Returns:
-        np/ndarray: permutations of the grouping
+        np/ndarray: permutations of the ground truth mapping
     """
+    # initialization
     np.random.seed(42)
-    gt_grp = np.array(grouping)
-    idx = np.argwhere(gt_grp < cat_k)
-    
-    perms = []
-    rand_grp = gt_grp[idx]
-    while len(perms) < num_perms:
-        if rand_grp.tolist() not in perms:
-            arr = gt_grp.copy()
-            arr[idx] = rand_grp.copy()
-            perms.append(arr.tolist())
-        np.random.shuffle(rand_grp)
+    if isinstance(mapping_gt, list):
+        mapping_gt = np.array(mapping_gt)
+    # variable to store mappings and their groupings
+    mappings = []
+    groupings = []
+    # only get permutations for ind targets
+    ind = np.nonzero(mapping_gt < cat_k)[0]
+    rand_mapping_ind = mapping_gt[ind].copy()
+    while len(mappings) < num_perms:
+        grouping_ind = frozenset(frozenset(np.nonzero(rand_mapping_ind == k)[0]) for k in range(cat_k))
+        if grouping_ind not in groupings:
+            groupings.append(grouping_ind)
+            rand_mapping = mapping_gt.copy()
+            rand_mapping[ind] = rand_mapping_ind.copy()
+            mappings.append(rand_mapping.tolist())
+        np.random.shuffle(rand_mapping_ind)
     # convert perms from (perm_i, target_j) -> (target_i, perm_j)
-    perms = np.array(perms).T.tolist()
-    return perms
+    return np.array(mappings).T.tolist()
