@@ -3,7 +3,7 @@ import random
 import lightning.pytorch as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint, EarlyStopping
 from lightning.pytorch.loggers.wandb import WandbLogger
 
 from config import load_config
@@ -30,10 +30,11 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 checkpoint_callback = ModelCheckpoint(monitor=config.ckpt_metric, mode=config.ckpt_mode)
+early_stopping_callback = EarlyStopping(monitor=config.ckpt_metric, mode=config.ckpt_mode, patience=15)
 trainer = pl.Trainer(
     logger=wandb_logger,
     max_epochs=config.train_epochs,
-    callbacks=[checkpoint_callback],
+    callbacks=[checkpoint_callback, early_stopping_callback],
     reload_dataloaders_every_n_epochs=5,
 )
 

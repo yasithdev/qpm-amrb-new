@@ -1,4 +1,5 @@
 from typing import Tuple
+import warnings
 
 import lightning.pytorch as pl
 import pandas as pd
@@ -162,10 +163,14 @@ class BaseModel(pl.LightningModule):
             ucty_T = pd.DataFrame({"ucty": uncertainty[correctness].tolist()})
             ucty_F = pd.DataFrame({"ucty": uncertainty[~correctness].tolist()})
             fig = plt.figure()
-            if len(ucty_T) > 0:
-                sns.kdeplot(ucty_T, x="ucty", fill=True, label="Correct Predictions")
+            if len(ucty_T) > 0:    
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore', category=FutureWarning)
+                    sns.kdeplot(ucty_T, x="ucty", fill=True, label="Correct Predictions")
             if len(ucty_F) > 0:
-                sns.kdeplot(ucty_F, x="ucty", fill=True, label="Incorrect Predictions")
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore', category=FutureWarning)
+                    sns.kdeplot(ucty_F, x="ucty", fill=True, label="Incorrect Predictions")
             plt.legend(loc="upper right")
             plt.title("Model Calibration")
             fig.canvas.draw()
@@ -185,7 +190,9 @@ class BaseModel(pl.LightningModule):
                     "uncertainty_rand": uncertainty_rand.float().mean(0).tolist(), # (N-1,)
                 })
                 fig = plt.figure()
-                sns.histplot(dist_data, x="correctness_rand", fill=True, kde=True)
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore', category=FutureWarning)
+                    sns.histplot(dist_data, x="correctness_rand", fill=True, kde=True)
                 plt.axvline(correctness_gt.item(), color='red')
                 plt.title("Null Distribution (Accuracy)")
                 fig.canvas.draw()
@@ -193,7 +200,9 @@ class BaseModel(pl.LightningModule):
                 logger.log_image(f"{stage}_null_dist_acc", [cd_img])
                 plt.close()
                 fig = plt.figure()
-                sns.histplot(dist_data, x="uncertainty_rand", fill=True, kde=True)
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore', category=FutureWarning)
+                    sns.histplot(dist_data, x="uncertainty_rand", fill=True, kde=True)
                 plt.axvline(uncertainty_gt.item(), color='red')
                 plt.title("Null Distribution (Uncertainty)")
                 fig.canvas.draw()

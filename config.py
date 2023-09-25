@@ -40,7 +40,7 @@ def load_config() -> Config:
     parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=128))
     parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
     parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
-    parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=100))
+    parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=200))
     parser.add_argument("--ckpt_metric", **env("CKPT_METRIC", type=str, default="val_loss"))
     parser.add_argument("--ckpt_mode", **env("CKPT_MODE", type=str, default="min"))
     parser.add_argument("--ood", **env("OOD", type=str, default=""))
