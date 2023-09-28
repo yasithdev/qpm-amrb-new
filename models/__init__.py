@@ -84,6 +84,7 @@ def get_model(
 
     # hypothesis testing variants
     if model_name.startswith("ht_"):
+        assert opt.rand_perms > 0
         assert opt.grouping is not None
         ht_args: dict = dict(
             labels=labels,

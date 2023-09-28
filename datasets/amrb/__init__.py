@@ -7,6 +7,7 @@ from torchvision.transforms import Compose, Resize, ToTensor
 from ..transforms import AddGaussianNoise, TileChannels2d, reindex_for_ood
 from .amrb import create_dataset, get_target_map
 
+labels = [] # TODO fix this
 
 class DataModule(pt.LightningDataModule):
     def __init__(

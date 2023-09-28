@@ -3,7 +3,7 @@ import glob
 import numpy as np
 from torch.utils.data import Dataset
 
-patient_to_binary_mapping = [1,0,0,0,0,1,1,1,1,0]
+from .. import patient_to_binary_mapping
 
 class rbc_dataset(Dataset):
     """
@@ -59,6 +59,9 @@ class rbc_dataset(Dataset):
 
         self.images = []
         self.targets = []
+
+        assert len(filter_labels) == 0 # NOTE added since below code won't work with ood
+
         for i in range(0, 2):  # iterate through healthy and sick classes
             if self.__must_filter(i):
                 continue
@@ -80,12 +83,13 @@ class rbc_dataset(Dataset):
         return cond1 == cond2
 
     def __getitem__(self, idx):
-        image, target = self.images[idx], self.targets[idx]
+        image, orig = self.images[idx], self.targets[idx]
 
         if self.transform:
             image = self.transform(image)
 
+        target = orig
         if self.target_transform:
             target = self.target_transform(target)
 
-        return image, target, target
+        return image, target, orig

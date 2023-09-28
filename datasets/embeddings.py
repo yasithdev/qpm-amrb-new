@@ -5,7 +5,6 @@ import lightning.pytorch as pl
 from torch.utils.data import ConcatDataset, DataLoader
 
 from .common import EmbeddingDataset
-from .transforms import reindex_for_ood
 
 
 class DataModule(pl.LightningDataModule):
@@ -14,10 +13,8 @@ class DataModule(pl.LightningDataModule):
         emb_dir: str,
         emb_name: str,
         batch_size: int,
-        labels: list[str],
-        src_labels: list[str],
-        grouping: list[int],
         ood: list[int] = [],
+        target_transform = None,
     ) -> None:
         super().__init__()
 
@@ -26,22 +23,11 @@ class DataModule(pl.LightningDataModule):
         self.emb_name = emb_name
         self.batch_size = batch_size
         self.ood = ood
+        self.target_transform = target_transform
         # load info
         with open(f"{self.emb_dir}/{self.emb_name}/info.json") as fp:
             info = json.load(fp)
         self.shape: tuple[int, ...] = tuple(info["shape"])
-        # get target mapping
-        assert len(src_labels) == len(grouping)
-        self.labels = labels
-        self.src_labels = src_labels
-        self.grouping = grouping
-        # ood adjustments
-        self.permuted_labels = reindex_for_ood(self.labels, self.ood)
-        self.permuted_grouping = list(map(self.permuted_labels.index, map(self.labels.__getitem__, self.grouping)))
-        # sanity check
-        if len(ood) == 0:
-            assert self.permuted_labels == self.labels
-            assert self.permuted_grouping == self.grouping
 
         self.train_data = None
         self.val_data = None
@@ -53,10 +39,8 @@ class DataModule(pl.LightningDataModule):
             EmbeddingDataset,
             emb_dir=self.emb_dir,
             emb_name=self.emb_name,
-            # NOTE target_transform must be None
-            # as the fisher exact method must be able to permute the source labels
-            target_transform=None,
-            filter_labels=[i for i, x in enumerate(self.grouping) if x in self.ood],
+            target_transform=self.target_transform,
+            filter_labels=self.ood,
         )
         if stage == "fit":
             self.train_data = create_fn(emb_type="train", filter_mode="exclude")

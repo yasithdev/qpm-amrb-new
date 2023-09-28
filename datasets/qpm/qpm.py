@@ -3,15 +3,6 @@ import glob
 import numpy as np
 from torch.utils.data import Dataset
 
-### Species level mapping
-# 0 => Acinetobacter
-# 1 => B subtilis
-# 2 => E. coli
-# 3 => K. pneumoniae
-# 4 => S. aureus
-# More info => https://ruhsoft-my.sharepoint.com/:p:/g/personal/im_ramith_fyi/EYMDb528EVlClCp2y8nIM8oB9LBZ-lbqEiCXwcAZHX7wew?e=lAROoR
-species_mapping = [0, 1, 2, 4, 2, 2, 2, 3, 4, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 0]
-
 
 class bacteria_dataset(Dataset):
     """
@@ -95,29 +86,19 @@ class bacteria_dataset(Dataset):
     def __len__(self):
         return len(self.images)
 
-    def __getclass_(self, strain):
-        if self.label_type == "strain":
-            return strain
-        elif self.label_type == "species":
-            return species_mapping[strain]  # map class to species
-
-        else:
-            raise Exception("Invalid label type")
-
-    def __must_filter(self, i) -> bool:
-        cls = self.__getclass_(i)
+    def __must_filter(self, cls) -> bool:
         cond1 = self.filter_mode == "exclude"
         cond2 = cls in self.filter_labels
         return cond1 == cond2
 
     def __getitem__(self, idx):
-        image, strain = self.images[idx], self.targets[idx]
-        target = self.__getclass_(strain)
+        image, orig = self.images[idx], self.targets[idx]
 
         if self.transform:
             image = self.transform(image)
 
+        target = orig
         if self.target_transform:
-            target = self.target_transform(target)
+            target = self.target_transform(orig)
 
-        return image, target, strain
+        return image, target, orig

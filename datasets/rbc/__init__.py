@@ -4,8 +4,8 @@ import lightning.pytorch as pl
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood
-from .rbc import rbc_dataset, patient_to_binary_mapping
+from ..transforms import TileChannels2d, ZeroPad2D
+from .rbc import rbc_dataset
 
 patients = [
     "220930_S3",
@@ -25,6 +25,8 @@ classes = [
     "Sickel Cell",
 ]
 
+patient_to_binary_mapping = [1,0,0,0,0,1,1,1,1,0]
+
 class DataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -34,6 +36,7 @@ class DataModule(pl.LightningDataModule):
         target_label: str,
         aug_hw_224: bool = False,
         aug_ch_3: bool = True,
+        target_transform = None,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -48,13 +51,8 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         # define targets
-
         self.classes = classes
-        self.target_labels = self.classes
-        
-        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
-        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
-        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
+        self.target_transform = target_transform
 
         # pre-transform shape
         self.orig_shape = (1, 301, 301)
