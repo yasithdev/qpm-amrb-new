@@ -150,7 +150,7 @@ def concat_torchvision_transforms(eval: bool, aug: dict):
 def simclr_transform(opt: Config, eval=False):
     aug = {
         "resize": None,
-        "randcrop": opt.image_size,
+        "randcrop": opt.input_shape,
         "scale": opt.scale,
         "flip": True,
         "jitter_d": opt.rgb_jitter_d,

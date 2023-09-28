@@ -8,6 +8,7 @@ from torchvision.transforms import Compose, ToTensor
 
 from .transforms import AddGaussianNoise, ind_ood_split, reindex_for_ood
 
+labels = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -16,6 +17,7 @@ class DataModule(pl.LightningDataModule):
         batch_size: int,
         ood: List[int] = [],
         add_noise: bool = True,
+        target_transform = None,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -23,6 +25,7 @@ class DataModule(pl.LightningDataModule):
         self.ood = ood
         self.batch_size = batch_size
         self.add_noise = add_noise
+        self.target_transform = target_transform
         self.trainset = None
         self.testset = None
         self.train_data = None
@@ -43,12 +46,6 @@ class DataModule(pl.LightningDataModule):
 
         # post-transform shape
         self.shape = (c, h, w)
-
-        # targets
-        self.target_labels = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
-        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
-        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
-        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
 
         # indexing
         create_dataset = partial(

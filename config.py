@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import math
 from typing import Callable, List, Tuple, TypeVar
 
 import matplotlib
@@ -99,7 +100,6 @@ class Config(argparse.Namespace):
     expand_3ch: bool
     # data params - initialized when load_data() is called
     input_shape: Tuple[int, ...] | None = None
-    src_labels: List[str] | None = None
     grouping: List[int] | None = None
     labels: List[str] | None = None
     datamodule: LightningDataModule | None = None
@@ -148,43 +148,47 @@ class Config(argparse.Namespace):
         emb_dir = emb_dir or self.emb_dir
         batch_size = batch_size or self.batch_size
         ood = ood or self.ood
-        expand_3ch = expand_3ch or self.expand_3ch
+
+        is_ht = self.model_name.startswith("ht_")
+
+        expand_3ch = is_ht or expand_3ch or self.expand_3ch # NOTE hardcoded expand_3ch=True for hypothesis testing case
+        apply_target_transform = not is_ht # NOTE must be false for hypothesis testing case
 
         if len(emb_name) > 0 and len(emb_dir) > 0:
             # embedding mode
             from datasets import get_embedding
 
-            dm = get_embedding(
+            dm, grouping, labels = get_embedding(
                 emb_dir=emb_dir,
                 emb_name=emb_name,
                 batch_size=batch_size,
                 ood=ood,
+                apply_target_transform=apply_target_transform,
             )
             assert len(dm.shape) == 1
-            self.input_shape = dm.shape
             self.emb_dims = dm.shape[0]
-            self.src_labels = dm.src_labels
-            self.grouping = dm.permuted_grouping # NOTE must have ind_labels first and ood_labels last
-            self.labels = dm.permuted_labels # NOTE must have ind_labels first and ood_labels last
-            self.datamodule = dm
 
         elif len(dataset_name) > 0 and len(data_dir) > 0:
             # dataset mode
             from datasets import get_data
 
-            dm = get_data(
+            dm, grouping, labels = get_data(
                 data_dir=data_dir,
                 dataset_name=dataset_name,
                 batch_size=batch_size,
                 ood=ood,
                 aug_ch_3=expand_3ch,
+                apply_target_transform=apply_target_transform,
             )
-            self.input_shape = dm.shape
-            self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
-            self.labels = dm.permuted_labels  # NOTE must have ind_labels first and ood_labels last
-            self.datamodule = dm
+            assert self.emb_dims > 0
+
         else:
             raise ValueError()
+
+        self.input_shape = dm.shape
+        self.grouping = grouping  # NOTE must have ind_labels first and ood_labels last
+        self.labels = labels  # NOTE must have ind_labels first and ood_labels last
+        self.datamodule = dm
 
     def get_model(
         self,

@@ -3,7 +3,6 @@ import glob
 import numpy as np
 from torch.utils.data import Dataset
 
-patient_to_binary_mapping = [1,0,0,0,0,1,1,1,1,0]
 
 class rbc_dataset(Dataset):
     """
@@ -74,15 +73,13 @@ class rbc_dataset(Dataset):
         return cond1 == cond2
 
     def __getitem__(self, idx):
-        image, patient = self.images[idx], self.targets[idx]
-        # target should be the pateint id
-        # class is whether the patient is healthy or not
-        target = patient_to_binary_mapping[patient]
-        
+        image, orig = self.images[idx], self.targets[idx]
+
         if self.transform:
             image = self.transform(image)
 
+        target = orig
         if self.target_transform:
             target = self.target_transform(target)
 
-        return image, target, patient
+        return image, target, orig

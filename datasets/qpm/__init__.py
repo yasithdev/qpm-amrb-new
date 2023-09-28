@@ -4,8 +4,8 @@ import lightning.pytorch as pl
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, ZeroPad2D, reindex_for_ood
-from .qpm import bacteria_dataset, species_mapping
+from ..transforms import TileChannels2d, ZeroPad2D
+from .qpm import bacteria_dataset
 
 strains = [
     "AB",
@@ -38,6 +38,15 @@ species = [
     "SA",
 ]
 
+### Species level mapping
+# 0 => Acinetobacter
+# 1 => B subtilis
+# 2 => E. coli
+# 3 => K. pneumoniae
+# 4 => S. aureus
+# More info => https://ruhsoft-my.sharepoint.com/:p:/g/personal/im_ramith_fyi/EYMDb528EVlClCp2y8nIM8oB9LBZ-lbqEiCXwcAZHX7wew?e=lAROoR
+species_mapping = [0, 1, 2, 4, 2, 2, 2, 3, 4, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 0]
+
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -48,6 +57,7 @@ class DataModule(pl.LightningDataModule):
         target_label: str,
         aug_hw_224: bool = False,
         aug_ch_3: bool = True,
+        target_transform = None,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -61,18 +71,7 @@ class DataModule(pl.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
-        # define targets
-        self.strains = strains
-        self.species = species
-        if target_label == "species":
-            self.target_labels = self.species
-        elif target_label == "strain":
-            self.target_labels = self.strains
-        else:
-            raise ValueError()
-        self.permuted_labels = reindex_for_ood(self.target_labels, self.ood)
-        self.target_transform = list(map(self.permuted_labels.index, self.target_labels)).__getitem__
-        self.target_inv_transform = list(map(self.target_labels.index, self.permuted_labels)).__getitem__
+        self.target_transform = target_transform
 
         # pre-transform shape
         self.orig_shape = (1, 60, 60)
