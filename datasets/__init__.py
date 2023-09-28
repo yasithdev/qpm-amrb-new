@@ -44,7 +44,7 @@ def get_data(
     perm_grouping, perm_labels, filter_targets = get_grouping(dataset_name, ood)
 
     args: dict = dict(
-        data_dir=data_dir,
+        data_root=data_dir,
         batch_size=batch_size,
         ood=filter_targets,
         target_transform=perm_grouping.__getitem__ if apply_target_transform else None,

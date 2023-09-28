@@ -4,6 +4,7 @@ import einops
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import torchvision.models as models
 
 from .base import BaseModel
 
@@ -18,21 +19,23 @@ class Model(BaseModel):
         self,
         labels: list[str],
         cat_k: int,
-        in_dims: int,
+        emb_dims: int,
         hidden_dims: int,
         permutations: list[list[int]],
         optim_lr: float,
+        with_encoder: bool = False,
         classifier_loss: str = "crossent",
     ) -> None:
         super().__init__(
             labels=labels,
             cat_k=cat_k,
             optim_lr=optim_lr,
+            with_encoder=with_encoder,
             with_classifier=True,
             with_decoder=False,
             with_permutations=True,
         )
-        self.in_dims = in_dims
+        self.emb_dims = emb_dims
         self.hidden_dims = hidden_dims
         self.permutations = permutations
         self.classifier_loss = classifier_loss
@@ -42,8 +45,17 @@ class Model(BaseModel):
 
     def define_model(self):
         K = self.cat_k
-        E = self.in_dims
+        E = self.emb_dims
         H = self.hidden_dims
+
+        if self.with_encoder:
+            # pretrained resnet18 model
+            weights = models.ResNet18_Weights.IMAGENET1K_V1
+            model = models.resnet18(weights=weights)
+            model.fc = torch.nn.Linear(model.fc.in_features, E)
+            # (B, C, H, W) -> (B, D)
+            self.encoder = model
+
         # (S x N) permutation matrix for targets (GT at N=0)
         self.perm = torch.nn.Parameter(torch.tensor(self.permutations), requires_grad=False)
         S, N = self.perm.shape
@@ -63,6 +75,8 @@ class Model(BaseModel):
         x: torch.Tensor,
     ) -> torch.Tensor:
         z = x
+        if self.with_encoder:
+            z = self.encoder(z)
         z = einops.einsum(z, self.cls_weights_1, "B E, E H N -> B H N") + self.cls_bias_1
         z = F.relu(z)
         z = einops.einsum(z, self.cls_weights_2, "B H N, H K N -> B K N") + self.cls_bias_2

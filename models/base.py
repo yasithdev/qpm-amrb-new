@@ -20,6 +20,7 @@ class BaseModel(pl.LightningModule):
         labels: list[str],
         cat_k: int,
         optim_lr: float,
+        with_encoder: bool = True,
         with_classifier: bool = True,
         with_decoder: bool = True,
         with_permutations: bool = False,
@@ -28,6 +29,7 @@ class BaseModel(pl.LightningModule):
         self.labels = labels
         self.cat_k = cat_k
         self.optim_lr = optim_lr
+        self.with_encoder = with_encoder
         self.with_classifier = with_classifier
         self.with_decoder = with_decoder
         self.with_permutations = with_permutations

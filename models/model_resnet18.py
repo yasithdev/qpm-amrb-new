@@ -43,15 +43,12 @@ class Model(BaseModel):
         # pretrained resnet18 model
         weights = models.ResNet18_Weights.IMAGENET1K_V1
         model = models.resnet18(weights=weights)
+        E = model.fc.in_features
+        del model.fc
         # (B, C, H, W) -> (B, D)
-        self.encoder = torch.nn.Sequential(
-            *list(model.children())[:-1],
-        )
+        self.encoder = model
         # (B, D) -> (B, K)
-        self.classifier = torch.nn.Linear(
-            in_features=model.fc.in_features,
-            out_features=K,
-        )
+        self.classifier = torch.nn.Linear(E, K)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)

@@ -3,7 +3,6 @@ import glob
 import numpy as np
 from torch.utils.data import Dataset
 
-from .. import patient_to_binary_mapping
 
 class rbc_dataset(Dataset):
     """
@@ -48,21 +47,19 @@ class rbc_dataset(Dataset):
         print(f"RRRR => {len(all_files)}")
         for x in all_files:
             # read class, embedded in filename (e.g. "0.npy" -> sickel cell disease -> 1)
-            class_ = patient_to_binary_mapping[int(x.split("/")[-1].split(".")[0])]
+            target = int(x.split("/")[-1].split(".")[0])
             data = np.load(x)
             
             # npy files are in (res, res, count) format. Need to bring to (count, res, res) format
-            if(class_ in dirs.keys()):
-                dirs[class_] = np.concatenate((dirs[class_], data), axis=0)
+            if(target in dirs.keys()):
+                dirs[target] = np.concatenate((dirs[target], data), axis=0)
             else:
-                dirs[class_] = data
+                dirs[target] = data
 
         self.images = []
         self.targets = []
 
-        assert len(filter_labels) == 0 # NOTE added since below code won't work with ood
-
-        for i in range(0, 2):  # iterate through healthy and sick classes
+        for i in range(10):  # iterate through healthy and sick classes
             if self.__must_filter(i):
                 continue
             

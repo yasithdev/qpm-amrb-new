@@ -148,8 +148,11 @@ class Config(argparse.Namespace):
         emb_dir = emb_dir or self.emb_dir
         batch_size = batch_size or self.batch_size
         ood = ood or self.ood
-        expand_3ch = expand_3ch or self.expand_3ch
-        apply_target_transform = not self.model_name.startswith("ht_") # set to false for hypothesis testing case
+
+        is_ht = self.model_name.startswith("ht_")
+
+        expand_3ch = is_ht or expand_3ch or self.expand_3ch # NOTE hardcoded expand_3ch=True for hypothesis testing case
+        apply_target_transform = not is_ht # NOTE must be false for hypothesis testing case
 
         if len(emb_name) > 0 and len(emb_dir) > 0:
             # embedding mode

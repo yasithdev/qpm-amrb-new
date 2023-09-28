@@ -59,13 +59,13 @@ class Model(BaseModel):
         # pretrained resnet50 model
         weights = models.ResNet50_Weights.IMAGENET1K_V1
         model = models.resnet50(weights=weights)
+        E = model.fc.in_features
+        del model.fc
         # (B, C, H, W) -> (B, D)
-        self.f = torch.nn.Sequential(
-            *list(model.children())[:-1],
-        )
+        self.f = model
         # (B, D) -> (B, K)
         self.g1 = torch.nn.Sequential(
-            torch.nn.Linear(model.fc.in_features, 1024, bias=False),
+            torch.nn.Linear(E, 1024, bias=False),
             torch.nn.BatchNorm1d(1024),
             torch.nn.ReLU(inplace=True),
         )

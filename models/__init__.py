@@ -89,16 +89,22 @@ def get_model(
         ht_args: dict = dict(
             labels=labels,
             cat_k=cat_k,
-            in_dims=emb_dims,
+            emb_dims=emb_dims,
             permutations=generate_rand_perms(opt.rand_perms, cat_k, opt.grouping),
             optim_lr=optim_lr,
         )
         if model_name == "ht_linear_ce":
             from .model_ht_linear import Model
             return Model(**ht_args, classifier_loss="crossent")
+        if model_name == "ht_linear_enc_ce":
+            from .model_ht_linear import Model
+            return Model(**ht_args, classifier_loss="crossent", with_encoder=True)
         if model_name == "ht_mlp_ce":
             from .model_ht_mlp import Model
             return Model(**ht_args, hidden_dims=32, classifier_loss="crossent")
+        if model_name == "ht_mlp_enc_ce":
+            from .model_ht_mlp import Model
+            return Model(**ht_args, hidden_dims=32, classifier_loss="crossent", with_encoder=True)
 
     # DEFAULTS
 
