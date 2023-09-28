@@ -180,7 +180,6 @@ class Config(argparse.Namespace):
                 aug_ch_3=expand_3ch,
             )
             self.input_shape = dm.shape
-            self.image_size = dm.shape  # NOTE this should be set for simclr_transform() to work
             self.labels = dm.permuted_labels  # NOTE must have ind_labels first and ood_labels last
             self.datamodule = dm
         else:
