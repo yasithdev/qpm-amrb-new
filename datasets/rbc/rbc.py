@@ -44,22 +44,16 @@ class rbc_dataset(Dataset):
         dirs = {}
         all_files = glob.glob(f"{data_dir}/{self.type_}/*.npy")
         
-        
-        print(f"RRRR => {len(all_files)}")
         for x in all_files:
-            # read class, embedded in filename (e.g. "0.npy" -> sickel cell disease -> 1)
-            class_ = patient_to_binary_mapping[int(x.split("/")[-1].split(".")[0])]
+            # read patient id, embedded in filename (e.g. "0.npy")
+            patient = int(x.split("/")[-1].split(".")[0])
             data = np.load(x)
             
-            # npy files are in (res, res, count) format. Need to bring to (count, res, res) format
-            if(class_ in dirs.keys()):
-                dirs[class_] = np.concatenate((dirs[class_], data), axis=0)
-            else:
-                dirs[class_] = data
+            dirs[patient] = data
 
         self.images = []
         self.targets = []
-        for i in range(0, 2):  # iterate through healthy and sick classes
+        for i in range(0, len(dirs.keys())):  # iterate through patients
             if self.__must_filter(i):
                 continue
             
@@ -80,12 +74,15 @@ class rbc_dataset(Dataset):
         return cond1 == cond2
 
     def __getitem__(self, idx):
-        image, target = self.images[idx], self.targets[idx]
-
+        image, patient = self.images[idx], self.targets[idx]
+        # target should be the pateint id
+        # class is whether the patient is healthy or not
+        target = patient_to_binary_mapping[patient]
+        
         if self.transform:
             image = self.transform(image)
 
         if self.target_transform:
             target = self.target_transform(target)
 
-        return image, target, target
+        return image, target, patient
