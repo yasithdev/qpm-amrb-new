@@ -97,13 +97,16 @@ class Model(BaseModel):
         proj_2 = self.g2(proj_1)
         proj_3 = self.g3(proj_2)
 
+        proj_1_unit = F.normalize(proj_1, dim=-1)
+        proj_3_unit = F.normalize(proj_3, dim=-1)
+
         logits = None
         if self.with_classifier:
             assert self.classifier is not None
-            logits = self.classifier(proj_1)
+            logits = self.classifier(proj_1_unit)
 
-        # return unit vectors (TODO clarify)
-        return F.normalize(proj_1, dim=-1), F.normalize(proj_3, dim=-1), logits
+        # return unit vectors
+        return proj_1_unit, proj_3_unit, logits
 
     def compute_losses(
         self,
