@@ -59,7 +59,7 @@ def get_data(
         dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("RBC"):
         label_type = dataset_name[4:]
-        dm = rbc.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
+        dm = rbc.DataModule(**args, target_label=label_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
     else:
         raise ValueError(f"Dataset '{dataset_name}' is unsupported")
 

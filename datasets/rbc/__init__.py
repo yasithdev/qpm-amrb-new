@@ -34,7 +34,7 @@ class DataModule(pl.LightningDataModule):
         batch_size: int,
         ood: list[int],
         target_label: str,
-        aug_hw_224: bool = False,
+        aug_hw_224: bool = True,
         aug_ch_3: bool = True,
         target_transform = None,
     ) -> None:
@@ -55,7 +55,7 @@ class DataModule(pl.LightningDataModule):
         self.target_transform = target_transform
 
         # pre-transform shape
-        self.orig_shape = (1, 301, 301)
+        self.orig_shape = (2, 301, 301)
         c, h, w = self.orig_shape
 
         # transform

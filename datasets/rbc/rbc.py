@@ -1,5 +1,5 @@
 import glob
-
+import torch
 import numpy as np
 from torch.utils.data import Dataset
 
@@ -41,16 +41,27 @@ class rbc_dataset(Dataset):
 
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
+        dirs_amp = {}
+        
         all_files = glob.glob(f"{data_dir}/{self.type_}/*.npy")
         
         for x in all_files:
             # read patient id, embedded in filename (e.g. "0.npy")
             patient = int(x.split("/")[-1].split(".")[0])
+            
+            amp_dir  = f"{data_dir}/{self.type_}/A_stack/{patient}_A_stack.npy"
+            
             data = np.load(x)
+            data_amp = np.load(amp_dir) #amplitude counterpart
+            
+            assert data.shape == data_amp.shape
             
             dirs[patient] = data
+            dirs_amp[patient] = data_amp
 
         self.images = []
+        self.images_amp = []
+        
         self.targets = []
         for i in range(0, len(dirs.keys())):  # iterate through patients
             if self.__must_filter(i):
@@ -59,7 +70,12 @@ class rbc_dataset(Dataset):
             count = dirs[i].shape[0]
 
             # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
+            
+            # #stack phase and amplitude
+            # temp_img = np.stack((dirs[i], dirs_amp[i]), axis=1)
+            
             self.images.extend(dirs[i][: int(count), ..., None])
+            self.images_amp.extend(dirs_amp[i][: int(count), ..., None])
             self.targets.extend([i] * int(count))
 
         print(f"Loaded {len(self.images)} images")
@@ -73,11 +89,14 @@ class rbc_dataset(Dataset):
         return cond1 == cond2
 
     def __getitem__(self, idx):
-        image, orig = self.images[idx], self.targets[idx]
+        image, image_amp, orig = self.images[idx], self.images_amp[idx], self.targets[idx]
 
         if self.transform:
-            image = self.transform(image)
-
+            image     = self.transform(image)
+            image_amp = self.transform(image_amp)
+        
+        image = torch.cat((image, image_amp), dim=0)
+        
         target = orig
         if self.target_transform:
             target = self.target_transform(target)
