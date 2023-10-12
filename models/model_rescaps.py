@@ -100,8 +100,10 @@ class Model(BaseModel):
         z = self.encoder(x)
         logits, zi = self.classifier(z)
         x_pred = None
+        zi=zi.unsqueeze(-1).unsqueeze(-1)
         if self.with_decoder:
             x_pred = self.decoder(zi)
+        zi=zi.squeeze(-1).squeeze(-1)
         return z, logits, zi, x_pred
 
     def compute_losses(
