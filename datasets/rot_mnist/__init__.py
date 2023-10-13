@@ -33,7 +33,6 @@ class DataModule(pl.LightningDataModule):
         data_root: str,
         batch_size: int,
         ood: list[int],
-        target_label: str,
         aug_hw_224: bool = True,
         aug_ch_3: bool = True,
         target_transform = None,
@@ -43,7 +42,6 @@ class DataModule(pl.LightningDataModule):
         self.data_root = data_root
         self.batch_size = batch_size
         self.ood = ood
-        self.target_label = target_label
         self.aug_hw_224 = aug_hw_224
         self.aug_ch_3 = aug_ch_3
         self.train_data = None
@@ -51,7 +49,7 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         # define targets
-        self.classes = classes
+        self.classes = rotation_labels
         self.target_transform = target_transform
 
         # pre-transform shape
@@ -76,11 +74,10 @@ class DataModule(pl.LightningDataModule):
 
     def setup(self, stage: str) -> None:
         get_dataset = partial(
-            rbc_dataset,
+            rot_mnist_dataset,
             data_dir=self.data_root,
             transform=self.transform,
             target_transform=self.target_transform,
-            label_type=self.target_label,
             filter_labels=self.ood,
         )
         if stage == "fit":

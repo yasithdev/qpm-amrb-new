@@ -13,7 +13,6 @@ class rot_mnist_dataset(Dataset):
         type_      : whether dataloader is train/val/test
         transform  : torchvision.transforms
         target_transform  : torchvision.transforms
-        label_type : whether the mnist digit is rotated or not
     """
 
     def __init__(
@@ -38,7 +37,7 @@ class rot_mnist_dataset(Dataset):
         print(f"Dataset type {type_}")
 
         # files : train_data.npz, test_data.npz, val_data.npz
-        data = glob.glob(f"{data_dir}/{self.type_}_data.npz")
+        data = np.load(f"{data_dir}/{self.type_}_data.npz")
 
         # sanity check
         assert data['images'].shape[0] == data['images'].shape[1] == 28
