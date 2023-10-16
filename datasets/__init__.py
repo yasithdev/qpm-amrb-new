@@ -61,8 +61,8 @@ def get_data(
         label_type = dataset_name[4:]
         dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("RBC"):
-        label_type = dataset_name[4:]
-        dm = rbc.DataModule(**args, target_label=label_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
+        image_type = dataset_name[4:]
+        dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("rot_mnist"):
         dm = rot_mnist.DataModule(**args, aug_ch_3=aug_ch_3)
     else:

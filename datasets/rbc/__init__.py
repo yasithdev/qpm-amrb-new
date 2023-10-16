@@ -8,6 +8,42 @@ from ..transforms import TileChannels2d, ZeroPad2D
 from .rbc import rbc_dataset
 
 patients = [
+    "220106_S1",
+    "220119_S1",
+    "220126_H1",
+    "220126_H2",
+    "220126_S1",
+    "220126_S2",
+    "220608_S1",
+    "220623_S1",
+    "220713_S1",
+    "220713_S2",
+    "220713_S3",
+    "220720_S1",
+    "220804_S1",
+    "220804_S2",
+    "220808_S1",
+    "220808_S2",
+    "220816_S1",
+    "220823_S1",
+    "220901_H1",
+    "220901_H2",
+    "220901_S1",
+    "220901_S2",
+    "220901_S3",
+    "220914_H1",
+    "220914_H2",
+    "220914_S1",
+    "220914_S2",
+    "220921_H1",
+    "220921_H2",
+    "220921_S1",
+    "220921_S2",
+    "220930_A1",
+    "220930_A2",
+    "220930_A3",
+    "220930_S1",
+    "220930_S2",
     "220930_S3",
     "221012_A1",
     "221012_A2",
@@ -18,6 +54,9 @@ patients = [
     "221012_S3",
     "221012_S4",
     "221103_H1",
+    "221103_H2",
+    "221103_S1",
+    "221103_S2"
 ]
 
 classes = [
@@ -25,7 +64,7 @@ classes = [
     "Sickel Cell",
 ]
 
-patient_to_binary_mapping = [1,0,0,0,0,1,1,1,1,0]
+patient_to_binary_mapping = [1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,1,0,0,1,1]
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -55,14 +94,21 @@ class DataModule(pl.LightningDataModule):
         self.target_transform = target_transform
 
         # pre-transform shape
-        self.orig_shape = (2, 301, 301)
+        if(self.target_label == "both"):
+            self.orig_shape = (2, 301, 301)
+        else:
+            self.orig_shape = (1, 301, 301)
         c, h, w = self.orig_shape
 
         # transform
         trans = []
         trans.append(ToTensor())
         trans.append(ZeroPad2D(2, 2, 2, 2))
-        h = w = 301
+        
+        # in our experiments we are interested in a low res image (otherwise reconstruction is hard)
+        trans.append(Resize(size=(64, 64), antialias=True))
+        h = w = 64
+        
         if self.aug_hw_224:
             trans.append(Resize(size=(224, 224), antialias=True))
             h = w = 224
@@ -80,7 +126,7 @@ class DataModule(pl.LightningDataModule):
             data_dir=self.data_root,
             transform=self.transform,
             target_transform=self.target_transform,
-            label_type=self.target_label,
+            image_type=self.target_label,
             filter_labels=self.ood,
         )
         if stage == "fit":

@@ -13,7 +13,7 @@ class rbc_dataset(Dataset):
         type_      : whether dataloader is train/val/test
         transform  : torchvision.transforms
         target_transform  : torchvision.transforms
-        label_type : only type of label we can return is healthy (0) or sick (1)
+        image_type : only type of label we can return is healthy (0) or sick (1)
     """
 
     def __init__(
@@ -22,7 +22,7 @@ class rbc_dataset(Dataset):
         type_: str,
         transform=None,
         target_transform=None,
-        label_type="class",
+        image_type="phase",
         filter_labels=[],
         filter_mode: str = "exclude",
     ):
@@ -33,23 +33,24 @@ class rbc_dataset(Dataset):
         # params
         self.transform = transform
         self.target_transform = target_transform
-        self.label_type = label_type
+        self.image_type = image_type
         self.filter_labels = filter_labels
         self.filter_mode = filter_mode
         self.type_ = type_
-        print(f"Dataset type {type_} label type: {label_type}")
+        print(f"RBC Dataset V.2 => All pateints")
+        print(f"Dataset split type {type_}, image type: {image_type}")
 
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
         dirs_amp = {}
         
-        all_files = glob.glob(f"{data_dir}/{self.type_}/*.npy")
+        all_files = glob.glob(f"{data_dir}/{self.type_}/phase/*.npy")
         
         for x in all_files:
             # read patient id, embedded in filename (e.g. "0.npy")
-            patient = int(x.split("/")[-1].split(".")[0])
+            patient = int(x.split("/")[-1].split(".")[0].split("_")[0])
             
-            amp_dir  = f"{data_dir}/{self.type_}/A_stack/{patient}_A_stack.npy"
+            amp_dir  = f"{data_dir}/{self.type_}/amp/{patient}_amp.npy"
             
             data = np.load(x)
             data_amp = np.load(amp_dir) #amplitude counterpart
@@ -95,7 +96,12 @@ class rbc_dataset(Dataset):
             image     = self.transform(image)
             image_amp = self.transform(image_amp)
         
-        image = torch.cat((image, image_amp), dim=0)
+        # if user requests both channels
+        # Concat two amp and phase images as a single image, else return relevant image
+        if(self.image_type == "both"):
+            image = torch.cat((image, image_amp), dim=0)
+        elif(self.image_type == "amp"):
+            image = image_amp
         
         target = orig
         if self.target_transform:
