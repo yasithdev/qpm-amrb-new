@@ -10,7 +10,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 from torchmetrics.aggregation import CatMetric
-from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix
+from torchmetrics.classification import MulticlassAccuracy, MulticlassConfusionMatrix, MulticlassCalibrationError
 from torchmetrics.regression import MeanSquaredError
 
 
@@ -63,6 +63,8 @@ class BaseModel(pl.LightningModule):
             # classifier metrics
             if self.with_classifier:
                 setattr(self, f"{stage}_accuracy", MulticlassAccuracy(num_classes=K, top_k=1))
+                setattr(self, f"{stage}_ece10", MulticlassCalibrationError(num_classes=K, n_bins=10))
+                setattr(self, f"{stage}_ece50", MulticlassCalibrationError(num_classes=K, n_bins=50))
                 setattr(self, f"{stage}_accuracy_top2", MulticlassAccuracy(num_classes=K, top_k=2))
                 setattr(self, f"{stage}_confusion_matrix", MulticlassConfusionMatrix(num_classes=K))
                 setattr(self, f"{stage}_uncertainty", CatMetric())
@@ -83,6 +85,8 @@ class BaseModel(pl.LightningModule):
         getattr(self, f"{stage}_batch_y_true").reset()
         if self.with_classifier:
             getattr(self, f"{stage}_accuracy").reset()
+            getattr(self, f"{stage}_ece10").reset()
+            getattr(self, f"{stage}_ece50").reset()
             getattr(self, f"{stage}_accuracy_top2").reset()
             getattr(self, f"{stage}_confusion_matrix").reset()
             getattr(self, f"{stage}_uncertainty").reset()
@@ -112,6 +116,8 @@ class BaseModel(pl.LightningModule):
         if "y_prob" in metrics and "y_true" in metrics:
             args = metrics["y_prob"], metrics["y_true"]
             getattr(self, f"{stage}_accuracy")(*args)
+            getattr(self, f"{stage}_ece10")(*args)
+            getattr(self, f"{stage}_ece50")(*args)
             getattr(self, f"{stage}_accuracy_top2")(*args)
             getattr(self, f"{stage}_confusion_matrix")(*args)
 
@@ -149,8 +155,12 @@ class BaseModel(pl.LightningModule):
         if self.with_classifier:
             # log accuracy
             acc: torch.Tensor = getattr(self, f"{stage}_accuracy").compute()
+            ece10: torch.Tensor = getattr(self, f"{stage}_ece10").compute()
+            ece50: torch.Tensor = getattr(self, f"{stage}_ece50").compute()
             acc2: torch.Tensor = getattr(self, f"{stage}_accuracy_top2").compute()
             self.log(f"{stage}_accuracy", acc, sync_dist=True)
+            self.log(f"{stage}_ece10", ece10, sync_dist=True)
+            self.log(f"{stage}_ece50", ece50, sync_dist=True)
             self.log(f"{stage}_accuracy_top2", acc2, sync_dist=True)
             # plot confusion matrix
             confusion_matrix: MulticlassConfusionMatrix = getattr(self, f"{stage}_confusion_matrix")

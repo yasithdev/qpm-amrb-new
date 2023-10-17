@@ -4,6 +4,7 @@ from functools import partial
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
+import math
 import torch
 import torch.nn.functional as F
 import torch.utils.hooks
@@ -328,7 +329,9 @@ def edl_loss(
     epoch: int,
     q: int = 10,
     τ: int = 10,
-    λ_max: float = 1.0,
+    λ_max: float = 0.1,
+    eps: float = 0.001,
+    use_cyclic: bool = True,
 ) -> torch.Tensor:
     # function definitions
     Σ = partial(torch.sum, dim=-1, keepdim=True)
@@ -352,8 +355,13 @@ def edl_loss(
         if len(idx_ind) > 0:
             y[idx_ind] = F.one_hot(target[idx_ind], K).float()
 
-    # wait for q epochs, then anneal λ from 0 -> λ_max over τ epochs
-    λ = min(λ_max, max(epoch - q, 0) / τ)
+    if use_cyclic:
+        # wait for q epochs, then use cosine annealing with period τ
+        λ = λ_max * math.sin((max(epoch - q, 0) / τ) * (2 * math.pi)) ** 2 + eps
+    else:
+        # wait for q epochs, then anneal λ from 0 -> λ_max over τ epochs
+        λ = min(λ_max, max(epoch - q, 0) / τ)
+
     α̃ = (1 - y) * (α - 1) + 1
 
     L_err = Σ((y - p).pow(2))
