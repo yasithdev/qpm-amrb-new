@@ -5,66 +5,27 @@ from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
 from ..transforms import TileChannels2d, ZeroPad2D
-from .rbc import rbc_dataset
+from .rot_mnist import rot_mnist_dataset
 
-patients = [
-    "220106_S1",
-    "220119_S1",
-    "220126_H1",
-    "220126_H2",
-    "220126_S1",
-    "220126_S2",
-    "220608_S1",
-    "220623_S1",
-    "220713_S1",
-    "220713_S2",
-    "220713_S3",
-    "220720_S1",
-    "220804_S1",
-    "220804_S2",
-    "220808_S1",
-    "220808_S2",
-    "220816_S1",
-    "220823_S1",
-    "220901_H1",
-    "220901_H2",
-    "220901_S1",
-    "220901_S2",
-    "220901_S3",
-    "220914_H1",
-    "220914_H2",
-    "220914_S1",
-    "220914_S2",
-    "220921_H1",
-    "220921_H2",
-    "220921_S1",
-    "220921_S2",
-    "220930_A1",
-    "220930_A2",
-    "220930_A3",
-    "220930_S1",
-    "220930_S2",
-    "220930_S3",
-    "221012_A1",
-    "221012_A2",
-    "221012_A3",
-    "221012_A4",
-    "221012_S1",
-    "221012_S2",
-    "221012_S3",
-    "221012_S4",
-    "221103_H1",
-    "221103_H2",
-    "221103_S1",
-    "221103_S2"
+Digits = [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
 ]
 
-classes = [
-    "Healthy Cell",
-    "Sickel Cell",
+rotation_labels = [
+    "Rotated",
+    "Unrotated",
 ]
 
-patient_to_binary_mapping = [1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,1,0,0,1,1]
+digit_to_rotation_mapping = [1,1,1,1,1,0,0,0,0,0]
 
 class DataModule(pl.LightningDataModule):
     def __init__(
@@ -72,7 +33,6 @@ class DataModule(pl.LightningDataModule):
         data_root: str,
         batch_size: int,
         ood: list[int],
-        target_label: str,
         aug_hw_224: bool = True,
         aug_ch_3: bool = True,
         target_transform = None,
@@ -82,7 +42,6 @@ class DataModule(pl.LightningDataModule):
         self.data_root = data_root
         self.batch_size = batch_size
         self.ood = ood
-        self.target_label = target_label
         self.aug_hw_224 = aug_hw_224
         self.aug_ch_3 = aug_ch_3
         self.train_data = None
@@ -90,25 +49,18 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         # define targets
-        self.classes = classes
+        self.classes = rotation_labels
         self.target_transform = target_transform
 
         # pre-transform shape
-        if(self.target_label == "both"):
-            self.orig_shape = (2, 301, 301)
-        else:
-            self.orig_shape = (1, 301, 301)
+        self.orig_shape = (1, 28, 28)
         c, h, w = self.orig_shape
 
         # transform
         trans = []
         trans.append(ToTensor())
         trans.append(ZeroPad2D(2, 2, 2, 2))
-        
-        # in our experiments we are interested in a low res image (otherwise reconstruction is hard)
-        trans.append(Resize(size=(64, 64), antialias=True))
-        h = w = 64
-        
+        h = w = 28
         if self.aug_hw_224:
             trans.append(Resize(size=(224, 224), antialias=True))
             h = w = 224
@@ -122,11 +74,10 @@ class DataModule(pl.LightningDataModule):
 
     def setup(self, stage: str) -> None:
         get_dataset = partial(
-            rbc_dataset,
+            rot_mnist_dataset,
             data_dir=self.data_root,
             transform=self.transform,
             target_transform=self.target_transform,
-            image_type=self.target_label,
             filter_labels=self.ood,
         )
         if stage == "fit":

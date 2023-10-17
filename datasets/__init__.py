@@ -1,6 +1,7 @@
-from . import amrb, cifar10, embeddings, mnist, qpm, rbc
+from . import amrb, cifar10, embeddings, mnist, qpm, rbc, rot_mnist
 from .qpm import species, species_mapping
 from .rbc import classes, patient_to_binary_mapping
+from .rot_mnist import rotation_labels, digit_to_rotation_mapping
 from .mnist import labels as mnist_labels
 from .cifar10 import labels as cifar10_labels
 from .amrb import labels as amrb_labels
@@ -15,6 +16,8 @@ def get_grouping(
         labels, grouping = species, species_mapping
     elif name.startswith("RBC"):
         labels, grouping = classes, patient_to_binary_mapping
+    elif name.startswith("rot_mnist"):
+        labels, grouping = rotation_labels, digit_to_rotation_mapping
     elif name == "mnist":
         labels, grouping = mnist_labels, list(range(10)) # identity-grouping for now
     elif name == "cifar10":
@@ -58,8 +61,10 @@ def get_data(
         label_type = dataset_name[4:]
         dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("RBC"):
-        label_type = dataset_name[4:]
-        dm = rbc.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
+        image_type = dataset_name[4:]
+        dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
+    elif dataset_name.startswith("rot_mnist"):
+        dm = rot_mnist.DataModule(**args, aug_ch_3=aug_ch_3)
     else:
         raise ValueError(f"Dataset '{dataset_name}' is unsupported")
 
