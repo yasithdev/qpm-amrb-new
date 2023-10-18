@@ -103,3 +103,10 @@ train_qpm_species_resnet50_perm_linear_enc:
     
 train_qpm_species_flow_spherical_ood:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_spherical_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
+
+eval_qpm_species_flow_mse_ood:
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_0.ipynb -p ood 0; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_1.ipynb -p ood 1; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_2.ipynb -p ood 2; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_3.ipynb -p ood 3; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_4.ipynb -p ood 4; \

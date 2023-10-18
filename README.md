@@ -8,7 +8,10 @@
 
 * for NF model
     * check |V|/|U| statistic
-    * try groupwise OOD
+    * try groupwise OOD per class
+    * try hypothesis test on OOD norm
+    * do test for MNIST dataset
+    * do test for CIFAR10 dataset
 
 * for EDL models
     * report expected calibration error
