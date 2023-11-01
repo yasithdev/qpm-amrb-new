@@ -36,6 +36,7 @@ class DataModule(pl.LightningDataModule):
         aug_hw_224: bool = True,
         aug_ch_3: bool = True,
         target_transform = None,
+        fake_mode = False,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -51,6 +52,7 @@ class DataModule(pl.LightningDataModule):
         # define targets
         self.classes = rotation_labels
         self.target_transform = target_transform
+        self.fake_mode = fake_mode
 
         # pre-transform shape
         self.orig_shape = (1, 28, 28)
@@ -79,6 +81,7 @@ class DataModule(pl.LightningDataModule):
             transform=self.transform,
             target_transform=self.target_transform,
             filter_labels=self.ood,
+            fake_mode = self.fake_mode
         )
         if stage == "fit":
             self.train_data = get_dataset(type_="train", filter_mode="exclude")

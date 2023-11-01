@@ -23,6 +23,7 @@ class rot_mnist_dataset(Dataset):
         target_transform=None,
         filter_labels=[],
         filter_mode: str = "exclude",
+        fake_mode = False,
     ):
         # validation
         assert type_ in ["train", "val", "test"]
@@ -33,11 +34,15 @@ class rot_mnist_dataset(Dataset):
         self.target_transform = target_transform
         self.filter_labels = filter_labels
         self.filter_mode = filter_mode
+        self.fake_mode = fake_mode
         self.type_ = type_
         print(f"Dataset type {type_}")
 
         # files : train_data.npz, test_data.npz, val_data.npz
-        data = np.load(f"{data_dir}/{self.type_}_data.npz")
+        prefix = ""
+        if(self.fake_mode == True):
+            prefix = "fake_"
+        data = np.load(f"{data_dir}/{prefix}{self.type_}_data.npz")
 
         # sanity check
         assert data['images'].shape[0] == data['images'].shape[1] == 28
