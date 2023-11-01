@@ -3,8 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import math
-from typing import Callable, List, Tuple, TypeVar
+from typing import List, Tuple, TypeVar
 
 import matplotlib
 from lightning.pytorch import LightningDataModule
@@ -20,7 +19,23 @@ def env(key: str, type: type[T], default: T) -> dict:
     return dict(type=type, default=val)
 
 
-def load_config() -> Config:
+def load_config(
+    dataset_name: str = "",
+    emb_name: str = "",
+    model_name: str = "",
+    ood: str = "",
+    data_dir: str = "$HOME/datasets",
+    emb_dir: str = "assets/embeddings",
+    emb_dims: int = 128,
+    emb_targets: int = 0,
+    rand_perms: int = 0,
+    batch_size: int = 128,
+    optim_lr: float = 0.001,
+    optim_m: float = 0.8,
+    train_epochs: int = 200,
+    ckpt_metric: str = "val_loss",
+    ckpt_mode: str = "min",
+) -> Config:
     log_level = logging.WARN
     logging.basicConfig(level=log_level)
     logging.info(f"LOG_LEVEL={log_level}")
@@ -30,21 +45,21 @@ def load_config() -> Config:
     config = Config()
 
     parser = argparse.ArgumentParser(description="configuration")
-    parser.add_argument("--data_dir", **env("DATA_DIR", type=str, default="$HOME/datasets"))
-    parser.add_argument("--dataset_name", **env("DATASET_NAME", type=str, default=""))
-    parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default="assets/embeddings"))
-    parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=""))
-    parser.add_argument("--emb_dims", **env("EMB_DIMS", type=int, default=128))
-    parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=0))
-    parser.add_argument("--rand_perms", **env("RAND_PERMS", type=int, default=0))
-    parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=""))
-    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=128))
-    parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=0.001))
-    parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=0.8))
-    parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=200))
-    parser.add_argument("--ckpt_metric", **env("CKPT_METRIC", type=str, default="val_loss"))
-    parser.add_argument("--ckpt_mode", **env("CKPT_MODE", type=str, default="min"))
-    parser.add_argument("--ood", **env("OOD", type=str, default=""))
+    parser.add_argument("--data_dir", **env("DATA_DIR", type=str, default=data_dir))
+    parser.add_argument("--dataset_name", **env("DATASET_NAME", type=str, default=dataset_name))
+    parser.add_argument("--emb_dir", **env("EMB_DIR", type=str, default=emb_dir))
+    parser.add_argument("--emb_name", **env("EMB_NAME", type=str, default=emb_name))
+    parser.add_argument("--emb_dims", **env("EMB_DIMS", type=int, default=emb_dims))
+    parser.add_argument("--emb_targets", **env("EMB_TARGETS", type=int, default=emb_targets))
+    parser.add_argument("--rand_perms", **env("RAND_PERMS", type=int, default=rand_perms))
+    parser.add_argument("--model_name", **env("MODEL_NAME", type=str, default=model_name))
+    parser.add_argument("--batch_size", **env("BATCH_SIZE", type=int, default=batch_size))
+    parser.add_argument("--optim_lr", **env("OPTIM_LR", type=float, default=optim_lr))
+    parser.add_argument("--optim_m", **env("OPTIM_M", type=float, default=optim_m))
+    parser.add_argument("--train_epochs", **env("TRAIN_EPOCHS", type=int, default=train_epochs))
+    parser.add_argument("--ckpt_metric", **env("CKPT_METRIC", type=str, default=ckpt_metric))
+    parser.add_argument("--ckpt_mode", **env("CKPT_MODE", type=str, default=ckpt_mode))
+    parser.add_argument("--ood", **env("OOD", type=str, default=ood))
     ## SSL Augmentation parameters
     # Common augmentations
     parser.add_argument("--scale", nargs=2, type=float, default=[0.2, 1.0])

@@ -82,10 +82,6 @@ class Model(BaseModel):
         rqs_coupling_args_uA = arg(uI, uT, num_bins)
         rqs_coupling_args_uB = arg(uT, uI, num_bins)
 
-        # Base Distributions
-        self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
-        self.dist_v = flow.distributions.StandardNormal(k=CHW - D, mu=0.0, std=0.01)
-
         # (B,C,H,W)->(B,16*C,H/4,H/4)->flow->(B,16*C,H/4,H/4)->(B,64*C,H/8,W/8)->flow->(B,64*C,H/8,W/8)->(B,C*H*W)
         self.flow_x = flow.Compose(
             [
@@ -127,6 +123,9 @@ class Model(BaseModel):
                 torch.nn.Linear(D, K),
             )
 
+        # base distribution
+        self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
+
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         return optimizer
@@ -134,16 +133,19 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         uv, logabsdet_x = self.flow_x(x, forward=True)
         u, v = flow.nn.partition(uv, self.cm)
-        z, logabsdet_u = self.flow_u(u, forward=True)
+        u_norm = u.flatten(1).norm(dim=1, keepdim=True)
+        v_norm = v.flatten(1).norm(dim=1, keepdim=True)
+        u_unit = u / u_norm.view(x.shape[0], *[1] * (len(x.shape) - 1))
+        z, logabsdet_u = self.flow_u(u_unit, forward=True)
         uv_m = flow.nn.join(u, v - v)
         x_m, logabsdet_m = self.flow_x(uv_m, forward=False)
         logits = None
         if self.with_classifier:
             logits = self.classifier(u.flatten(1))
-        return v, z, x_m, logits
+        return v, z, x_m, u_norm, v_norm, logits
 
     def compute_losses(
         self,
@@ -161,7 +163,7 @@ class Model(BaseModel):
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         # forward pass
-        v, z, x_m, logits = self(x)
+        v, z, x_m, u_norm, v_norm, logits = self(x)
 
         # classifier loss
         if self.with_classifier:
@@ -186,13 +188,14 @@ class Model(BaseModel):
             metrics_mb["y_ucty"] = uY
 
         # manifold losses
-        ß = 1e-3
-        v_nll = -self.dist_v.log_prob(v.flatten(1))
+        u_sq_err = (u_norm - 1) ** 2
+        v_sq_err = v_norm**2
         z_nll = -self.dist_z.log_prob(z.flatten(1))
-        losses_mb["loss_v"] = ß * v_nll.mean()
+        losses_mb["loss_u"] = u_sq_err.mean()
+        losses_mb["loss_v"] = v_sq_err.mean()
         losses_mb["loss_z"] = z_nll.mean()
         losses_mb["loss_x"] = F.mse_loss(x, x_m)
-        
+
         # manifold metrics
         metrics_mb["x_pred"] = x_m
 

@@ -99,4 +99,14 @@ train_qpm_species_resnet50_perm_mlp_ood:
 
 train_qpm_species_resnet50_perm_linear_enc:
 	python -u train.py --dataset_name="QPM_species" --model_name="ht_linear_enc_ce" --emb_dims=128 --rand_perms=500 --ckpt_metric="val_accuracy" --ckpt_mode="max"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="ht_linear_enc_ce" --emb_dims=128 --rand_perms=500 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:2"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="ht_linear_enc_ce" --emb_dims=128 --rand_perms=500 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
+    
+train_qpm_species_flow_spherical_ood:
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_spherical_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
+
+eval_qpm_species_flow_mse_ood:
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_0.ipynb -p ood 0; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_1.ipynb -p ood 1; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_2.ipynb -p ood 2; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_3.ipynb -p ood 3; \
+	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_4.ipynb -p ood 4; \

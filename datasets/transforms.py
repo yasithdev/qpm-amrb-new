@@ -7,7 +7,7 @@ import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 from PIL import ImageFilter
 from torch.utils.data import Dataset
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from config import Config
 
