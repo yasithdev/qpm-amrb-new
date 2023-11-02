@@ -16,11 +16,13 @@ def get_grouping(
         labels, grouping = species, species_mapping
     elif name.startswith("RBC"):
         labels, grouping = classes, patient_to_binary_mapping
+    elif name.startswith("rbc"):
+        labels, grouping = classes, patient_to_binary_mapping
     elif name.startswith("rot_mnist"):
         labels, grouping = rotation_labels, digit_to_rotation_mapping
-    elif name == "mnist":
+    elif name == "MNIST":
         labels, grouping = mnist_labels, list(range(10)) # identity-grouping for now
-    elif name == "cifar10":
+    elif name == "CIFAR10":
         labels, grouping = cifar10_labels, list(range(10)) # identity-grouping for now
     else:
         raise ValueError()
@@ -63,6 +65,9 @@ def get_data(
     elif dataset_name.startswith("RBC"):
         image_type = dataset_name[4:]
         dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
+    elif dataset_name.startswith("rbc"):
+        image_type = dataset_name[4:]
+        dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=False, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("rot_mnist"):
         dm = rot_mnist.DataModule(**args, aug_ch_3=aug_ch_3)
     else:

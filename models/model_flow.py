@@ -50,7 +50,12 @@ class Model(BaseModel):
         C, H, W = self.input_shape
         CHW = C * H * W
         num_bins = 10
-        cm, k0, k1 = 0, 4, 2
+        if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
+            assert self.input_shape[-1] % 32 == 0
+            cm, k0, k1 = 0, 8, 4
+        else:
+            assert self.input_shape[-1] % 8 == 0
+            cm, k0, k1 = 0, 4, 2
 
         # ambient (x) flow configuration
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
@@ -63,24 +68,24 @@ class Model(BaseModel):
         self.cm = cm
 
         # spatial flow
-        arg = namedtuple("arg", ["i_channels", "t_channels", "num_bins"])
+        arg = namedtuple("arg", ["in_h", "in_w", "i_channels", "t_channels", "num_bins"])
         x1_mask = torch.zeros(c1).bool()
         x1_mask[::2] = True
         x1I, x1T = decode_mask(x1_mask)
-        rqs_coupling_args_x1A = arg(x1I, x1T, num_bins)
-        rqs_coupling_args_x1B = arg(x1T, x1I, num_bins)
+        rqs_coupling_args_x1A = arg(h1, w1, x1I, x1T, num_bins)
+        rqs_coupling_args_x1B = arg(h1, w1, x1T, x1I, num_bins)
         x2_mask = torch.zeros(c2).bool()
         x2_mask[::2] = True
         x2I, x2T = decode_mask(x2_mask)
-        rqs_coupling_args_x2A = arg(x2I, x2T, num_bins)
-        rqs_coupling_args_x2B = arg(x2T, x2I, num_bins)
+        rqs_coupling_args_x2A = arg(h2, w2, x2I, x2T, num_bins)
+        rqs_coupling_args_x2B = arg(h2, w2, x2T, x2I, num_bins)
 
         # reduced-channel flow
         u_mask = torch.zeros(cm).bool()
         u_mask[::2] = True
         uI, uT = decode_mask(u_mask)
-        rqs_coupling_args_uA = arg(uI, uT, num_bins)
-        rqs_coupling_args_uB = arg(uT, uI, num_bins)
+        rqs_coupling_args_uA = arg(h2, w2, uI, uT, num_bins)
+        rqs_coupling_args_uB = arg(h2, w2, uT, uI, num_bins)
 
         # Base Distributions
         self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
@@ -194,7 +199,7 @@ class Model(BaseModel):
         losses_mb["loss_v"] = ß * v_nll.mean()
         losses_mb["loss_z"] = z_nll.mean()
         losses_mb["loss_x"] = F.mse_loss(x, x_m)
-        
+
         # manifold metrics
         metrics_mb["x_pred"] = x_m
 

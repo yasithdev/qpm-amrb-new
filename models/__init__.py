@@ -81,6 +81,9 @@ def get_model(
     if model_name == "flow_mse":
         from .model_flow import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
+    if model_name == "flow_vcr_mse":
+        from .model_flow_vcr import Model
+        return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
     if model_name == "flow_spherical_mse":
         from .model_flow_spherical import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")

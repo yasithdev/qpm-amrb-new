@@ -4,7 +4,7 @@ import lightning.pytorch as pl
 from torch.utils.data import ConcatDataset, DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 
-from ..transforms import TileChannels2d, ZeroPad2D
+from ..transforms import AddGaussianNoise, TileChannels2d, ZeroPad2D
 from .rbc import rbc_dataset
 
 patients = [
@@ -103,15 +103,16 @@ class DataModule(pl.LightningDataModule):
         # transform
         trans = []
         trans.append(ToTensor())
-        trans.append(ZeroPad2D(2, 2, 2, 2))
-        
-        # in our experiments we are interested in a low res image (otherwise reconstruction is hard)
-        trans.append(Resize(size=(64, 64), antialias=True))
-        h = w = 64
+        trans.append(AddGaussianNoise(0.0, 0.1)) # dequantization
         
         if self.aug_hw_224:
             trans.append(Resize(size=(224, 224), antialias=True))
             h = w = 224
+        else:
+            # in our experiments we are interested in a low res image (otherwise reconstruction is hard)
+            trans.append(Resize(size=(64, 64), antialias=True))
+            h = w = 64
+
         if self.aug_ch_3:
             trans.append(TileChannels2d(3))
             c = 3

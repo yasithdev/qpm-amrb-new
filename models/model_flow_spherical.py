@@ -50,7 +50,12 @@ class Model(BaseModel):
         C, H, W = self.input_shape
         CHW = C * H * W
         num_bins = 10
-        cm, k0, k1 = 0, 4, 2
+        if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
+            assert self.input_shape[-1] % 32 == 0
+            cm, k0, k1 = 0, 8, 4
+        else:
+            assert self.input_shape[-1] % 8 == 0
+            cm, k0, k1 = 0, 4, 2
 
         # ambient (x) flow configuration
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
