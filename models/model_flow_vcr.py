@@ -68,24 +68,24 @@ class Model(BaseModel):
         self.cm = cm
 
         # spatial flow
-        arg = namedtuple("arg", ["i_channels", "t_channels", "num_bins"])
+        arg = namedtuple("arg", ["in_h", "in_w", "i_channels", "t_channels", "num_bins"])
         x1_mask = torch.zeros(c1).bool()
         x1_mask[::2] = True
         x1I, x1T = decode_mask(x1_mask)
-        rqs_coupling_args_x1A = arg(x1I, x1T, num_bins)
-        rqs_coupling_args_x1B = arg(x1T, x1I, num_bins)
+        rqs_coupling_args_x1A = arg(h1, w1, x1I, x1T, num_bins)
+        rqs_coupling_args_x1B = arg(h1, w1, x1T, x1I, num_bins)
         x2_mask = torch.zeros(c2).bool()
         x2_mask[::2] = True
         x2I, x2T = decode_mask(x2_mask)
-        rqs_coupling_args_x2A = arg(x2I, x2T, num_bins)
-        rqs_coupling_args_x2B = arg(x2T, x2I, num_bins)
+        rqs_coupling_args_x2A = arg(h2, w2, x2I, x2T, num_bins)
+        rqs_coupling_args_x2B = arg(h2, w2, x2T, x2I, num_bins)
 
         # reduced-channel flow
         u_mask = torch.zeros(cm).bool()
         u_mask[::2] = True
         uI, uT = decode_mask(u_mask)
-        rqs_coupling_args_uA = arg(uI, uT, num_bins)
-        rqs_coupling_args_uB = arg(uT, uI, num_bins)
+        rqs_coupling_args_uA = arg(h2, w2, uI, uT, num_bins)
+        rqs_coupling_args_uB = arg(h2, w2, uT, uI, num_bins)
 
         # (B,C,H,W)->(B,16*C,H/4,H/4)->flow->(B,16*C,H/4,H/4)->(B,64*C,H/8,W/8)->flow->(B,64*C,H/8,W/8)->(B,C*H*W)
         self.flow_x = flow.Compose(

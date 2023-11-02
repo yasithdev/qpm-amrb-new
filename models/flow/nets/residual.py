@@ -167,6 +167,8 @@ class Conv2DAttention(nn.Module):
         out_features: int,
         head_features: int,
     ) -> None:
+        super().__init__()
+        
         self.in_h = in_h
         self.in_w = in_w
         self.nh = num_heads
@@ -177,9 +179,8 @@ class Conv2DAttention(nn.Module):
         self.rh = torch.nn.Parameter(torch.randn(self.in_h, self.dh))
         self.rw = torch.nn.Parameter(torch.randn(self.in_w, self.dh))
 
-        self.wq = torch.nn.Parameter(torch.randn(self.nh, self.di, self.dh))
-        self.wk = torch.nn.Parameter(torch.randn(self.nh, self.di, self.dh))
-        self.wv = torch.nn.Parameter(torch.randn(self.nh, self.di, self.dh))
+        self.conv_qkv = torch.nn.Conv2d(self.di, self.nh * self.dh * 3, kernel_size=1)
+
         self.wp = torch.nn.Parameter(torch.randn(self.nh * self.dh, self.do))
         self.nc = 1 / (self.dh**0.5)
 
@@ -194,19 +195,18 @@ class Conv2DAttention(nn.Module):
         # relative position embeddings
         assert self.in_h == h
         assert self.in_w == w
-        rel_h = self.rh.cumsum_(dim=0).view(h, 1, self.dh)
-        rel_w = self.rw.cumsum_(dim=0).view(1, w, self.dh)
-        rel = einops.rearrange("h w d -> 1 1 (h w) d", rel_h + rel_w)
+        rel_h = self.rh.tanh().cumsum(dim=0).view(h, 1, self.dh) / (h ** 0.5)
+        rel_w = self.rw.tanh().cumsum(dim=0).view(1, w, self.dh) / (w ** 0.5)
+        rel = einops.rearrange(rel_h + rel_w, "h w d -> 1 1 (h w) d")
 
         # attention
-        input = einops.rearrange("b c h w -> b (h w) c")
-        q = einops.einsum(input, self.wq, "b s c, a c d -> b a s d")
-        k = einops.einsum(input, self.wk, "b s c, a c d -> b a S d")
-        v = einops.einsum(input, self.wv, "b s c, a c d -> b a S d")
+        features = self.conv_qkv(input)
+        features = einops.rearrange(features, "b (a d) h w -> b a (h w) d", a=self.nh * 3)
+        (q, k, v) = torch.chunk(features, 3, dim=1)
         sim = einops.einsum((q + rel), (k + rel), "b a s d, b a S d -> b a s S")
         att = F.softmax(sim * self.nc, dim=-1)
         mha = einops.einsum(att, v, "b a s S, b a S d -> b a s d")
-        mha = einops.rearrange("b a s d -> b s (a d)")
+        mha = einops.rearrange(mha, "b a s d -> b s (a d)")
         proj = einops.einsum(mha, self.wp, "b s ad, ad C -> b s C")
         out = einops.rearrange(proj, "b (h w) C -> b C h w", h=h, w=w)
         return out
@@ -227,11 +227,14 @@ class Conv2DResNet(nn.Module):
         activation: Callable = F.relu,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
+        use_attention: bool = False,
     ) -> None:
         super().__init__()
 
         self.context_channels = context_channels
         self.hidden_channels = hidden_channels
+        self.use_attention = use_attention
+
         if context_channels is not None:
             self.initial_layer = nn.Conv2d(
                 in_channels=in_channels + context_channels,
@@ -258,15 +261,18 @@ class Conv2DResNet(nn.Module):
                 for _ in range(num_blocks)
             ]
         )
-        self.attention_layer = Conv2DAttention(
-            in_h=in_h,
-            in_w=in_w,
-            num_heads=8,
-            in_features=hidden_channels,
-            out_features=hidden_channels,
-            head_features=32,
-        )
-        self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
+        if self.use_attention:
+            self.attention_layer = Conv2DAttention(
+                in_h=in_h,
+                in_w=in_w,
+                num_heads=4,
+                in_features=hidden_channels,
+                out_features=hidden_channels,
+                head_features=32,
+            )
+            self.final_layer = nn.Conv2d(hidden_channels * 2, out_channels, kernel_size=1, padding=0)
+        else:
+            self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
 
     def forward(
         self,
@@ -279,6 +285,8 @@ class Conv2DResNet(nn.Module):
             temps = self.initial_layer(torch.cat((inputs, context), dim=1))
         for block in self.blocks:
             temps = block(temps, context)
-        output = self.attention_layer(temps)
-        output = self.final_layer(temps + output)
+        if self.use_attention:
+            temps_att = self.attention_layer(temps)
+            temps = torch.concat([temps, temps_att], dim=1)
+        output = self.final_layer(temps)
         return output

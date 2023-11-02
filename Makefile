@@ -118,6 +118,10 @@ train_mnist_flow_mse:
 	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
 	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
 
+train_mnist_flow_vcr_mse:
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
 train_qpm_species_flow_mse:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
@@ -140,8 +144,9 @@ train_rbc_phase_flow_mse:
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
 
 train_rbc_phase_flow_vcr_mse:
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	# python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
+	# python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" \
 
 # evaluation automation
 

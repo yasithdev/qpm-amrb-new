@@ -152,7 +152,7 @@ class RQSCoupling(CouplingTransform):
     def __init__(
         self,
         in_h: int,
-        int_w: int,
+        in_w: int,
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_bins: int = 10,
