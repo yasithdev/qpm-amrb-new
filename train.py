@@ -30,7 +30,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 checkpoint_callback = ModelCheckpoint(monitor=config.ckpt_metric, mode=config.ckpt_mode)
-early_stopping_callback = EarlyStopping(monitor=config.ckpt_metric, mode=config.ckpt_mode, patience=30)
+early_stopping_callback = EarlyStopping(monitor=config.ckpt_metric, mode=config.ckpt_mode, patience=50)
 swa_callback = StochasticWeightAveraging(swa_lrs=1e-2)
 trainer = pl.Trainer(
     logger=wandb_logger,

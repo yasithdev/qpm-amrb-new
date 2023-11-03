@@ -114,13 +114,23 @@ train_qpm_species_resnet50_ht_linear:
 
 # flow models
 
-train_mnist_flow_mse:
-	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
-
 train_mnist_flow_vcr_mse:
 	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
 	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="3"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="6"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="7"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="8"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="9"; \
+
+train_mnist_flow_mse:
+	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
 
 train_qpm_species_flow_mse:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
@@ -130,11 +140,12 @@ train_qpm_species_flow_mse:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="4"; \
     
 train_qpm_species_flow_vcr_mse:
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="3"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="4"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="3"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_vcr_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 
 train_qpm_species_flow_spherical_mse:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_spherical_mse" --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
@@ -142,17 +153,38 @@ train_qpm_species_flow_spherical_mse:
 train_rbc_phase_flow_mse:
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min"; \
 
 train_rbc_phase_flow_vcr_mse:
-	# python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	# python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min"; \
 
 # evaluation automation
 
 eval_qpm_species_flow_mse:
-	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_0.ipynb -p ood 0; \
-	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_1.ipynb -p ood 1; \
-	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_2.ipynb -p ood 2; \
-	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_3.ipynb -p ood 3; \
-	papermill eval_qpm_species_flow_mse_M128_ood.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_4.ipynb -p ood 4; \
+	papermill eval_qpm_species_flow_mse_M128.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_0.ipynb -p ood 0; \
+	papermill eval_qpm_species_flow_mse_M128.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_1.ipynb -p ood 1; \
+	papermill eval_qpm_species_flow_mse_M128.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_2.ipynb -p ood 2; \
+	papermill eval_qpm_species_flow_mse_M128.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_3.ipynb -p ood 3; \
+	papermill eval_qpm_species_flow_mse_M128.ipynb assets/runs/eval_qpm_species_flow_mse_M128_ood_4.ipynb -p ood 4; \
+
+eval_qpm_species_flow_vcr_mse:
+	papermill eval_qpm_species_flow_vcr_mse_M128.ipynb assets/runs/eval_qpm_species_flow_vcr_mse_M128_ood_0.ipynb -p ood 0; \
+	#papermill eval_qpm_species_flow_vcr_mse_M128.ipynb assets/runs/eval_qpm_species_flow_vcr_mse_M128_ood_1.ipynb -p ood 1; \
+	#papermill eval_qpm_species_flow_vcr_mse_M128.ipynb assets/runs/eval_qpm_species_flow_vcr_mse_M128_ood_2.ipynb -p ood 2; \
+	#papermill eval_qpm_species_flow_vcr_mse_M128.ipynb assets/runs/eval_qpm_species_flow_vcr_mse_M128_ood_3.ipynb -p ood 3; \
+	#papermill eval_qpm_species_flow_vcr_mse_M128.ipynb assets/runs/eval_qpm_species_flow_vcr_mse_M128_ood_4.ipynb -p ood 4; \
+
+eval_rbc_phase_flow_vcr_mse:
+	papermill eval_rbc_phase_flow_vcr_mse_M128.ipynb assets/runs/eval_rbc_phase_flow_vcr_mse_M128_ood_0.ipynb -p ood "0"; \
+	papermill eval_rbc_phase_flow_vcr_mse_M128.ipynb assets/runs/eval_rbc_phase_flow_vcr_mse_M128_ood_1.ipynb -p ood "1"; \
+	papermill eval_rbc_phase_flow_vcr_mse_M128.ipynb assets/runs/eval_rbc_phase_flow_vcr_mse_M128.ipynb -p ood ""; \
+    
+eval_mnist_flow_vcr_mse:
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_01234.ipynb -p ood "0:1:2:3:4"; \
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_56789.ipynb -p ood "5:6:7:8:9"; \
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_0.ipynb -p ood 0; \
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_1.ipynb -p ood 1; \
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_2.ipynb -p ood 2; \
+	papermill eval_mnist_flow_vcr_mse_M128.ipynb assets/runs/eval_mnist_flow_vcr_mse_M128_ood_3.ipynb -p ood 3; \
