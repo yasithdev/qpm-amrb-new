@@ -106,8 +106,8 @@ class DataModule(pl.LightningDataModule):
         trans.append(ZeroPad2D(2, 2, 2, 2))
         
         # in our experiments we are interested in a low res image (otherwise reconstruction is hard)
-        trans.append(Resize(size=(64, 64), antialias=True))
-        h = w = 64
+        # trans.append(Resize(size=(64, 64), antialias=True))
+        # h = w = 64
         
         if self.aug_hw_224:
             trans.append(Resize(size=(224, 224), antialias=True))
