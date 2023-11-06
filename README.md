@@ -10,6 +10,7 @@
     * check |V|/|U| statistic
     * try groupwise OOD per class
     * try hypothesis test on OOD norm
+    * test with RBC images as OOD data
     * do test for MNIST dataset
     * do test for CIFAR10 dataset
 

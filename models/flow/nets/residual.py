@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+import einops
 
 import torch
 from torch import nn
@@ -18,21 +19,16 @@ class ResBlock(nn.Module):
         use_batch_norm: bool = False,
         zero_initialization: bool = True,
     ) -> None:
-
         super().__init__()
 
         self.activation = activation
 
         self.use_batch_norm = use_batch_norm
         if use_batch_norm:
-            self.batch_norm_layers = nn.ModuleList(
-                [nn.BatchNorm1d(features, eps=1e-3) for _ in range(2)]
-            )
+            self.batch_norm_layers = nn.ModuleList([nn.BatchNorm1d(features, eps=1e-3) for _ in range(2)])
         if context_features is not None:
             self.context_layer = nn.Linear(context_features, features)
-        self.linear_layers = nn.ModuleList(
-            [nn.Linear(features, features) for _ in range(2)]
-        )
+        self.linear_layers = nn.ModuleList([nn.Linear(features, features) for _ in range(2)])
         self.dropout = nn.Dropout(p=dropout_probability)
         if zero_initialization:
             init.uniform_(self.linear_layers[-1].weight, -1e-3, 1e-3)  # type: ignore
@@ -43,7 +39,6 @@ class ResBlock(nn.Module):
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         temps = inputs
         if self.use_batch_norm:
             temps = self.batch_norm_layers[0](temps)
@@ -73,15 +68,12 @@ class ResNet(nn.Module):
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
     ) -> None:
-
         super().__init__()
 
         self.hidden_features = hidden_features
         self.context_features = context_features
         if context_features is not None:
-            self.initial_layer = nn.Linear(
-                in_features + context_features, hidden_features
-            )
+            self.initial_layer = nn.Linear(in_features + context_features, hidden_features)
         else:
             self.initial_layer = nn.Linear(in_features, hidden_features)
         self.blocks = nn.ModuleList(
@@ -103,7 +95,6 @@ class ResNet(nn.Module):
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         if context is None:
             temps = self.initial_layer(inputs)
         else:
@@ -126,7 +117,6 @@ class Conv2DResBlock(nn.Module):
         use_batch_norm: bool = False,
         zero_initialization: bool = True,
     ) -> None:
-
         super().__init__()
 
         self.activation = activation
@@ -140,12 +130,8 @@ class Conv2DResBlock(nn.Module):
             )
         self.use_batch_norm = use_batch_norm
         if use_batch_norm:
-            self.batch_norm_layers = nn.ModuleList(
-                [nn.BatchNorm2d(channels, eps=1e-3) for _ in range(2)]
-            )
-        self.conv_layers = nn.ModuleList(
-            [nn.Conv2d(channels, channels, kernel_size=3, padding=1) for _ in range(2)]
-        )
+            self.batch_norm_layers = nn.ModuleList([nn.BatchNorm2d(channels, eps=1e-3) for _ in range(2)])
+        self.conv_layers = nn.ModuleList([nn.Conv2d(channels, channels, kernel_size=3, padding=1) for _ in range(2)])
         self.dropout = nn.Dropout(p=dropout_probability)
         if zero_initialization:
             init.uniform_(self.conv_layers[-1].weight, -1e-3, 1e-3)  # type: ignore
@@ -156,7 +142,6 @@ class Conv2DResBlock(nn.Module):
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         temps = inputs
         if self.use_batch_norm:
             temps = self.batch_norm_layers[0](temps)
@@ -172,11 +157,68 @@ class Conv2DResBlock(nn.Module):
         return inputs + temps
 
 
+class Conv2DAttention(nn.Module):
+    def __init__(
+        self,
+        in_h: int,
+        in_w: int,
+        num_heads: int,
+        in_features: int,
+        out_features: int,
+        head_features: int,
+    ) -> None:
+        super().__init__()
+        
+        self.in_h = in_h
+        self.in_w = in_w
+        self.nh = num_heads
+        self.di = in_features
+        self.do = out_features
+        self.dh = head_features
+
+        self.rh = torch.nn.Parameter(torch.randn(self.in_h, self.dh))
+        self.rw = torch.nn.Parameter(torch.randn(self.in_w, self.dh))
+
+        self.conv_qkv = torch.nn.Conv2d(self.di, self.nh * self.dh * 3, kernel_size=1)
+
+        self.wp = torch.nn.Parameter(torch.randn(self.nh * self.dh, self.do))
+        self.nc = 1 / (self.dh**0.5)
+
+    def forward(
+        self,
+        input: torch.Tensor,
+    ) -> torch.Tensor:
+        # validation
+        assert len(input.shape) == 4
+        (h, w) = input.shape[2:]
+
+        # relative position embeddings
+        assert self.in_h == h
+        assert self.in_w == w
+        rel_h = self.rh.tanh().cumsum(dim=0).view(h, 1, self.dh) / (h ** 0.5)
+        rel_w = self.rw.tanh().cumsum(dim=0).view(1, w, self.dh) / (w ** 0.5)
+        rel = einops.rearrange(rel_h + rel_w, "h w d -> 1 1 (h w) d")
+
+        # attention
+        features = self.conv_qkv(input)
+        features = einops.rearrange(features, "b (a d) h w -> b a (h w) d", a=self.nh * 3)
+        (q, k, v) = torch.chunk(features, 3, dim=1)
+        sim = einops.einsum((q + rel), (k + rel), "b a s d, b a S d -> b a s S")
+        att = F.softmax(sim * self.nc, dim=-1)
+        mha = einops.einsum(att, v, "b a s S, b a S d -> b a s d")
+        mha = einops.rearrange(mha, "b a s d -> b s (a d)")
+        proj = einops.einsum(mha, self.wp, "b s ad, ad C -> b s C")
+        out = einops.rearrange(proj, "b (h w) C -> b C h w", h=h, w=w)
+        return out
+
+
 class Conv2DResNet(nn.Module):
     """"""
 
     def __init__(
         self,
+        in_h: int,
+        in_w: int,
         in_channels: int,
         out_channels: int,
         hidden_channels: int,
@@ -185,12 +227,14 @@ class Conv2DResNet(nn.Module):
         activation: Callable = F.relu,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
+        use_attention: bool = False,
     ) -> None:
-
         super().__init__()
 
         self.context_channels = context_channels
         self.hidden_channels = hidden_channels
+        self.use_attention = use_attention
+
         if context_channels is not None:
             self.initial_layer = nn.Conv2d(
                 in_channels=in_channels + context_channels,
@@ -217,21 +261,32 @@ class Conv2DResNet(nn.Module):
                 for _ in range(num_blocks)
             ]
         )
-        self.final_layer = nn.Conv2d(
-            hidden_channels, out_channels, kernel_size=1, padding=0
-        )
+        if self.use_attention:
+            self.attention_layer = Conv2DAttention(
+                in_h=in_h,
+                in_w=in_w,
+                num_heads=4,
+                in_features=hidden_channels,
+                out_features=hidden_channels,
+                head_features=32,
+            )
+            self.final_layer = nn.Conv2d(hidden_channels * 2, out_channels, kernel_size=1, padding=0)
+        else:
+            self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
 
     def forward(
         self,
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         if context is None:
             temps = self.initial_layer(inputs)
         else:
             temps = self.initial_layer(torch.cat((inputs, context), dim=1))
         for block in self.blocks:
             temps = block(temps, context)
-        outputs = self.final_layer(temps)
-        return outputs
+        if self.use_attention:
+            temps_att = self.attention_layer(temps)
+            temps = torch.concat([temps, temps_att], dim=1)
+        output = self.final_layer(temps)
+        return output

@@ -35,7 +35,7 @@ swa_callback = StochasticWeightAveraging(swa_lrs=1e-2)
 trainer = pl.Trainer(
     logger=wandb_logger,
     max_epochs=config.train_epochs,
-    callbacks=[checkpoint_callback, swa_callback, early_stopping_callback],
+    callbacks=[checkpoint_callback, early_stopping_callback],
     reload_dataloaders_every_n_epochs=5,
 )
 

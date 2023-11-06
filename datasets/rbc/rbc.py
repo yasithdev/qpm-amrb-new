@@ -44,13 +44,13 @@ class rbc_dataset(Dataset):
         dirs = {}
         dirs_amp = {}
         
-        all_files = glob.glob(f"{data_dir}/{self.type_}/phase/*.npy")
+        all_files = glob.glob(f"{data_dir}/RBC_all_patients/{self.type_}/phase/*.npy")
         
         for x in all_files:
             # read patient id, embedded in filename (e.g. "0.npy")
             patient = int(x.split("/")[-1].split(".")[0].split("_")[0])
             
-            amp_dir  = f"{data_dir}/{self.type_}/amp/{patient}_amp.npy"
+            amp_dir  = f"{data_dir}/RBC_all_patients/{self.type_}/amp/{patient}_amp.npy"
             
             data = np.load(x)
             data_amp = np.load(amp_dir) #amplitude counterpart

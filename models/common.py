@@ -454,30 +454,52 @@ def off_diagonal(x: torch.Tensor) -> torch.Tensor:
 def vicreg_loss(
     zA: torch.Tensor,
     zB: torch.Tensor,
-    w1: float = 1.0,
-    w2: float = 2.0,
-    w3: float = 2.0,
+    w_v: float = 1.0,
+    w_i: float = 2.0,
+    w_c: float = 0.5,
+    eps: float = 1e-4,
 ) -> torch.Tensor:
     shape = list(zA.shape)
     assert list(zB.shape) == shape
 
     B, D = shape
 
-    repr_loss = F.mse_loss(zA, zB)
-
     zA = zA - zA.mean(dim=0)
     zB = zB - zB.mean(dim=0)
 
-    stdA = (zA.var(dim=0) + 0.0001).sqrt()
-    stdB = (zB.var(dim=0) + 0.0001).sqrt()
-    std_loss = torch.mean(F.relu(1 - stdA)) / 2 + torch.mean(F.relu(1 - stdB)) / 2
-
-    # TODO check if (B - 1) must be (B*N - 1), where N is number of GPUs
     covA = (zA.T @ zA) / (B - 1)
     covB = (zB.T @ zB) / (B - 1)
-    cov_loss = off_diagonal(covA).pow_(2).sum().div(D) + off_diagonal(covB).pow_(2).sum().div(D)
 
-    loss = w1 * repr_loss + w2 * std_loss + w3 * cov_loss
+    stdA = (covA.diagonal() + eps).sqrt_()
+    stdB = (covB.diagonal() + eps).sqrt_()
+
+    loss_v = F.relu(1 - stdA).sum().div_(D) + F.relu(1 - stdB).sum().div_(D)
+    loss_i = F.mse_loss(zA, zB)
+    loss_c = off_diagonal(covA).pow_(2).sum().div_(D * (D-1)) + off_diagonal(covB).pow_(2).sum().div_(D * (D-1))
+
+    loss = w_v * loss_v + w_i * loss_i + w_c * loss_c
+
+    return loss
+
+def vcreg_loss(
+    z: torch.Tensor,
+    w_v: float = 1.0,
+    w_c: float = 0.5,
+    eps: float = 1e-4,
+) -> torch.Tensor:
+
+    B, D = list(z.shape)
+
+    z = z - z.mean(dim=0)
+
+    cov = (z.T @ z) / (B - 1)
+
+    std = (cov.diagonal() + eps).sqrt_()
+
+    loss_v = F.relu(1 - std).sum().div_(D)
+    loss_c = off_diagonal(cov).pow_(2).sum().div_(D * (D-1))
+
+    loss = w_v * loss_v + w_c * loss_c
 
     return loss
 

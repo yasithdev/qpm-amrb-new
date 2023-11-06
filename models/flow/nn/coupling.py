@@ -95,6 +95,8 @@ class AffineCoupling(CouplingTransform):
 
     def __init__(
         self,
+        in_h: int,
+        in_w: int,
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_layers: int,
@@ -104,6 +106,8 @@ class AffineCoupling(CouplingTransform):
         assert nI == nT, f"channel masks have mismatching sizes! ({nI} and {nT})"
 
         coupling_net = nets.Conv2DResNet(
+            in_h=in_h,
+            in_w=in_w,
             in_channels=nI,
             out_channels=nT * 2,
             hidden_channels=nI,
@@ -147,6 +151,8 @@ class RQSCoupling(CouplingTransform):
 
     def __init__(
         self,
+        in_h: int,
+        in_w: int,
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_bins: int = 10,
@@ -170,6 +176,8 @@ class RQSCoupling(CouplingTransform):
 
         if spatial:
             coupling_net = nets.Conv2DResNet(
+                in_h=in_h,
+                in_w=in_w,
                 in_channels=nI,
                 out_channels=nParams,
                 hidden_channels=nI,
