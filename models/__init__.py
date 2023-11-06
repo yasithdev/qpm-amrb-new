@@ -61,6 +61,9 @@ def get_model(
     if model_name == "rescaps_margin_mse":
         from .model_rescaps import Model
         return Model(**args, with_decoder=True, classifier_loss="margin", decoder_loss="mse")
+    if model_name == "rescaps_ce_mse":
+        from .model_rescaps import Model
+        return Model(**args, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
     if model_name == "rescaps_margin":
         from .model_rescaps import Model
         return Model(**args, with_decoder=False, classifier_loss="margin", decoder_loss="N/A")
