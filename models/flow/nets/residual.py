@@ -1,5 +1,7 @@
+from functools import partial
 from typing import Callable, Optional
 import einops
+from sympy import S
 
 import torch
 from torch import nn
@@ -110,32 +112,53 @@ class Conv2DResBlock(nn.Module):
 
     def __init__(
         self,
-        channels: int,
+        in_channels: int,
+        hidden_channels: int,
+        out_channels: int,
         context_channels: Optional[int] = None,
         activation: Callable = F.relu,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
         zero_initialization: bool = True,
+        reshape: Optional[str] = None,
+        needs_adjustment: bool = False,
     ) -> None:
         super().__init__()
 
         self.activation = activation
+        self.use_batch_norm = use_batch_norm
+        self.reshape = reshape
+        self.needs_adjustment = needs_adjustment
 
         if context_channels is not None:
             self.context_layer = nn.Conv2d(
                 in_channels=context_channels,
-                out_channels=channels,
+                out_channels=out_channels,
                 kernel_size=1,
                 padding=0,
             )
-        self.use_batch_norm = use_batch_norm
         if use_batch_norm:
-            self.batch_norm_layers = nn.ModuleList([nn.BatchNorm2d(channels, eps=1e-3) for _ in range(2)])
-        self.conv_layers = nn.ModuleList([nn.Conv2d(channels, channels, kernel_size=3, padding=1) for _ in range(2)])
-        self.dropout = nn.Dropout(p=dropout_probability)
+            self.bn1 = nn.BatchNorm2d(in_channels, eps=1e-3)
+            self.bn2 = nn.BatchNorm2d(hidden_channels, eps=1e-3)
+
+        if reshape is None:
+            op = partial(nn.Conv2d, stride=1)
+        elif reshape == "down": # d_out = (d_in + 1) // 2
+            op = partial(nn.Conv2d, stride=2)
+        elif reshape == "up":   # d_out = (d_in * 2 - 1)
+            op = partial(nn.ConvTranspose2d, stride=2, output_padding=int(self.needs_adjustment))
+        else:
+            raise ValueError(reshape)
+        
+        self.convr = op(in_channels, out_channels, kernel_size=1)
+        self.conv1 = op(in_channels, hidden_channels, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=1)
+
         if zero_initialization:
-            init.uniform_(self.conv_layers[-1].weight, -1e-3, 1e-3)  # type: ignore
-            init.uniform_(self.conv_layers[-1].bias, -1e-3, 1e-3)  # type: ignore
+            init.uniform_(self.conv2.weight, -1e-3, 1e-3)  # type: ignore
+            init.uniform_(self.conv2.bias, -1e-3, 1e-3)  # type: ignore
+
+        self.dropout = nn.Dropout(p=dropout_probability)
 
     def forward(
         self,
@@ -144,17 +167,18 @@ class Conv2DResBlock(nn.Module):
     ) -> torch.Tensor:
         temps = inputs
         if self.use_batch_norm:
-            temps = self.batch_norm_layers[0](temps)
+            temps = self.bn1(temps)
         temps = self.activation(temps)
-        temps = self.conv_layers[0](temps)
-        if self.use_batch_norm:
-            temps = self.batch_norm_layers[1](temps)
-        temps = self.activation(temps)
-        temps = self.dropout(temps)
-        temps = self.conv_layers[1](temps)
+        temps = self.conv1(temps)
         if context is not None:
             temps = F.glu(torch.cat((temps, self.context_layer(context)), dim=1), dim=1)
-        return inputs + temps
+        if self.use_batch_norm:
+            temps = self.bn2(temps)
+        temps = self.activation(temps)
+        temps = self.dropout(temps)
+        temps = self.conv2(temps)
+        output = temps + self.convr(inputs)
+        return output
 
 
 class Conv2DAttention(nn.Module):
@@ -211,7 +235,6 @@ class Conv2DAttention(nn.Module):
         out = einops.rearrange(proj, "b (h w) C -> b C h w", h=h, w=w)
         return out
 
-
 class Conv2DResNet(nn.Module):
     """"""
 
@@ -223,8 +246,7 @@ class Conv2DResNet(nn.Module):
         out_channels: int,
         hidden_channels: int,
         context_channels: Optional[int] = None,
-        num_blocks: int = 2,
-        activation: Callable = F.relu,
+        activation: Callable = F.tanh,
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
         use_attention: bool = False,
@@ -249,18 +271,30 @@ class Conv2DResNet(nn.Module):
                 kernel_size=1,
                 padding=0,
             )
-        self.blocks = nn.ModuleList(
-            [
-                Conv2DResBlock(
-                    channels=hidden_channels,
-                    context_channels=context_channels,
-                    activation=activation,
-                    dropout_probability=dropout_probability,
-                    use_batch_norm=use_batch_norm,
-                )
-                for _ in range(num_blocks)
-            ]
+        self.down_block =  Conv2DResBlock(
+            in_channels=hidden_channels,
+            hidden_channels=hidden_channels // 2,
+            out_channels=hidden_channels // 2,
+            context_channels=context_channels,
+            activation=activation,
+            dropout_probability=dropout_probability,
+            use_batch_norm=use_batch_norm,
+            reshape="down",
+            needs_adjustment=in_h % 2 == 0,
         )
+
+        self.up_block = Conv2DResBlock(
+            in_channels=hidden_channels // 2,
+            hidden_channels=hidden_channels // 2,
+            out_channels=hidden_channels,
+            context_channels=context_channels,
+            activation=activation,
+            dropout_probability=dropout_probability,
+            use_batch_norm=use_batch_norm,
+            reshape="up",
+            needs_adjustment=in_h % 2 == 0,
+        )
+
         if self.use_attention:
             self.attention_layer = Conv2DAttention(
                 in_h=in_h,
@@ -270,7 +304,6 @@ class Conv2DResNet(nn.Module):
                 out_features=hidden_channels,
                 head_features=32,
             )
-            self.final_layer = nn.Conv2d(hidden_channels * 2, out_channels, kernel_size=1, padding=0)
         else:
             self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
 
@@ -283,10 +316,11 @@ class Conv2DResNet(nn.Module):
             temps = self.initial_layer(inputs)
         else:
             temps = self.initial_layer(torch.cat((inputs, context), dim=1))
-        for block in self.blocks:
-            temps = block(temps, context)
+
+        temps = self.down_block(temps, context)
+        temps = self.up_block(temps, context)
         if self.use_attention:
             temps_att = self.attention_layer(temps)
-            temps = torch.concat([temps, temps_att], dim=1)
+            temps = F.glu(torch.concat([temps, temps_att], dim=1), dim=1)
         output = self.final_layer(temps)
         return output

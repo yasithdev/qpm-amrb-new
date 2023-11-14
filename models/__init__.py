@@ -76,19 +76,19 @@ def get_model(
 
     # flow variants
     if model_name == "flow_ce_mse":
-        from .model_flow import Model
+        from .model_flow_ms import Model
         return Model(**args, with_classifier=True, classifier_loss="crossent", decoder_loss="mse")
     if model_name == "flow_edl_mse":
-        from .model_flow import Model
+        from .model_flow_ms import Model
         return Model(**args, with_classifier=True, classifier_loss="edl", decoder_loss="mse")
-    if model_name == "flow_mse":
-        from .model_flow import Model
+    if model_name == "flow_ss_mse":
+        from .model_flow_ss import Model
+        return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
+    if model_name == "flow_ms_mse":
+        from .model_flow_ms import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
     if model_name == "flow_vcr_mse":
         from .model_flow_vcr import Model
-        return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
-    if model_name == "flow_spherical_mse":
-        from .model_flow_spherical import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
 
     # hypothesis testing variants

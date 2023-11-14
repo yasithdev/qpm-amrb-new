@@ -46,7 +46,7 @@ class DataModule(pl.LightningDataModule):
             trans.append(TileChannels2d(3))
             c = 3
         if self.add_noise:
-            trans.append(AddGaussianNoise(mean=0.0, std=0.01))
+            trans.append(AddGaussianNoise(mean=0.0, std=0.005, only_pos=True))
         self.transform = Compose(trans)
 
         # post-transform shape

@@ -110,7 +110,7 @@ class AffineCoupling(CouplingTransform):
             in_w=in_w,
             in_channels=nI,
             out_channels=nT * 2,
-            hidden_channels=nI,
+            hidden_channels=nI // 2,
         )
 
         super().__init__(
@@ -227,7 +227,8 @@ class RQSCoupling(CouplingTransform):
         w, h, d = params.tensor_split([nW, nW + nH], dim=-1)
 
         # constant-pad d for outer data
-        const = np.log(np.exp(1 - self.min_d) - 1)
+        # const = np.log(np.exp(1 - self.min_d) - 1)
+        const = 1.0
         d = F.pad(d, pad=(1, 1), value=const)
 
         assert w.shape[-1] == self.num_bins
@@ -235,11 +236,11 @@ class RQSCoupling(CouplingTransform):
         assert d.shape[-1] == self.num_bins + 1
 
         # default - identity transform
-        output = data
+        output = data.clone().detach()
         logabsdet = torch.zeros_like(data)
 
         # inner data - rqs transform
-        idx_inner = (data >= self.lo) & (data <= self.hi)
+        idx_inner = (data > self.lo) & (data < self.hi)
 
         if idx_inner.numel() > 0:
             kwargs = {
@@ -268,7 +269,7 @@ class RQSCoupling(CouplingTransform):
 
         heights = self.min_h + (1 - self.min_h * self.num_bins) * F.softmax(h, dim=-1)
         cumheights = torch.cumsum(heights, dim=-1)
-        cumheights = F.pad(cumheights, pad=(1, 0), mode="constant", value=0.0)
+        cumheights = F.pad(cumheights, pad=(1, 0))
         cumheights = (top - bottom) * cumheights + bottom
         # rounding to prevent errors
         cumheights[..., 0] = bottom
@@ -277,81 +278,62 @@ class RQSCoupling(CouplingTransform):
 
         widths = self.min_w + (1 - self.min_w * self.num_bins) * F.softmax(w, dim=-1)
         cumwidths = torch.cumsum(widths, dim=-1)
-        cumwidths = F.pad(cumwidths, pad=(1, 0), mode="constant", value=0.0)
+        cumwidths = F.pad(cumwidths, pad=(1, 0))
         cumwidths = (right - left) * cumwidths + left
         # rounding to prevent errors
         cumwidths[..., 0] = left
         cumwidths[..., -1] = right
         widths = cumwidths[..., 1:] - cumwidths[..., :-1]
 
+        delta = heights / widths
+
         derivs = self.min_d + torch.as_tensor(F.softplus(d))
 
+        # get indices from binary search
         if inverse:
             bin_idx = self.searchsorted(cumheights, data)[..., None]
         else:
             bin_idx = self.searchsorted(cumwidths, data)[..., None]
 
-        input_cumwidths = cumwidths.gather(-1, bin_idx)[..., 0]
-        input_bin_widths = widths.gather(-1, bin_idx)[..., 0]
+        # gather values at last dim, and squeeze last dim
+        bin_H = cumheights.gather(-1, bin_idx)[..., 0]
+        bin_W = cumwidths.gather(-1, bin_idx)[..., 0]
+        bin_h = heights.gather(-1, bin_idx)[..., 0]
+        bin_w = widths.gather(-1, bin_idx)[..., 0]
+        bin_Δ = delta.gather(-1, bin_idx)[..., 0]
+        bin_d = derivs.gather(-1, bin_idx)[..., 0]
+        bin_d_plus_one = derivs[..., 1:].gather(-1, bin_idx)[..., 0]
 
-        input_cumheights = cumheights.gather(-1, bin_idx)[..., 0]
-        delta = heights / widths
-        input_delta = delta.gather(-1, bin_idx)[..., 0]
-
-        input_derivs = derivs.gather(-1, bin_idx)[..., 0]
-        input_derivs_plus_one = derivs[..., 1:].gather(-1, bin_idx)[..., 0]
-
-        input_heights = heights.gather(-1, bin_idx)[..., 0]
+        q = bin_d + bin_d_plus_one - 2 * bin_Δ
 
         if inverse:
-            a = (data - input_cumheights) * (
-                input_derivs + input_derivs_plus_one - 2 * input_delta
-            ) + input_heights * (input_delta - input_derivs)
-            b = input_heights * input_derivs - (data - input_cumheights) * (
-                input_derivs + input_derivs_plus_one - 2 * input_delta
-            )
-            c = -input_delta * (data - input_cumheights)
+            r = data - bin_H # offset within the bin
+            rq = r * q
+            a = rq + bin_h * (bin_Δ - bin_d)
+            b = bin_h * bin_d - rq
+            c = -bin_Δ * r
+            discriminant_sqrt = (b.pow(2) - 4 * a * c).relu().sqrt()
+            θ = (2 * c) / (-b - discriminant_sqrt)
+            θ_one_minus_θ = θ * (1 - θ)
 
-            discriminant = b.pow(2) - 4 * a * c
-            # added to prevent stability issues
-            discriminant = discriminant.clamp(min=0.0)
-            assert (discriminant >= 0).all()
+            outputs = bin_W + θ * bin_w
 
-            root = (2 * c) / (-b - torch.sqrt(discriminant))
-            outputs = root * input_bin_widths + input_cumwidths
-
-            theta_one_minus_theta = root * (1 - root)
-            denominator = input_delta + (
-                (input_derivs + input_derivs_plus_one - 2 * input_delta)
-                * theta_one_minus_theta
-            )
-            derivative_numerator = input_delta.pow(2) * (
-                input_derivs_plus_one * root.pow(2)
-                + 2 * input_delta * theta_one_minus_theta
-                + input_derivs * (1 - root).pow(2)
-            )
+            denominator = bin_Δ + q * θ_one_minus_θ
+            derivative_numerator = bin_Δ.pow(2) * (bin_d_plus_one * θ.pow(2) + 2 * bin_Δ * θ_one_minus_θ + bin_d * (1 - θ).pow(2))
             logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
             return outputs, -logabsdet
 
         else:
-            theta = (data - input_cumwidths) / input_bin_widths
-            theta_one_minus_theta = theta * (1 - theta)
+            r = data - bin_W # offset within the bin
+            θ = r / bin_w
+            θ_one_minus_θ = θ * (1 - θ)
 
-            numerator = input_heights * (
-                input_delta * theta.pow(2) + input_derivs * theta_one_minus_theta
-            )
-            denominator = input_delta + (
-                (input_derivs + input_derivs_plus_one - 2 * input_delta)
-                * theta_one_minus_theta
-            )
-            outputs = input_cumheights + numerator / denominator
+            numerator = bin_h * (bin_Δ * θ.pow(2) + bin_d * θ_one_minus_θ)
+            denominator = bin_Δ + q * θ_one_minus_θ
+            outputs = bin_H + numerator / denominator
 
-            derivative_numerator = input_delta.pow(2) * (
-                input_derivs_plus_one * theta.pow(2)
-                + 2 * input_delta * theta_one_minus_theta
-                + input_derivs * (1 - theta).pow(2)
-            )
+            derivative_numerator = bin_Δ.pow(2) * (bin_d_plus_one * θ.pow(2) + 2 * bin_Δ * θ_one_minus_θ + bin_d * (1 - θ).pow(2))
             logabsdet = torch.log(derivative_numerator) - 2 * torch.log(denominator)
 
             return outputs, logabsdet
@@ -360,7 +342,5 @@ class RQSCoupling(CouplingTransform):
     def searchsorted(
         bin_locations: torch.Tensor,
         inputs: torch.Tensor,
-        eps: float = 1e-6,
     ) -> torch.Tensor:
-        bin_locations[..., -1] += eps
         return torch.sum(inputs[..., None] >= bin_locations, dim=-1) - 1

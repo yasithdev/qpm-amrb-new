@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from . import flow
 from .base import BaseModel
-from .common import edl_loss, edl_probs, margin_loss
+from .common import edl_loss, edl_probs, margin_loss, vcreg_loss
 from .flow.util import decode_mask
 
 
@@ -53,9 +53,9 @@ class Model(BaseModel):
         if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
             assert self.input_shape[-1] % 32 == 0
             cm, k0, k1 = 0, 8, 4
-        else:
+        else: # (C,32,32) -> (16*C,8,8) -> (256*C,2,2)
             assert self.input_shape[-1] % 8 == 0
-            cm, k0, k1 = 0, 4, 2
+            cm, k0, k1 = 0, 4, 4
 
         # ambient (x) flow configuration
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
@@ -80,13 +80,6 @@ class Model(BaseModel):
         rqs_coupling_args_x2A = arg(h2, w2, x2I, x2T, num_bins)
         rqs_coupling_args_x2B = arg(h2, w2, x2T, x2I, num_bins)
 
-        # reduced-channel flow
-        u_mask = torch.zeros(cm).bool()
-        u_mask[::2] = True
-        uI, uT = decode_mask(u_mask)
-        rqs_coupling_args_uA = arg(h2, w2, uI, uT, num_bins)
-        rqs_coupling_args_uB = arg(h2, w2, uT, uI, num_bins)
-
         # (B,C,H,W)->(B,16*C,H/4,H/4)->flow->(B,16*C,H/4,H/4)->(B,64*C,H/8,W/8)->flow->(B,64*C,H/8,W/8)->(B,C*H*W)
         self.flow_x = flow.Compose(
             [
@@ -97,26 +90,17 @@ class Model(BaseModel):
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
                 #
+                flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
+                #
                 flow.nn.Squeeze(factor=k1),
                 flow.nn.ActNorm(c2),
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
-            ]
-        )
-
-        # (B,D) <-> (B,D)
-        self.flow_u = flow.Compose(
-            [
                 #
-                flow.nn.ActNorm(cm),
-                #
-                flow.nn.RQSCoupling(**rqs_coupling_args_uA._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_uB._asdict()),
-                #
-                flow.nn.ActNorm(cm),
-                #
-                flow.nn.Flatten((cm, h2, w2)),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
             ]
         )
 
@@ -128,8 +112,7 @@ class Model(BaseModel):
                 torch.nn.Linear(D, K),
             )
 
-        # base distribution
-        self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
+        self.dist = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -138,19 +121,18 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    ) -> Tuple[tuple[torch.Tensor,...], tuple[torch.Tensor,...], torch.Tensor, torch.Tensor | None]:
         uv, logabsdet_x = self.flow_x(x, forward=True)
         u, v = flow.nn.partition(uv, self.cm)
-        u_norm = u.flatten(1).norm(dim=1, keepdim=True)
-        v_norm = v.flatten(1).norm(dim=1, keepdim=True)
-        u_unit = u / u_norm.view(x.shape[0], *[1] * (len(x.shape) - 1))
-        z, logabsdet_u = self.flow_u(u_unit, forward=True)
-        uv_m = flow.nn.join(u, v - v)
+        uv_m = flow.nn.join(u, torch.zeros_like(v))  # concatenate u with zero vector
         x_m, logabsdet_m = self.flow_x(uv_m, forward=False)
+        u, v = u.flatten(1), v.flatten(1)
+        u_norm = u.norm(dim=1, keepdim=True)
+        v_norm = v.norm(dim=1, keepdim=True)
         logits = None
         if self.with_classifier:
-            logits = self.classifier(u.flatten(1))
-        return v, z, x_m, u_norm, v_norm, logits
+            logits = self.classifier(u)
+        return (u, v), (u_norm, v_norm), x_m, logits
 
     def compute_losses(
         self,
@@ -168,7 +150,7 @@ class Model(BaseModel):
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         # forward pass
-        v, z, x_m, u_norm, v_norm, logits = self(x)
+        (u, v), (u_norm, v_norm), x_m, logits = self(x)
 
         # classifier loss
         if self.with_classifier:
@@ -193,13 +175,10 @@ class Model(BaseModel):
             metrics_mb["y_ucty"] = uY
 
         # manifold losses
-        u_sq_err = (u_norm - 1) ** 2
-        v_sq_err = v_norm**2
-        z_nll = -self.dist_z.log_prob(z.flatten(1))
-        losses_mb["loss_u"] = u_sq_err.mean()
-        losses_mb["loss_v"] = v_sq_err.mean()
-        losses_mb["loss_z"] = z_nll.mean()
-        losses_mb["loss_x"] = F.mse_loss(x, x_m)
+        w_u, w_v, w_x = 0.1, 0.1, 1.0
+        losses_mb["loss_u"] = w_u * vcreg_loss(u)
+        losses_mb["loss_v"] = w_v * F.l1_loss(v, torch.zeros_like(v))
+        losses_mb["loss_x"] = w_x * F.mse_loss(x, x_m)
 
         # manifold metrics
         metrics_mb["x_pred"] = x_m

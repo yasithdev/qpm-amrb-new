@@ -139,18 +139,20 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
+    ) -> Tuple[tuple[torch.Tensor,...], tuple[torch.Tensor,...], torch.Tensor, torch.Tensor | None]:
         uv, logabsdet_x = self.flow_x(x, forward=True)
         u, v = flow.nn.partition(uv, self.cm)
-        u_norm = u.flatten(1).norm(dim=1, keepdim=True)
-        v_norm = v.flatten(1).norm(dim=1, keepdim=True)
         z, logabsdet_u = self.flow_u(u, forward=True)
-        uv_m = flow.nn.join(u, v - v)
+        uv_m = flow.nn.join(u, torch.zeros_like(v))  # concatenate u with zero vector
         x_m, logabsdet_m = self.flow_x(uv_m, forward=False)
+        u, v, z = u.flatten(1), v.flatten(1), z.flatten(1)
+        u_norm = u.norm(dim=1, keepdim=True)
+        v_norm = v.norm(dim=1, keepdim=True)
+        z_norm = z.norm(dim=1, keepdim=True)
         logits = None
         if self.with_classifier:
-            logits = self.classifier(u.flatten(1))
-        return v, z, x_m, u_norm, v_norm, logits
+            logits = self.classifier(u)
+        return (u, v, z), (u_norm, v_norm, z_norm), x_m, logits
 
     def compute_losses(
         self,
@@ -168,7 +170,7 @@ class Model(BaseModel):
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         # forward pass
-        v, z, x_m, u_norm, v_norm, logits = self(x)
+        (u, v, z), (u_norm, v_norm, z_norm), x_m, logits = self(x)
 
         # classifier loss
         if self.with_classifier:
@@ -194,8 +196,8 @@ class Model(BaseModel):
 
         # manifold losses
         ß = 1e-3
-        v_nll = -self.dist_v.log_prob(v.flatten(1))
-        z_nll = -self.dist_z.log_prob(z.flatten(1))
+        v_nll = -self.dist_v.log_prob(v)
+        z_nll = -self.dist_z.log_prob(z)
         losses_mb["loss_v"] = ß * v_nll.mean()
         losses_mb["loss_z"] = z_nll.mean()
         losses_mb["loss_x"] = F.mse_loss(x, x_m)

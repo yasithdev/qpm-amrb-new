@@ -15,12 +15,16 @@ L = TypeVar("L")
 
 
 class AddGaussianNoise(object):
-    def __init__(self, mean: float, std: float):
+    def __init__(self, mean: float, std: float, only_pos: bool = False):
         self.std = std
         self.mean = mean
+        self.only_pos = only_pos
 
     def __call__(self, tensor: torch.Tensor):
-        return tensor + torch.randn(tensor.size()) * self.std + self.mean
+        noise = torch.randn(tensor.size()) * self.std + self.mean
+        if self.only_pos:
+            noise = noise.abs_()
+        return tensor + noise
 
     def __repr__(self):
         return self.__class__.__name__ + "(mean={0}, std={1})".format(self.mean, self.std)
