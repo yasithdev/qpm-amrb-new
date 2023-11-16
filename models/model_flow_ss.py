@@ -49,7 +49,7 @@ class Model(BaseModel):
         D = self.emb_dims
         C, H, W = self.input_shape
         CHW = C * H * W
-        num_bins = 10
+        num_bins = 5
         if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
             assert self.input_shape[-1] % 32 == 0
             cm, k0, k1 = 0, 8, 4
@@ -89,18 +89,15 @@ class Model(BaseModel):
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
-                #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
                 #
                 flow.nn.Squeeze(factor=k1),
                 flow.nn.ActNorm(c2),
                 #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
-                #
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
+                #
             ]
         )
 

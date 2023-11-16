@@ -37,6 +37,7 @@ trainer = pl.Trainer(
     max_epochs=config.train_epochs,
     callbacks=[checkpoint_callback, early_stopping_callback],
     reload_dataloaders_every_n_epochs=5,
+    gradient_clip_val=0.5,
 )
 
 trainer.fit(model=model, datamodule=config.datamodule)
