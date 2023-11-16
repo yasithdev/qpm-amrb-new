@@ -1,7 +1,7 @@
 from functools import partial
 from typing import Callable, Optional
 import einops
-from sympy import S
+import math
 
 import torch
 from torch import nn
@@ -151,7 +151,7 @@ class Conv2DResBlock(nn.Module):
             raise ValueError(reshape)
         
         self.convr = op(in_channels, out_channels, kernel_size=1)
-        self.conv1 = op(in_channels, hidden_channels, kernel_size=3, padding=1)
+        self.conv1 = op(in_channels, hidden_channels, kernel_size=3, padding=1, groups=2)
         self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=1)
 
         if zero_initialization:
@@ -250,6 +250,7 @@ class Conv2DResNet(nn.Module):
         dropout_probability: float = 0.0,
         use_batch_norm: bool = False,
         use_attention: bool = False,
+        num_groups: int = 1,
     ) -> None:
         super().__init__()
 
@@ -274,7 +275,7 @@ class Conv2DResNet(nn.Module):
         self.down_block =  Conv2DResBlock(
             in_channels=hidden_channels,
             hidden_channels=hidden_channels // 2,
-            out_channels=hidden_channels // 2,
+            out_channels=hidden_channels,
             context_channels=context_channels,
             activation=activation,
             dropout_probability=dropout_probability,
@@ -284,7 +285,7 @@ class Conv2DResNet(nn.Module):
         )
 
         self.up_block = Conv2DResBlock(
-            in_channels=hidden_channels // 2,
+            in_channels=hidden_channels,
             hidden_channels=hidden_channels // 2,
             out_channels=hidden_channels,
             context_channels=context_channels,
@@ -305,22 +306,27 @@ class Conv2DResNet(nn.Module):
                 head_features=32,
             )
         else:
-            self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
+            self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0, groups=num_groups)
 
     def forward(
         self,
         inputs: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        # initial 1x1conv transform
         if context is None:
-            temps = self.initial_layer(inputs)
+            temp1 = self.initial_layer(inputs)
         else:
-            temps = self.initial_layer(torch.cat((inputs, context), dim=1))
-
-        temps = self.down_block(temps, context)
-        temps = self.up_block(temps, context)
+            temp1 = self.initial_layer(torch.cat((inputs, context), dim=1))
+        # spatial bottleneck transform
+        temp2 = self.down_block(temp1, context)
+        temp3 = self.up_block(temp2, context)
+        # unet style skip connection
+        temps = temp1 + temp3 
+        # spatial attention transform
         if self.use_attention:
             temps_att = self.attention_layer(temps)
             temps = F.glu(torch.concat([temps, temps_att], dim=1), dim=1)
+        # final 1x1conv transform
         output = self.final_layer(temps)
         return output

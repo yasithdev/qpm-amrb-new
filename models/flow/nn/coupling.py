@@ -111,6 +111,7 @@ class AffineCoupling(CouplingTransform):
             in_channels=nI,
             out_channels=nT * 2,
             hidden_channels=nI // 2,
+            num_groups=nI // 2,
         )
 
         super().__init__(
@@ -180,7 +181,8 @@ class RQSCoupling(CouplingTransform):
                 in_w=in_w,
                 in_channels=nI,
                 out_channels=nParams,
-                hidden_channels=nI,
+                hidden_channels=nI // 2,
+                num_groups=nI // 2,
             )
         else:
             coupling_net = torch.nn.Sequential(
