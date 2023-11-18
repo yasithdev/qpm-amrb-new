@@ -1,11 +1,30 @@
 name: qpm-amrb
 channels:
-  - conda-forge
-  - defaults
+  - nvidia
+  - pytorch
 dependencies:
   - python=3.10.13
-  - pip=23.2.1
   - ipykernel
-  - pip:
-    - -r requirements.txt
+  - plotly
+  - matplotlib
+  - numpy
+  - pandas
+  - seaborn
+  - scipy
+  - scikit-learn
+  - tqdm
+  - einops
+  - python-dotenv
+  - umap-learn
+  - wandb
+  - tsnecuda
+  - faiss-gpu
+  - pytorch
+  - geotorch
+  - torchvision
+  - torchinfo
+  - torchmetrics
+  - torchaudio
+  - pytorch-cuda=12.1
+  - lightning
 prefix: /n/home12/yasith/.conda/envs/qpm-amrb

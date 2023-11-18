@@ -30,6 +30,7 @@ class ActNorm(FlowTransform):
         self.register_buffer("initialized", torch.tensor(False, dtype=torch.bool))
         self.log_scale = torch.nn.Parameter(torch.zeros(num_features))
         self.shift = torch.nn.Parameter(torch.zeros(num_features))
+        self.eps = 1e-4
 
     def _forward(
         self,
@@ -44,7 +45,7 @@ class ActNorm(FlowTransform):
         #     self._initialize(x)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        z = scale * x + shift
+        z = (scale + self.eps) * x + shift
 
         if x.dim() == 4:
             B, _, H, W = x.size()
@@ -65,7 +66,7 @@ class ActNorm(FlowTransform):
         shape = (1, -1, 1, 1) if z.dim() == 4 else (1, -1)
 
         scale, shift = self.log_scale.exp().view(shape), self.shift.view(shape)
-        x = (z - shift) / scale
+        x = (z - shift) / (scale + self.eps)
 
         if z.dim() == 4:
             B, _, H, W = z.size()

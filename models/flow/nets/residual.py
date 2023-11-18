@@ -141,18 +141,21 @@ class Conv2DResBlock(nn.Module):
             self.bn1 = nn.BatchNorm2d(in_channels, eps=1e-3)
             self.bn2 = nn.BatchNorm2d(hidden_channels, eps=1e-3)
 
+        k, p = 1, 0
         if reshape is None:
             op = partial(nn.Conv2d, stride=1)
         elif reshape == "down": # d_out = (d_in + 1) // 2
+            k, p = 3, 1
             op = partial(nn.Conv2d, stride=2)
         elif reshape == "up":   # d_out = (d_in * 2 - 1)
+            k, p = 3, 1
             op = partial(nn.ConvTranspose2d, stride=2, output_padding=int(self.needs_adjustment))
         else:
             raise ValueError(reshape)
         
-        self.convr = op(in_channels, out_channels, kernel_size=1)
-        self.conv1 = op(in_channels, hidden_channels, kernel_size=3, padding=1, groups=2)
-        self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=1)
+        self.convr = op(in_channels, out_channels, kernel_size=1, padding=0)
+        self.conv1 = op(in_channels, hidden_channels, kernel_size=k, padding=p, groups=2)
+        self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0)
 
         if zero_initialization:
             init.uniform_(self.conv2.weight, -1e-3, 1e-3)  # type: ignore
@@ -327,6 +330,78 @@ class Conv2DResNet(nn.Module):
         if self.use_attention:
             temps_att = self.attention_layer(temps)
             temps = F.glu(torch.concat([temps, temps_att], dim=1), dim=1)
+        # final 1x1conv transform
+        output = self.final_layer(temps)
+        return output
+
+class Conv2DNonSpatial(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        hidden_channels: int,
+        context_channels: Optional[int] = None,
+        activation: Callable = F.tanh,
+        dropout_probability: float = 0.0,
+        use_batch_norm: bool = False,
+        num_groups: int = 1,
+    ) -> None:
+        super().__init__()
+
+        self.context_channels = context_channels
+        self.hidden_channels = hidden_channels
+
+        if context_channels is not None:
+            self.initial_layer = nn.Conv2d(
+                in_channels=in_channels + context_channels,
+                out_channels=hidden_channels,
+                kernel_size=1,
+                padding=0,
+            )
+        else:
+            self.initial_layer = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=hidden_channels,
+                kernel_size=1,
+                padding=0,
+            )
+        self.down_block =  Conv2DResBlock(
+            in_channels=hidden_channels,
+            hidden_channels=hidden_channels // 2,
+            out_channels=hidden_channels,
+            context_channels=context_channels,
+            activation=activation,
+            dropout_probability=dropout_probability,
+            use_batch_norm=use_batch_norm,
+        )
+
+        self.up_block = Conv2DResBlock(
+            in_channels=hidden_channels,
+            hidden_channels=hidden_channels // 2,
+            out_channels=hidden_channels,
+            context_channels=context_channels,
+            activation=activation,
+            dropout_probability=dropout_probability,
+            use_batch_norm=use_batch_norm,
+        )
+        
+        self.final_layer = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, padding=0, groups=num_groups)
+
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        context: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        # initial 1x1conv transform
+        if context is None:
+            temp1 = self.initial_layer(inputs)
+        else:
+            temp1 = self.initial_layer(torch.cat((inputs, context), dim=1))
+        # spatial bottleneck transform
+        temp2 = self.down_block(temp1, context)
+        temp3 = self.up_block(temp2, context)
+        # unet style skip connection
+        temps = temp1 + temp3 
         # final 1x1conv transform
         output = self.final_layer(temps)
         return output

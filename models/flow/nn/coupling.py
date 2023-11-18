@@ -152,8 +152,6 @@ class RQSCoupling(CouplingTransform):
 
     def __init__(
         self,
-        in_h: int,
-        in_w: int,
         i_channels: torch.Tensor,
         t_channels: torch.Tensor,
         num_bins: int = 10,
@@ -162,6 +160,9 @@ class RQSCoupling(CouplingTransform):
         min_h: float = 1e-2,
         min_d: float = 1e-2,
         spatial: bool = True,
+        in_h: Optional[int] = None,
+        in_w: Optional[int] = None,
+        use_groups: bool = True,
     ) -> None:
         nI = len(i_channels)
         nT = len(t_channels)
@@ -175,23 +176,29 @@ class RQSCoupling(CouplingTransform):
         nD = num_bins - 1
         nParams = nT * (nW + nH + nD)
 
+        num_groups = 1
+        if use_groups:
+            num_groups = nI // 2
+
         if spatial:
+            assert in_h is not None
+            assert in_w is not None
             coupling_net = nets.Conv2DResNet(
                 in_h=in_h,
                 in_w=in_w,
                 in_channels=nI,
                 out_channels=nParams,
                 hidden_channels=nI // 2,
-                num_groups=nI // 2,
+                num_groups=num_groups,
             )
         else:
-            coupling_net = torch.nn.Sequential(
-                torch.nn.Linear(nI, nParams),
-                torch.nn.BatchNorm1d(nParams),
-                torch.nn.Tanh(),
-                torch.nn.Linear(nParams, nParams),
-                torch.nn.BatchNorm1d(nParams),
-                torch.nn.Tanh(),
+            assert in_h is None
+            assert in_w is None
+            coupling_net = nets.Conv2DNonSpatial(
+                in_channels=nI,
+                out_channels=nParams,
+                hidden_channels=nI // 2,
+                num_groups=num_groups,
             )
 
         super().__init__(

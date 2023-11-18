@@ -12,3 +12,4 @@ robust_ml/
 *.npy
 *.npz
 *.mat
+scratch.py

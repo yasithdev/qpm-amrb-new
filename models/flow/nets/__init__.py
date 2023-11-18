@@ -1,1 +1,1 @@
-from .residual import ResBlock, ResNet, Conv2DResBlock, Conv2DResNet
+from .residual import ResBlock, ResNet, Conv2DResBlock, Conv2DResNet, Conv2DNonSpatial

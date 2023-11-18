@@ -48,75 +48,78 @@ class Model(BaseModel):
         K = self.cat_k
         D = self.emb_dims
         C, H, W = self.input_shape
-        CHW = C * H * W
-        num_bins = 10
+        num_bins = 5
         if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
             assert self.input_shape[-1] % 32 == 0
-            cm, k0, k1 = 0, 8, 4
+            k0, k1 = 8, 4
         else:
             assert self.input_shape[-1] % 8 == 0
-            cm, k0, k1 = 0, 4, 2
+            k0, k1 = 4, 4
 
         # ambient (x) flow configuration
         c1, h1, w1 = C * k0 * k0, H // k0, W // k0
         c2, h2, w2 = c1 * k1 * k1, h1 // k1, w1 // k1
 
-        # adjust emb_dims to closest possible value
-        cm = D // (h2 * w2)
-        D = cm * h2 * w2
-        self.emb_dims = D
-        self.cm = cm
-
-        # spatial flow
-        arg = namedtuple("arg", ["in_h", "in_w", "i_channels", "t_channels", "num_bins"])
+        # CHW-dimensional flow (spatial)
+        SpatialArg = namedtuple("SpatialArg", ["in_h", "in_w", "i_channels", "t_channels", "num_bins"])
         x1_mask = torch.zeros(c1).bool()
         x1_mask[::2] = True
         x1I, x1T = decode_mask(x1_mask)
-        rqs_coupling_args_x1A = arg(h1, w1, x1I, x1T, num_bins)
-        rqs_coupling_args_x1B = arg(h1, w1, x1T, x1I, num_bins)
+        rqs_coupling_args_x1A = SpatialArg(h1, w1, x1I, x1T, num_bins)._asdict()
+        rqs_coupling_args_x1B = SpatialArg(h1, w1, x1T, x1I, num_bins)._asdict()
         x2_mask = torch.zeros(c2).bool()
         x2_mask[::2] = True
         x2I, x2T = decode_mask(x2_mask)
-        rqs_coupling_args_x2A = arg(h2, w2, x2I, x2T, num_bins)
-        rqs_coupling_args_x2B = arg(h2, w2, x2T, x2I, num_bins)
+        rqs_coupling_args_x2A = SpatialArg(h2, w2, x2I, x2T, num_bins)._asdict()
+        rqs_coupling_args_x2B = SpatialArg(h2, w2, x2T, x2I, num_bins)._asdict()
 
-        # reduced-channel flow
-        u_mask = torch.zeros(cm).bool()
+        # D-dimensional flow (non-spatial)
+        FlatArg = namedtuple("FlatArg", ["i_channels", "t_channels", "num_bins"])
+        u_mask = torch.zeros(D).bool()
         u_mask[::2] = True
         uI, uT = decode_mask(u_mask)
-        rqs_coupling_args_uA = arg(h2, w2, uI, uT, num_bins)
-        rqs_coupling_args_uB = arg(h2, w2, uT, uI, num_bins)
+        rqs_coupling_args_uA = FlatArg(uI, uT, num_bins)._asdict()
+        rqs_coupling_args_uB = FlatArg(uT, uI, num_bins)._asdict()
 
-        # (B,C,H,W)->(B,16*C,H/4,H/4)->flow->(B,16*C,H/4,H/4)->(B,64*C,H/8,W/8)->flow->(B,64*C,H/8,W/8)->(B,C*H*W)
+        # Base Distributions
+        self.dist_v = flow.distributions.StandardNormal(k=C * H * W - D, mu=0.0, std=0.01)
+
+        # (B, C, H, W) -> ... -> (B, CHW, 1, 1)
+        assert h2 == w2
         self.flow_x = flow.Compose(
             [
                 #
                 flow.nn.Squeeze(factor=k0),
                 flow.nn.ActNorm(c1),
+                flow.nn.ConformalConv2D(c1),
                 #
-                flow.nn.RQSCoupling(**rqs_coupling_args_x1A._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x1B._asdict()),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x1A, spatial=True),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x1B, spatial=True),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x1A, spatial=True),
                 #
                 flow.nn.Squeeze(factor=k1),
                 flow.nn.ActNorm(c2),
+                flow.nn.ConformalConv2D(c2),
                 #
-                flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict()),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x2A, spatial=True),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x2B, spatial=True),
+                flow.nn.RQSCoupling(**rqs_coupling_args_x2A, spatial=True),
+                #
+                flow.nn.Squeeze(factor=h2),  # get to (1, 1) spatial size
+                #
             ]
         )
 
-        # (B,D) <-> (B,D)
+        # (B, D, 1, 1) <-> (B, D, 1, 1)
         self.flow_u = flow.Compose(
             [
                 #
-                flow.nn.ActNorm(cm),
+                flow.nn.RQSCoupling(**rqs_coupling_args_uA, spatial=False),
+                flow.nn.RQSCoupling(**rqs_coupling_args_uB, spatial=False),
+                flow.nn.RQSCoupling(**rqs_coupling_args_uA, spatial=False),
                 #
-                flow.nn.RQSCoupling(**rqs_coupling_args_uA._asdict()),
-                flow.nn.RQSCoupling(**rqs_coupling_args_uB._asdict()),
+                flow.nn.ActNorm(D),
                 #
-                flow.nn.ActNorm(cm),
-                #
-                flow.nn.Flatten((cm, h2, w2)),
             ]
         )
 
@@ -135,9 +138,9 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
-    ) -> Tuple[tuple[torch.Tensor,...], tuple[torch.Tensor,...], torch.Tensor, torch.Tensor | None]:
+    ) -> Tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...], torch.Tensor, torch.Tensor | None]:
         uv, logabsdet_x = self.flow_x(x, forward=True)
-        u, v = flow.nn.partition(uv, self.cm)
+        u, v = flow.nn.partition(uv, self.emb_dims)
         z, logabsdet_u = self.flow_u(u, forward=True)
         uv_m = flow.nn.join(u, torch.zeros_like(v))  # concatenate u with zero vector
         x_m, logabsdet_m = self.flow_x(uv_m, forward=False)
@@ -191,10 +194,10 @@ class Model(BaseModel):
             metrics_mb["y_ucty"] = uY
 
         # manifold losses
-        w_v, w_z, w_x = 0.1, 0.1, 1.0
-        losses_mb["loss_v"] = w_v * v_norm.var()
+        w_x, w_z, w_v = 1.0, 0.1, 0.1
+        losses_mb["loss_x"] = w_x * F.mse_loss(x_m, x)
         losses_mb["loss_z"] = w_z * vcreg_loss(z)
-        losses_mb["loss_x"] = w_x * F.mse_loss(x, x_m)
+        losses_mb["loss_v"] = w_v - self.dist_v.log_prob(v)
 
         # manifold metrics
         metrics_mb["x_pred"] = x_m

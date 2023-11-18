@@ -14,7 +14,7 @@ def get_grouping(
 ):
     if name.startswith("QPM_species"):
         labels, grouping = species, species_mapping
-    elif name.startswith("RBC"):
+    elif name.startswith("RBC") or name.startswith("rbc"):
         labels, grouping = classes, patient_to_binary_mapping
     elif "rot_mnist" in name:
         labels, grouping = rotation_labels, digit_to_rotation_mapping
