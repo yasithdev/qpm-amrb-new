@@ -90,6 +90,16 @@ def get_model(
     if model_name == "flow_vcr_mse":
         from .model_flow_vcr import Model
         return Model(**args, with_classifier=False, classifier_loss="N/A", decoder_loss="mse")
+    
+    if model_name == "cfm_otcfm_c":
+        from .model_cfm import Model
+        return Model(**args, strategy="otcfm", ignore_dims="channel")
+    if model_name == "cfm_otcfm_s":
+        from .model_cfm import Model
+        return Model(**args, strategy="otcfm", ignore_dims="spatial")
+    if model_name == "cfm_otcfm":
+        from .model_cfm import Model
+        return Model(**args, strategy="otcfm", ignore_dims=None, emb_dims=-1)
 
     # hypothesis testing variants
     if model_name.startswith("ht_"):

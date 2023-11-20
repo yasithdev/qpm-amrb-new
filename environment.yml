@@ -27,4 +27,8 @@ dependencies:
   - torchaudio
   - pytorch-cuda=12.1
   - lightning
+  - pip
+  - pip:
+    - torchdyn
+    - torchcfm
 prefix: /n/home12/yasith/.conda/envs/qpm-amrb

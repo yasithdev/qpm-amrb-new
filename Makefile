@@ -175,6 +175,28 @@ train_rbc_phase_flow_vcr_mse:
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1"; \
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_vcr_mse" --batch_size=32 --emb_dims=128 --ckpt_metric="val_loss" --ckpt_mode="min"; \
 
+# conditional flow matching models
+
+train_mnist_cfm_otcfm:
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=32 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=32 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
+train_mnist_cfm_otcfm_s:
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
+train_cifar10_cfm_otcfm:
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
+train_cifar10_cfm_otcfm_s:
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
+train_cifar10_cfm_otcfm_c:
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_c" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_c" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9"; \
+
 # evaluation automation
 
 eval_qpm_species_flow_ms_mse:
