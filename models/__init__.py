@@ -99,7 +99,7 @@ def get_model(
         return Model(**args, strategy="otcfm", ignore_dims="spatial")
     if model_name == "cfm_otcfm":
         from .model_cfm import Model
-        return Model(**args, strategy="otcfm", ignore_dims=None, emb_dims=-1)
+        return Model(**args, strategy="otcfm", ignore_dims=None)
 
     # hypothesis testing variants
     if model_name.startswith("ht_"):

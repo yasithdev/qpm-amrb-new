@@ -28,6 +28,7 @@ class Model(BaseModel):
         input_shape: tuple[int, int, int],
         optim_lr: float,
         strategy: str = "otcfm",
+        unit_sphere: bool = False,
     ) -> None:
         super().__init__(
             labels=labels,
@@ -37,9 +38,11 @@ class Model(BaseModel):
             with_decoder=True,
         )
         self.input_shape = input_shape
+        self.ignore_dims = ignore_dims
+        self.unit_sphere = unit_sphere
         c, h, w = input_shape
 
-        if ignore_dims == "spatial":
+        if self.ignore_dims == "spatial":
             assert emb_dims % c == 0, f"emb_dims ({emb_dims}) not a multiple of c ({c})"
             spatial_dims = emb_dims // c
             manifold_h = int((spatial_dims * h / w) ** 0.5)
@@ -49,12 +52,12 @@ class Model(BaseModel):
             ), f"emb_dims/c ({spatial_dims}) does not fit a block within ({h}x{w})"
             self.lo_c, self.lo_h, self.lo_w = 0, (h - manifold_h) // 2, (w - manifold_w) // 2
             self.hi_c, self.hi_h, self.hi_w = c, self.lo_h + manifold_h, self.lo_w + manifold_w
-        if ignore_dims == "channel":
+        if self.ignore_dims == "channel":
             assert emb_dims % (h * w) == 0, "emb_dims not a multiple of spatial dims"
             manifold_c = emb_dims // (h * w)
             self.lo_c, self.lo_h, self.lo_w = 0, 0, 0
             self.hi_c, self.hi_h, self.hi_w = manifold_c, h, w
-        if ignore_dims == None:
+        if self.ignore_dims is None:
             self.lo_c, self.lo_h, self.lo_w = 0, 0, 0
             self.hi_c, self.hi_h, self.hi_w = c, h, w
 
@@ -65,19 +68,18 @@ class Model(BaseModel):
 
     def define_model(self):
         # params
-        sigma = 0.1
+        sigma = 0.0
 
         self.net_model = UNetModelWrapper(
             dim=self.input_shape,
             num_res_blocks=2,
-            num_channels=32,
-            channel_mult=[1, 2, 2, 2],
+            num_channels=64,
+            channel_mult=[1, 1, 2, 2],
             num_heads=4,
-            num_head_channels=16,
+            num_head_channels=64,
             attention_resolutions="16",
             dropout=0.1,
         )
-        self.net_node = NeuralODE(self.net_model, solver="euler", sensitivity="adjoint")
 
         if self.strategy == "otcfm":
             self.fm = ExactOptimalTransportConditionalFlowMatcher(sigma=sigma)
@@ -89,18 +91,24 @@ class Model(BaseModel):
             raise NotImplementedError(self.strategy)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
-        return optimizer
+        optimizer = optim.Adam(self.parameters(), lr=self.optim_lr)
+        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20)
+        return {"optimizer": optimizer, "lr_scheduler": lrs}
 
     def forward(
         self,
         x: torch.Tensor,
         τ: float = 0.0,
     ) -> Tuple[torch.Tensor, ...]:
-        # create mask
-        mask = torch.full_like(x, τ)
-        mask[:, self.lo_c : self.hi_c, self.lo_h : self.hi_h, self.lo_w : self.hi_w] = 1.0
-        x_base = torch.randn_like(x) * mask
+        x_base = torch.rand_like(x)
+        # alternative - sample from unit sphere instead
+        if self.unit_sphere:
+            x_base /= x_base.flatten(1).norm(dim=1).view(-1, 1, 1, 1)
+        if self.ignore_dims is not None:
+            # create mask
+            mask = torch.full_like(x, τ)
+            mask[:, self.lo_c : self.hi_c, self.lo_h : self.hi_h, self.lo_w : self.hi_w] = 1.0
+            x_base *= mask
         t, xt, ut, *_ = self.fm.sample_location_and_conditional_flow(x_base, x)
         vt = self.net_model(t, xt)
         return t, xt, ut, vt, x_base
@@ -120,13 +128,12 @@ class Model(BaseModel):
         self,
         x_base: torch.Tensor,
         rescale: bool = False,
-    ):
+    ) -> torch.Tensor:
         self.net_model.eval()
         with torch.no_grad():
-            traj = self.net_node.trajectory(
-                x_base,
-                t_span=torch.linspace(0, 1, 100),
-            )
+            ode = NeuralODE(self.net_model, solver="euler", sensitivity="adjoint")
+            t_span = torch.linspace(0, 1, 100)
+            traj = ode.trajectory(x_base, t_span)
         traj = traj[-1, :].view(x_base.shape)
         if rescale:
             traj = traj.clip(-1, 1) / 2 + 0.5
@@ -146,18 +153,20 @@ class Model(BaseModel):
 
         # accumulators
         losses_mb: dict[str, torch.Tensor] = {}
-        metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
+        metrics_mb: dict[str, torch.Tensor] = {}
 
         # forward pass
         τ = 0.0
         if stage == "train":
-            # make zero after 50 epochs
-            τ = 1.0 - min(self.current_epoch / 50, 1.0)
+            # 1.0 upto epoch 100, anneal to 0.0 in 100 epochs
+            τ = 1.0 - min(max(self.current_epoch - 100, 0) / 100, 1.0)
         _, xt, ut, vt, x_base = self(x, τ)
         loss = torch.mean((vt - ut) ** 2)
 
-        # manifold metrics (only run every 50 batches)
-        if batch_idx % 50 == 0:
+        # manifold metrics (only first batch)
+        if batch_idx == 0:
+            metrics_mb["x_true"] = x
+            metrics_mb["y_true"] = y
             metrics_mb["x_pred"] = self.generate_samples(x_base)
 
         # overall metrics

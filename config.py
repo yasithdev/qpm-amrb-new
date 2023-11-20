@@ -30,9 +30,9 @@ def load_config(
     emb_targets: int = 0,
     rand_perms: int = 0,
     batch_size: int = 64,
-    optim_lr: float = 0.001,
+    optim_lr: float = 0.0002,
     optim_m: float = 0.8,
-    train_epochs: int = 200,
+    train_epochs: int = 500,
     ckpt_metric: str = "val_loss",
     ckpt_mode: str = "min",
 ) -> Config:
