@@ -32,7 +32,7 @@ def load_config(
     batch_size: int = 64,
     optim_lr: float = 0.0002,
     optim_m: float = 0.8,
-    train_epochs: int = 500,
+    train_epochs: int = 100,
     ckpt_metric: str = "val_loss",
     ckpt_mode: str = "min",
 ) -> Config:

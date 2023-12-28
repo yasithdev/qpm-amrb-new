@@ -15,7 +15,7 @@ from .base import BaseModel
 
 class Model(BaseModel):
     """
-    Flow Based Encoder + [Classifier] + (Inverse) Decoder
+    Conditional Flow Model
 
     """
 
