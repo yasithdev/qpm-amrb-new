@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from . import flow
 from .base import BaseModel
-from .common import edl_loss, edl_probs, margin_loss
+from .common import edl_loss, edl_probs, margin_loss, vcreg_loss
 from .flow.util import decode_mask
 
 
@@ -26,8 +26,28 @@ class Model(BaseModel):
         optim_lr: float,
         with_classifier: bool = False,
         classifier_loss: str = "edl",
-        decoder_loss: str = "mse",
+        x_loss: str = "mse", 
+        u_loss: str = "vcr", 
+        v_loss: str = "mse", 
+        z_loss: str = "nll", 
     ) -> None:
+        """
+        Initialize Multi-Scale Model
+
+        Args:
+            labels (list[str]): list of labels
+            cat_k (int): number of classes
+            emb_dims (int): size of feature dims
+            input_shape (tuple[int, int, int]): input shape C,H,W
+            optim_lr (float): learning rate
+            with_classifier (bool, optional): True if including classifier. Defaults to False.
+            classifier_loss (str, optional): Allowed - edl, crossent, margin, N/A. Defaults to "edl".
+            x_loss (str, optional): Allowed - mse, N/A. Defaults to "mse".
+            u_loss (str, optional): Allowed - vcr, N/A. Defaults to "vcr".
+            v_loss (str, optional): Allowed - nll, l1, mse, N/A. Defaults to "mse".
+            z_loss (str, optional): Allowed - nll, vcr, N/A. Defaults to "nll".
+        """
+
         super().__init__(
             labels=labels,
             cat_k=cat_k,
@@ -38,7 +58,10 @@ class Model(BaseModel):
         self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
-        self.decoder_loss = decoder_loss
+        self.x_loss = x_loss
+        self.u_loss = u_loss
+        self.v_loss = v_loss
+        self.z_loss = z_loss
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
@@ -80,10 +103,6 @@ class Model(BaseModel):
         uI, uT = decode_mask(u_mask)
         rqs_coupling_args_uA = FlatArg(uI, uT, num_bins)._asdict()
         rqs_coupling_args_uB = FlatArg(uT, uI, num_bins)._asdict()
-
-        # Base Distributions
-        self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
-        self.dist_v = flow.distributions.StandardNormal(k=C * H * W - D, mu=0.0, std=0.01)
 
         # (B, C, H, W) -> ... -> (B, CHW, 1, 1)
         assert h2 == w2
@@ -131,6 +150,10 @@ class Model(BaseModel):
                 torch.nn.Tanh(),
                 torch.nn.Linear(D, K),
             )
+        
+        # Base Distributions
+        self.dist_z = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
+        self.dist_v = flow.distributions.StandardNormal(k=C * H * W - D, mu=0.0, std=0.01)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -195,10 +218,41 @@ class Model(BaseModel):
             metrics_mb["y_ucty"] = uY
 
         # manifold losses
-        w_x, w_z, w_v = 1.0, 1.0, 1e-3
-        losses_mb["loss_x"] = w_x * F.mse_loss(x_m, x)
-        losses_mb["loss_z"] = w_z * -self.dist_z.log_prob(z).mean()
-        losses_mb["loss_v"] = w_v * -self.dist_v.log_prob(v).mean()
+        w_x, w_u, w_v, w_z = 1.0, 0.1, 0.1, 0.1
+        ## x
+        if self.x_loss == "mse":
+            losses_mb["loss_x"] = w_x * F.mse_loss(x_m, x)
+        elif self.x_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.x_loss)
+        ## u
+        if self.u_loss == "vcr":
+            losses_mb["loss_u"] = w_u * vcreg_loss(u)
+        elif self.u_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.u_loss)
+        ## v
+        if self.v_loss == "nll":
+            losses_mb["loss_v"] = w_v * -self.dist_v.log_prob(v).mean()
+        elif self.v_loss == "l1":
+            losses_mb["loss_v"] = w_v * F.l1_loss(v, torch.zeros_like(v))
+        elif self.v_loss == "mse":
+            losses_mb["loss_v"] = w_v * F.mse_loss(v, torch.zeros_like(v))
+        elif self.v_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.v_loss)
+        ## z
+        if self.z_loss == "nll":
+            losses_mb["loss_z"] = w_z * -self.dist_z.log_prob(z).mean()
+        elif self.z_loss == "vcr":
+            losses_mb["loss_z"] = w_z * vcreg_loss(z)
+        elif self.z_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.z_loss)
 
         # manifold metrics
         metrics_mb["x_pred"] = x_m

@@ -4,6 +4,7 @@ from typing import Tuple
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from torchvision.transforms.functional import resize
 
 from .base import BaseModel
 from .capsnet.caps import FlattenCaps, LinearCapsDR
@@ -82,7 +83,7 @@ class Model(BaseModel):
         )
         # (B, D, K) -> (B, K)
         self.classifier = MaskCaps()
-        # (B, D, 1, 1) -> (B, C, H, W)
+        # (B, D, 1, 1) -> (B, C, 8, 8)
         if self.with_decoder:
             self.decoder = get_decoder(
                 num_features=D,
@@ -122,6 +123,7 @@ class Model(BaseModel):
         metrics_mb: dict[str, torch.Tensor] = {"x_true": x, "y_true": y}
 
         # forward pass
+        x_pred: torch.Tensor
         z, logits, zi, x_pred = self(x)
 
         # classifier loss
@@ -148,7 +150,9 @@ class Model(BaseModel):
         if self.with_decoder:
             assert x_pred is not None
             if self.decoder_loss == "mse":
-                L_x = F.mse_loss(x_pred, x)
+                # added to support arbitrary reconstruction sizes
+                xr = resize(x, list(x_pred.shape[-2:]), antialias=False)
+                L_x = F.mse_loss(x_pred, xr)
             else:
                 raise ValueError(self.decoder_loss)
             l = 1.0

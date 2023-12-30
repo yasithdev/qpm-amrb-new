@@ -22,7 +22,7 @@ assert config.datamodule
 
 model = config.get_model()
 wandb_logger = WandbLogger(
-    project="robust_ml",
+    project="robustml",
     log_model="all",
     name=f"{config.dataset_name or config.emb_name}_{config.model_name}",
     config={**config.params, **model.hparams},
@@ -30,7 +30,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 checkpoint_callback = ModelCheckpoint(monitor=config.ckpt_metric, mode=config.ckpt_mode)
-early_stopping_callback = EarlyStopping(monitor=config.ckpt_metric, mode=config.ckpt_mode, patience=100)
+early_stopping_callback = EarlyStopping(monitor=config.ckpt_metric, mode=config.ckpt_mode, patience=config.patience)
 swa_callback = StochasticWeightAveraging(swa_epoch_start=0.5, swa_lrs=0.001)
 trainer = pl.Trainer(
     logger=wandb_logger,

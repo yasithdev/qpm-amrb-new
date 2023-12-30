@@ -43,17 +43,14 @@ class Model(BaseModel):
 
     def define_model(self):
         K = self.cat_k
-        # (B, C, H, W) -> (B, D, 1, 1)
+        # (B, C, H, W) -> (B, D, H/8, W/8)
         self.encoder = get_encoder(
             input_chw=self.input_shape,
             num_features=self.emb_dims,
         )
-        # (B, D, 1, 1) -> (B, K)
-        self.classifier = torch.nn.Sequential(
-            torch.nn.Flatten(),
-            torch.nn.Linear(self.emb_dims, K),
-        )
-        # (B, D, 1, 1) -> (B, C, H, W)
+        # (B, D) -> (B, K)
+        self.classifier = torch.nn.Linear(self.emb_dims, K)
+        # (B, D, H/8, W/8) -> (B, C, H, W)
         if self.with_decoder:
             self.decoder = get_decoder(
                 num_features=self.emb_dims,
@@ -69,11 +66,13 @@ class Model(BaseModel):
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         z = self.encoder(x)
-        logits = self.classifier(z)
+        zp = F.adaptive_avg_pool2d(z, (1, 1))
+        zp = zp.flatten(1)
+        logits = self.classifier(zp)
         x_pred = None
         if self.with_decoder:
             x_pred = self.decoder(z)
-        return z, logits, x_pred
+        return zp, logits, x_pred
 
     def compute_losses(
         self,

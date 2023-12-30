@@ -3,7 +3,7 @@ import wandb
 # Provide your entity and a project name when you
 # use wandb.Api methods.
 ENTITY_NAME = "yasith"
-PROJECT_NAME = "robust_ml"
+PROJECT_NAME = "robustml"
 api = wandb.Api(overrides={"entity": ENTITY_NAME, "project": PROJECT_NAME})
 runs = api.runs(ENTITY_NAME + "/" + PROJECT_NAME)
 

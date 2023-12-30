@@ -26,8 +26,25 @@ class Model(BaseModel):
         optim_lr: float,
         with_classifier: bool = False,
         classifier_loss: str = "edl",
-        decoder_loss: str = "mse",
+        x_loss: str = "mse",
+        u_loss: str = "vcr",
+        v_loss: str = "mse",
     ) -> None:
+        """
+        Initialize Single-Scale Model
+
+        Args:
+            labels (list[str]): list of labels
+            cat_k (int): number of classes
+            emb_dims (int): size of feature dims
+            input_shape (tuple[int, int, int]): input shape C,H,W
+            optim_lr (float): learning rate
+            with_classifier (bool, optional): True if including classifier. Defaults to False.
+            classifier_loss (str, optional): Allowed - edl, crossent, margin, N/A. Defaults to "edl".
+            x_loss (str, optional): Allowed - mse, N/A. Defaults to "mse".
+            u_loss (str, optional): Allowed - nll, vcr, N/A. Defaults to "vcr".
+            v_loss (str, optional): Allowed - nll, l1, mse, N/A. Defaults to "mse".
+        """
         super().__init__(
             labels=labels,
             cat_k=cat_k,
@@ -38,7 +55,9 @@ class Model(BaseModel):
         self.emb_dims = emb_dims
         self.input_shape = input_shape
         self.classifier_loss = classifier_loss
-        self.decoder_loss = decoder_loss
+        self.x_loss = x_loss
+        self.u_loss = u_loss
+        self.v_loss = v_loss
         self.save_hyperparameters()
         self.define_model()
         self.define_metrics()
@@ -107,7 +126,9 @@ class Model(BaseModel):
                 torch.nn.Linear(D, K),
             )
 
-        self.dist = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
+        # Base Distributions
+        self.dist_u = flow.distributions.StandardNormal(k=D, mu=0.0, std=1.0)
+        self.dist_v = flow.distributions.StandardNormal(k=C * H * W - D, mu=0.0, std=0.01)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
@@ -171,9 +192,33 @@ class Model(BaseModel):
 
         # manifold losses
         w_x, w_u, w_v = 1.0, 0.1, 0.1
-        losses_mb["loss_x"] = w_x * F.mse_loss(x_m, x)
-        losses_mb["loss_u"] = w_u * vcreg_loss(u)
-        losses_mb["loss_v"] = w_v * F.l1_loss(v, torch.zeros_like(v))
+        ## x
+        if self.x_loss == "mse":
+            losses_mb["loss_x"] = w_x * F.mse_loss(x_m, x)
+        elif self.x_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.x_loss)
+        ## u
+        if self.u_loss == "vcr":
+            losses_mb["loss_u"] = w_u * vcreg_loss(u)
+        if self.u_loss == "nll":
+            losses_mb["loss_u"] = w_u * -self.dist_u.log_prob(u).mean()
+        elif self.u_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.u_loss)
+        ## v
+        if self.v_loss == "nll":
+            losses_mb["loss_v"] = w_v * -self.dist_v.log_prob(v).mean()
+        elif self.v_loss == "l1":
+            losses_mb["loss_v"] = w_v * F.l1_loss(v, torch.zeros_like(v))
+        elif self.v_loss == "mse":
+            losses_mb["loss_v"] = w_v * F.mse_loss(v, torch.zeros_like(v))
+        elif self.v_loss == "N/A":
+            pass
+        else:
+            raise ValueError(self.v_loss)
 
         # manifold metrics
         metrics_mb["x_pred"] = x_m

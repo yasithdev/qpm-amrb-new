@@ -81,7 +81,7 @@ class ResidualBlock(torch.nn.Module):
         )
 
         # if stride != 1, match identity to x using stridexstride convolution
-        if self.stride != 1:
+        if self.stride != 1 or self.in_channels != self.out_channels:
             self.convI = torch.nn.Sequential(
                 self.Conv(
                     in_channels=self.in_channels,
@@ -106,7 +106,7 @@ class ResidualBlock(torch.nn.Module):
         x = self.conv3(x)
 
         # forward on xI
-        if self.stride != 1:
+        if self.stride != 1 or self.in_channels != self.out_channels:
             xI = self.convI(xI)
 
         # add xI to value

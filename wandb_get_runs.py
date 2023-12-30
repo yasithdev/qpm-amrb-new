@@ -5,7 +5,7 @@ import wandb
 api = wandb.Api()
 
 # Project is specified by <entity/project-name>
-runs = api.runs("yasith/robust_ml")
+runs = api.runs("yasith/robustml")
 
 
 def list_to_dict(input: list[dict]) -> dict:

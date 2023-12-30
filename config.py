@@ -35,6 +35,7 @@ def load_config(
     train_epochs: int = 100,
     ckpt_metric: str = "val_loss",
     ckpt_mode: str = "min",
+    patience: int = 20,
 ) -> Config:
     log_level = logging.WARN
     logging.basicConfig(level=log_level)
@@ -60,6 +61,7 @@ def load_config(
     parser.add_argument("--ckpt_metric", **env("CKPT_METRIC", type=str, default=ckpt_metric))
     parser.add_argument("--ckpt_mode", **env("CKPT_MODE", type=str, default=ckpt_mode))
     parser.add_argument("--ood", **env("OOD", type=str, default=ood))
+    parser.add_argument("--patience", **env("PATIENCE", type=int, default=patience))
     ## SSL Augmentation parameters
     # Common augmentations
     parser.add_argument("--scale", nargs=2, type=float, default=[0.2, 1.0])
@@ -101,6 +103,7 @@ class Config(argparse.Namespace):
     train_epochs: int
     ckpt_metric: str
     ckpt_mode: str
+    patience: int
     scale: tuple[float, float]
     train_supervised: bool
     temperature: float
