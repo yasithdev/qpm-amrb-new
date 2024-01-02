@@ -59,7 +59,8 @@ class Model(BaseModel):
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
-        return optimizer
+        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20)
+        return {"optimizer": optimizer, "lr_scheduler": lrs}
 
     def forward(
         self,

@@ -91,7 +91,7 @@ class Model(BaseModel):
             raise NotImplementedError(self.strategy)
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=self.optim_lr)
+        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
         lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20)
         return {"optimizer": optimizer, "lr_scheduler": lrs}
 
