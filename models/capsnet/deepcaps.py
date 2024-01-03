@@ -131,12 +131,16 @@ class MaskCaps(torch.nn.Module):
     def forward(
         self,
         x: torch.Tensor,
+        y_true: torch.Tensor | None = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         (B, D, K) = x.size()
         # Compute logits: (B,D,K)->(B,1,K)
         logits = torch.as_tensor(x.norm(p=2, dim=1, keepdim=True))
-        # Get capsule indices (B,1,K)->(B,1,1)->(B,D,1)
-        index = logits.argmax(dim=2, keepdim=True).repeat(1, D, 1)
+        if y_true is None:
+            # Get capsule indices (B,1,K)->(B,1,1)->(B,D,1)
+            index = logits.argmax(dim=2, keepdim=True).repeat(1, D, 1)
+        else:
+            index = y_true.view(B, 1, 1).repeat(1, D, 1)
         # Extract capsule -> (B,D,K) -> (B,D,1)
         latent = x.gather(dim=2, index=index)
         return logits.view(B, K), latent.view(B, D)

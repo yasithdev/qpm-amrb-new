@@ -32,7 +32,7 @@ def squash(
         torch.Tensor: output tensor (B, C, D, *)
     """
     # compute ||s|| and clamp it
-    ε = torch.finfo(s.dtype).eps
+    ε = 1e-3
     s_norm = torch.norm(s, p=2, dim=dim, keepdim=True)
     s_norm = torch.clamp(s_norm, min=ε)
     # return v = s * tanh(||s||)/||s||

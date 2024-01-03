@@ -71,7 +71,7 @@ class Model(BaseModel):
             groups=G,
         )
         # (B, D, K) -> (B, K), (B, D)
-        self.classifier = MaskCaps()
+        self.mask = MaskCaps()
         # (B, D, 1, 1) -> (B, D, h, w)
         self.inv_caps = torch.nn.ConvTranspose2d(D, D, (h, w), groups=G)
         # (B, D, H/8, H/8) -> (B, C, H, W)
@@ -89,6 +89,7 @@ class Model(BaseModel):
     def forward(
         self,
         x: torch.Tensor,
+        y: torch.Tensor | None = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         h, w = self.caps_count
         fmap = self.encoder(x)
@@ -98,7 +99,7 @@ class Model(BaseModel):
         z = flatten_caps(ds_fmap)
         # (B, D, h*w) -> (B, D, K)
         z = self.caps(z)
-        logits, zi = self.classifier(z)
+        logits, zi = self.mask(z, y)
         # class-conditional feature map + upsample
         cc_fmap = self.inv_caps(zi.unsqueeze(-1).unsqueeze(-1))
         cc_fmap = F.interpolate(cc_fmap, fmap.shape[-2:])
@@ -124,7 +125,7 @@ class Model(BaseModel):
 
         # forward pass
         x_pred: torch.Tensor
-        z, logits, zi, x_pred = self(x)
+        z, logits, zi, x_pred = self(x, y)
 
         # classifier loss
         if self.classifier_loss == "edl":
@@ -135,9 +136,9 @@ class Model(BaseModel):
             uY = 1 - pY.amax(-1)
             losses_mb["loss_y"] = F.cross_entropy(logits, y)
         elif self.classifier_loss == "margin":
-            pY = logits.sigmoid()
+            pY = logits
             uY = 1 - pY.amax(-1)
-            losses_mb["loss_y"] = margin_loss(pY, y).mean()
+            losses_mb["loss_y"] = margin_loss(logits, y).mean()
         else:
             raise ValueError(self.classifier_loss)
 

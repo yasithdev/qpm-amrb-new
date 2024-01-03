@@ -38,6 +38,7 @@ trainer = pl.Trainer(
     callbacks=[checkpoint_callback, early_stopping_callback, swa_callback],
     reload_dataloaders_every_n_epochs=10,
     log_every_n_steps=50,
+    check_val_every_n_epoch=5,
     gradient_clip_val=1.0,
 )
 
