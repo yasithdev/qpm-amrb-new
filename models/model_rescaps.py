@@ -1,17 +1,15 @@
-from functools import partial
 from typing import Tuple
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision.transforms.functional import resize
 
 from .base import BaseModel
-from .capsnet.caps import FlattenCaps, LinearCapsDR
-from .capsnet.common import conv_to_caps
+from .capsnet.caps import LinearCapsDR
+from .capsnet.common import flatten_caps
 from .capsnet.deepcaps import MaskCaps
-from .common import Functional, edl_loss, edl_probs, margin_loss
-from .resnet import ResidualBlock, get_decoder
+from .common import edl_loss, edl_probs, margin_loss
+from .resnet import get_decoder, get_encoder
 
 
 class Model(BaseModel):
@@ -43,47 +41,40 @@ class Model(BaseModel):
         self.classifier_loss = classifier_loss
         self.decoder_loss = decoder_loss
         self.save_hyperparameters()
+        self.num_groups = 64
+        self.caps_count = [
+            min(4, self.input_shape[-2] // 8),
+            min(4, self.input_shape[-1] // 8),
+        ]
         self.define_model()
         self.define_metrics()
 
     def define_model(self):
         # params
-        K = self.cat_k
         (C, H, W) = self.input_shape
+        K = self.cat_k
         D = self.emb_dims
-        # (B, C, H, W) -> (B, D, K)
-        self.encoder = torch.nn.Sequential(
-            ResidualBlock(
-                in_channels=C,
-                hidden_channels=C * 4,
-                out_channels=C * 4,
-                stride=2,
-                conv=torch.nn.Conv2d,
-            ),
-            ResidualBlock(
-                in_channels=C * 4,
-                hidden_channels=C * 8,
-                out_channels=C * 8,
-                stride=2,
-                conv=torch.nn.Conv2d,
-            ),
-            ResidualBlock(
-                in_channels=C * 8,
-                hidden_channels=C * 16,
-                out_channels=C * 16,
-                stride=2,
-                conv=torch.nn.Conv2d,
-            ),
-            Functional(partial(conv_to_caps, out_capsules=(16, C))),
-            FlattenCaps(),
-            LinearCapsDR(
-                in_capsules=(16, C * H * W // 64),
-                out_capsules=(D, K),
-            ),
+        G = self.num_groups
+        h, w = self.caps_count
+        assert H % 8 == 0
+        assert W % 8 == 0
+        # (B, C, H, W) -> (B, D, H/8, W/8)
+        self.encoder = get_encoder(
+            input_chw=self.input_shape,
+            num_features=D,
         )
-        # (B, D, K) -> (B, K)
+        # (B, D, h * w) -> (B, D, K)
+        self.caps = LinearCapsDR(
+            in_capsules=(D, h * w),
+            out_capsules=(D, K),
+            routing_iters=3,
+            groups=G,
+        )
+        # (B, D, K) -> (B, K), (B, D)
         self.classifier = MaskCaps()
-        # (B, D, 1, 1) -> (B, C, 8, 8)
+        # (B, D, 1, 1) -> (B, D, h, w)
+        self.inv_caps = torch.nn.ConvTranspose2d(D, D, (h, w), groups=G)
+        # (B, D, H/8, H/8) -> (B, C, H, W)
         if self.with_decoder:
             self.decoder = get_decoder(
                 num_features=D,
@@ -92,20 +83,28 @@ class Model(BaseModel):
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
-        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20)
+        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10)
         return {"optimizer": optimizer, "lr_scheduler": lrs}
 
     def forward(
         self,
         x: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor | None]:
-        z = self.encoder(x)
+        h, w = self.caps_count
+        fmap = self.encoder(x)
+        # downsample (spatial) feature map
+        ds_fmap = F.interpolate(fmap, (h, w))
+        # capsnet pass
+        z = flatten_caps(ds_fmap)
+        # (B, D, h*w) -> (B, D, K)
+        z = self.caps(z)
         logits, zi = self.classifier(z)
+        # class-conditional feature map + upsample
+        cc_fmap = self.inv_caps(zi.unsqueeze(-1).unsqueeze(-1))
+        cc_fmap = F.interpolate(cc_fmap, fmap.shape[-2:])
         x_pred = None
-        zi=zi.unsqueeze(-1).unsqueeze(-1)
         if self.with_decoder:
-            x_pred = self.decoder(zi)
-        zi=zi.squeeze(-1).squeeze(-1)
+            x_pred = self.decoder(cc_fmap)
         return z, logits, zi, x_pred
 
     def compute_losses(
@@ -151,9 +150,7 @@ class Model(BaseModel):
         if self.with_decoder:
             assert x_pred is not None
             if self.decoder_loss == "mse":
-                # added to support arbitrary reconstruction sizes
-                xr = resize(x, list(x_pred.shape[-2:]), antialias=False)
-                L_x = F.mse_loss(x_pred, xr)
+                L_x = F.mse_loss(x_pred, x)
             else:
                 raise ValueError(self.decoder_loss)
             l = 1.0

@@ -40,6 +40,22 @@ train_qpm_species_resnet_edl_mse:
 train_rbc_phase_resnet_edl_mse:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet_edl_mse" --emb_dims=512 --batch_size=16 --patience=50 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
+# rescaps classifier - ce + mse
+train_mnist_rescaps_ce_mse:
+	python -u train.py --dataset_name="MNIST" --model_name="rescaps_ce_mse" --emb_dims=256 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="MNIST" --model_name="rescaps_ce_mse" --emb_dims=256 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="5:6:7:8:9"; \
+	python -u train.py --dataset_name="MNIST" --model_name="rescaps_ce_mse" --emb_dims=256 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1:2:3:4";
+train_cifar10_rescaps_ce_mse:
+	python -u train.py --dataset_name="CIFAR10" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="5:6:7:8:9"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1:2:3:4";
+train_qpm_species_rescaps_ce_mse:
+	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_rbc_phase_rescaps_ce_mse:
+	python -u train.py --dataset_name="rbc_phase" --model_name="rescaps_ce_mse" --emb_dims=512 --batch_size=16 --patience=50 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
+
 # resnet18 classifier - ce + vicreg
 train_mnist_resnet18_vicreg_ce:
 	python -u train.py --dataset_name="MNIST" --model_name="resnet18_vicreg_ce" --emb_dims=256 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \

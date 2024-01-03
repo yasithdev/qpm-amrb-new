@@ -23,3 +23,25 @@ def conv_to_caps(
 
     z = einops.rearrange(x, "B (C D) H W -> B C D H W", C=C, D=D)
     return z
+
+
+def flatten_caps(
+    x: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Flatten Capsule Layer.
+    (No Parameters)
+
+    Op: (B, C, ...) -> (B, C, [...])
+
+
+    Terms
+    -----
+    B: Batch Size
+
+    C: Input capsule channels
+    D: Input capsule count
+    H/W: Input Height/Width
+
+    """
+    return x.flatten(start_dim=2)
