@@ -9,7 +9,7 @@ from config import Config
 
 from .base import BaseModel
 from .common import Functional, simclr_loss, vicreg_loss, edl_loss, edl_probs, margin_loss
-from datasets.transforms import simclr_transform
+from datasets.transforms import ssl_transform
 
 
 class Model(BaseModel):
@@ -25,7 +25,8 @@ class Model(BaseModel):
         emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
-        opt: Config,
+        transforms: dict,
+        temperature: float,
         with_classifier: bool = True,
         with_embedder: bool = False,
         embedding_loss: str = "vicreg",
@@ -40,15 +41,15 @@ class Model(BaseModel):
         )
         self.emb_dims = emb_dims
         self.input_shape = input_shape
-        self.temperature = opt.temperature
+        self.temperature = temperature
         self.with_embedder = with_embedder
         self.embedding_loss = embedding_loss
         self.classifier_loss = classifier_loss
         self.augment_fn = {
-            "train": simclr_transform(opt, eval=False),
-            "val": simclr_transform(opt, eval=opt.train_supervised),
-            "test": simclr_transform(opt, eval=True),
-            "predict": simclr_transform(opt, eval=True),
+            "train": ssl_transform(transforms, eval=False),
+            "val": ssl_transform(transforms, eval=False),
+            "test": ssl_transform(transforms, eval=True),
+            "predict": ssl_transform(transforms, eval=True),
         }
         self.save_hyperparameters()
         self.define_model()
@@ -58,7 +59,7 @@ class Model(BaseModel):
         D = self.emb_dims
         K = self.cat_k
         # pretrained resnet18 model
-        weights = models.ResNet18_Weights.IMAGENET1K_V1
+        weights = models.ResNet18_Weights.DEFAULT
         model = models.resnet18(weights=weights)
         E = model.fc.in_features
         model.fc = torch.nn.Identity() # type: ignore
@@ -92,9 +93,9 @@ class Model(BaseModel):
             )
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=self.optim_lr)
-        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10)
-        return {"optimizer": optimizer, "lr_scheduler": lrs}
+        optimizer = optim.Adam(self.parameters(), lr=self.optim_lr)
+        lrs = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=15)
+        return [optimizer], [lrs]
 
     def forward(
         self,

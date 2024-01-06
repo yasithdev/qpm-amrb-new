@@ -151,21 +151,21 @@ def concat_torchvision_transforms(eval: bool, aug: dict):
     return trans
 
 
-def simclr_transform(opt: Config, eval=False):
+def ssl_transform(opt: dict, eval=False):
     aug = {
         "resize": None,
-        "randcrop": opt.input_shape,
-        "scale": opt.scale,
+        "randcrop": opt["input_shape"],
+        "scale": opt["scale"],
         "flip": True,
-        "jitter_d": opt.rgb_jitter_d,
-        "jitter_p": opt.rgb_jitter_p,
+        "jitter_d": opt["rgb_jitter_d"],
+        "jitter_p": opt["rgb_jitter_p"],
         "grayscale": False,
-        "gaussian_blur": opt.rgb_gaussian_blur_p,
+        "gaussian_blur": opt["rgb_gaussian_blur_p"],
         "rotation": True,
-        "contrast": opt.rgb_contrast,
-        "contrast_p": opt.rgb_contrast_p,
-        "grid_distort": opt.rgb_grid_distort_p,
-        "grid_shuffle": opt.rgb_grid_shuffle_p,
+        "contrast": opt["rgb_contrast"],
+        "contrast_p": opt["rgb_contrast_p"],
+        "grid_distort": opt["rgb_grid_distort_p"],
+        "grid_shuffle": opt["rgb_grid_shuffle_p"],
         "mean": None,
         "std": None,
         "bw_mean": None,

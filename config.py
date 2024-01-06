@@ -30,12 +30,12 @@ def load_config(
     emb_targets: int = 0,
     rand_perms: int = 0,
     batch_size: int = 64,
-    optim_lr: float = 0.0002,
+    optim_lr: float = 0.0005,
     optim_m: float = 0.8,
     train_epochs: int = 100,
     ckpt_metric: str = "val_loss",
     ckpt_mode: str = "min",
-    patience: int = 10,
+    patience: int = 20,
 ) -> Config:
     log_level = logging.WARN
     logging.basicConfig(level=log_level)
@@ -169,8 +169,9 @@ class Config(argparse.Namespace):
 
         is_ht = self.model_name.startswith("ht_")
 
-        expand_3ch = is_ht or expand_3ch or self.expand_3ch # NOTE hardcoded expand_3ch=True for hypothesis testing case
-        apply_target_transform = not is_ht # NOTE must be false for hypothesis testing case
+        # NOTE for hypothesis testing: expand_3ch=True, apply_target_transform=False
+        aug_ch_3 = is_ht or expand_3ch or self.expand_3ch
+        apply_target_transform = not is_ht
 
         if len(emb_name) > 0 and len(emb_dir) > 0:
             # embedding mode
@@ -195,7 +196,7 @@ class Config(argparse.Namespace):
                 dataset_name=dataset_name,
                 batch_size=batch_size,
                 ood=ood,
-                aug_ch_3=expand_3ch,
+                aug_ch_3=aug_ch_3,
                 apply_target_transform=apply_target_transform,
             )
             assert self.emb_dims > 0
@@ -251,6 +252,21 @@ class Config(argparse.Namespace):
             cat_k=cat_k,
             opt=self,
         )
+
+    def get_transforms(
+        self,
+    ) -> dict:
+        return {
+            "input_shape": self.input_shape,
+            "scale": self.scale,
+            "rgb_jitter_d": self.rgb_jitter_d,
+            "rgb_jitter_p": self.rgb_jitter_p,
+            "rgb_gaussian_blur_p": self.rgb_gaussian_blur_p,
+            "rgb_contrast": self.rgb_contrast,
+            "rgb_contrast_p": self.rgb_contrast_p,
+            "rgb_grid_distort_p": self.rgb_grid_distort_p,
+            "rgb_grid_shuffle_p": self.rgb_grid_shuffle_p,
+        }
 
     @property
     def cat_k(self) -> int:

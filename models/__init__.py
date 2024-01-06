@@ -56,41 +56,41 @@ def get_model(
     if model_name.startswith("resnet18_"):
         from .model_resnet18 import Model
         if model_name == "resnet18_ce":
-            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="crossent", embedding_loss="N/A", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="crossent", embedding_loss="N/A", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_edl":
-            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="edl", embedding_loss="N/A", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="edl", embedding_loss="N/A", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_simclr":
-            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_simclr_ce":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_simclr_edl":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_vicreg":
-            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_vicreg_ce":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet18_vicreg_edl":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
 
     # resnet50 variants
     if model_name.startswith("resnet50_"):
         from .model_resnet50 import Model
         if model_name == "resnet50_ce":
-            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="crossent", embedding_loss="N/A", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="crossent", embedding_loss="N/A", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_edl":
-            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="edl", embedding_loss="N/A", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=False, classifier_loss="edl", embedding_loss="N/A", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_simclr":
-            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_simclr_ce":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_simclr_edl":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="simclr", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="simclr", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_vicreg":
-            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=False, with_embedder=True, classifier_loss="N/A", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_vicreg_ce":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="crossent", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
         if model_name == "resnet50_vicreg_edl":
-            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="vicreg", opt=opt)
+            return Model(**args, with_classifier=True, with_embedder=True, classifier_loss="edl", embedding_loss="vicreg", transforms=opt.get_transforms(), temperature=opt.temperature)
 
     # flow multi-scale variants
     if model_name.startswith("flow_ms_"):
