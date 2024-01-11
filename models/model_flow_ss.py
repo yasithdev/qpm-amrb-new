@@ -68,10 +68,13 @@ class Model(BaseModel):
         D = self.emb_dims
         C, H, W = self.input_shape
         num_bins = 5
-        if self.input_shape[-1] >= 224:  # (C,224,224) -> (64*C,28,28) -> (1024*C,7,7)
+        if self.input_shape[-1] >= 224:
+            # (C,224,224) -> (64C,28,28) -> (1024C,7,7)
             assert self.input_shape[-1] % 32 == 0
             k0, k1 = 8, 4
-        else:  # (C,32,32) -> (16*C,8,8) -> (256*C,2,2)
+        else:
+            # (C,32,32) -> (16C,8,8) -> (256C,2,2)
+            # (C,64,64) -> (16C,16,16) -> (256C,4,4)
             assert self.input_shape[-1] % 8 == 0
             k0, k1 = 4, 4
 
@@ -92,7 +95,7 @@ class Model(BaseModel):
         rqs_coupling_args_x2A = arg(h2, w2, x2I, x2T, num_bins)
         rqs_coupling_args_x2B = arg(h2, w2, x2T, x2I, num_bins)
 
-        # (B, C, H, W) -> ... -> (B, CHW, 1, 1)
+        # (B,C,H,W) -> ... -> (B,K^2C,H/K,W/K)
         assert h2 == w2
         self.flow_x = flow.Compose(
             [
@@ -113,7 +116,7 @@ class Model(BaseModel):
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2B._asdict(), spatial=True),
                 flow.nn.RQSCoupling(**rqs_coupling_args_x2A._asdict(), spatial=True),
                 #
-                flow.nn.Squeeze(factor=h2),  # get to (1, 1) spatial size
+                flow.nn.Squeeze(factor=h2),
                 #
             ]
         )
@@ -203,7 +206,7 @@ class Model(BaseModel):
         ## u
         if self.u_loss == "vcr":
             losses_mb["loss_u"] = w_u * vcreg_loss(u)
-        if self.u_loss == "nll":
+        elif self.u_loss == "nll":
             losses_mb["loss_u"] = w_u * -self.dist_u.log_prob(u).mean()
         elif self.u_loss == "N/A":
             pass

@@ -158,17 +158,17 @@ train_mnist_flow_ss_vcr_mse:
 	python -u train.py --dataset_name="MNIST" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
 	python -u train.py --dataset_name="MNIST" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
 train_cifar10_flow_ss_vcr_mse:
-	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
+	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
 train_qpm_species_flow_ss_vcr_mse:
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
 train_rbc_phase_flow_ss_vcr_mse:
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1";
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --batch_size=32 --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1";
 
 # cfm models (full dimensionality)
 train_mnist_unet_otcfm:
