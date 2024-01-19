@@ -85,8 +85,8 @@ class DataModule(pt.LightningDataModule):
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    create_fn(split_id=0, filter_mode="include"),
-                    create_fn(split_id=1, filter_mode="include"),
+                    # create_fn(split_id=0, filter_mode="include"),
+                    # create_fn(split_id=1, filter_mode="include"),
                     create_fn(split_id=2, filter_mode="include"),
                 ]
             )

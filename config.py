@@ -35,7 +35,7 @@ def load_config(
     train_epochs: int = 100,
     ckpt_metric: str = "val_loss",
     ckpt_mode: str = "min",
-    patience: int = 20,
+    patience: int = 30,
 ) -> Config:
     log_level = logging.WARN
     logging.basicConfig(level=log_level)

@@ -1,4 +1,5 @@
 from typing import Literal, Tuple
+import einops
 
 import torch
 import torch.optim as optim
@@ -24,7 +25,7 @@ class Model(BaseModel):
         labels: list[str],
         cat_k: int,
         emb_dims: int,
-        ignore_dims: Literal["channel", "spatial"] | None,
+        ignore_dims: Literal["channel", "spatial", "checkerboard"] | None,
         input_shape: tuple[int, int, int],
         optim_lr: float,
         strategy: str = "otcfm",
@@ -41,25 +42,46 @@ class Model(BaseModel):
         self.ignore_dims = ignore_dims
         self.unit_sphere = unit_sphere
         c, h, w = input_shape
+        self.mask = torch.nn.Parameter(torch.zeros(self.input_shape), requires_grad=False)
 
         if self.ignore_dims == "spatial":
             assert emb_dims % c == 0, f"emb_dims ({emb_dims}) not a multiple of c ({c})"
             spatial_dims = emb_dims // c
             manifold_h = int((spatial_dims * h / w) ** 0.5)
             manifold_w = int((spatial_dims * w / h) ** 0.5)
-            assert (
-                manifold_h * manifold_w == spatial_dims
-            ), f"emb_dims/c ({spatial_dims}) does not fit a block within ({h}x{w})"
-            self.lo_c, self.lo_h, self.lo_w = 0, (h - manifold_h) // 2, (w - manifold_w) // 2
-            self.hi_c, self.hi_h, self.hi_w = c, self.lo_h + manifold_h, self.lo_w + manifold_w
+            assert manifold_h * manifold_w == spatial_dims
+            # compute indices
+            lo_c, lo_h, lo_w = 0, (h - manifold_h) // 2, (w - manifold_w) // 2
+            hi_c, hi_h, hi_w = c, lo_h + manifold_h, lo_w + manifold_w
+            # update mask
+            self.mask[lo_c : hi_c, lo_h : hi_h, lo_w : hi_w] = 1
         if self.ignore_dims == "channel":
-            assert emb_dims % (h * w) == 0, "emb_dims not a multiple of spatial dims"
+            assert emb_dims % (h * w) == 0, "emb_dims not a multiple of spatial size"
             manifold_c = emb_dims // (h * w)
-            self.lo_c, self.lo_h, self.lo_w = 0, 0, 0
-            self.hi_c, self.hi_h, self.hi_w = manifold_c, h, w
+            # compute indices
+            lo_c, lo_h, lo_w = 0, 0, 0
+            hi_c, hi_h, hi_w = manifold_c, h, w
+            # update mask
+            self.mask[lo_c : hi_c, lo_h : hi_h, lo_w : hi_w] = 1
+        if self.ignore_dims == "checkerboard":
+            assert emb_dims % c == 0, f"emb_dims ({emb_dims}) not a multiple of c ({c})"
+            spatial_dims = emb_dims // c
+            manifold_h = int((spatial_dims * h / w) ** 0.5)
+            manifold_w = int((spatial_dims * w / h) ** 0.5)
+            assert manifold_h * manifold_w == spatial_dims
+            # compute indices
+            h_idxs = torch.linspace(0, h-1, manifold_h).int().tolist()
+            w_idxs = torch.linspace(0, w-1, manifold_w).int().tolist()
+            # update mask
+            for ih in h_idxs:
+                for iw in w_idxs:
+                    self.mask[:,ih, iw] = 1
         if self.ignore_dims is None:
-            self.lo_c, self.lo_h, self.lo_w = 0, 0, 0
-            self.hi_c, self.hi_h, self.hi_w = c, h, w
+            # compute indices
+            lo_c, lo_h, lo_w = 0, 0, 0
+            hi_c, hi_h, hi_w = c, h, w
+            # update mask
+            self.mask[lo_c : hi_c, lo_h : hi_h, lo_w : hi_w] = 1
 
         self.strategy = strategy
         self.save_hyperparameters()
@@ -72,7 +94,7 @@ class Model(BaseModel):
 
         self.net_model = UNetModelWrapper(
             dim=self.input_shape,
-            num_res_blocks=2,
+            num_res_blocks=3,
             num_channels=64,
             channel_mult=[1, 1, 2, 2],
             num_heads=4,
@@ -100,15 +122,11 @@ class Model(BaseModel):
         x: torch.Tensor,
         τ: float = 0.0,
     ) -> Tuple[torch.Tensor, ...]:
-        x_base = torch.rand_like(x)
+        with torch.no_grad():
+            x_base = torch.rand_like(x) * self.mask
         # alternative - sample from unit sphere instead
         if self.unit_sphere:
-            x_base /= x_base.flatten(1).norm(dim=1).view(-1, 1, 1, 1)
-        if self.ignore_dims is not None:
-            # create mask
-            mask = torch.full_like(x, τ)
-            mask[:, self.lo_c : self.hi_c, self.lo_h : self.hi_h, self.lo_w : self.hi_w] = 1.0
-            x_base *= mask
+            x /= x.flatten(1).norm(dim=1).view(-1, 1, 1, 1)
         t, xt, ut, *_ = self.fm.sample_location_and_conditional_flow(x_base, x)
         vt = self.net_model(t, xt)
         return t, xt, ut, vt, x_base
@@ -131,7 +149,7 @@ class Model(BaseModel):
     ) -> torch.Tensor:
         self.net_model.eval()
         with torch.no_grad():
-            ode = NeuralODE(self.net_model, solver="euler", sensitivity="adjoint")
+            ode = NeuralODE(self.net_model, solver="dopri5", sensitivity="adjoint")
             t_span = torch.linspace(0, 1, 100)
             traj = ode.trajectory(x_base, t_span)
         traj = traj[-1, :].view(x_base.shape)

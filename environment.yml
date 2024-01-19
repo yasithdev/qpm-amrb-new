@@ -2,32 +2,33 @@ name: qpm-amrb
 channels:
   - nvidia
   - pytorch
+  - conda-forge
 dependencies:
-  - python=3.10.13
-  - ipykernel
-  - plotly
-  - matplotlib
-  - numpy
-  - pandas
-  - seaborn
-  - scipy
-  - scikit-learn
-  - tqdm
-  - einops
-  - python-dotenv
-  - umap-learn
-  - wandb
-  - tsnecuda
-  - faiss-gpu
-  - pytorch
-  - geotorch
-  - torchvision
-  - torchinfo
-  - torchmetrics
-  - torchaudio
-  - pytorch-cuda=12.1
-  - lightning
-  - pip
+  - conda-forge::python=3.10
+  - conda-forge::ipykernel
+  - conda-forge::plotly
+  - conda-forge::matplotlib
+  - conda-forge::numpy
+  - conda-forge::pandas
+  - conda-forge::seaborn
+  - conda-forge::scipy
+  - conda-forge::scikit-learn
+  - conda-forge::tqdm
+  - conda-forge::einops
+  - conda-forge::umap-learn
+  - conda-forge::wandb
+  - conda-forge::tsnecuda
+  - conda-forge::geotorch
+  - conda-forge::lightning
+  - conda-forge::pip
+  - conda-forge::papermill
+  - pytorch::faiss-gpu
+  - pytorch::pytorch
+  - pytorch::torchvision
+  - pytorch::torchinfo
+  - pytorch::torchmetrics
+  - pytorch::torchaudio
+  - pytorch::pytorch-cuda=11.8
   - pip:
     - torchdyn
     - torchcfm

@@ -6,6 +6,9 @@ __pycache__/
 wandb/
 uq_project/
 robust_ml/
+robustml/
+artifacts/
+assets/embeddings
 *.out
 **/.ipynb_checkpoints/**
 **/*.ckpt

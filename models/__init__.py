@@ -116,7 +116,7 @@ def get_model(
         if model_name == "cfm_otcfm_c":
             return Model(**args, strategy="otcfm", ignore_dims="channel")
         if model_name == "cfm_otcfm_s":
-            return Model(**args, strategy="otcfm", ignore_dims="spatial")
+            return Model(**args, strategy="otcfm", ignore_dims="checkerboard")
         if model_name == "cfm_otcfm":
             return Model(**args, strategy="otcfm", ignore_dims=None)
 

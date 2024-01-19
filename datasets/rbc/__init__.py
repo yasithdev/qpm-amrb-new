@@ -140,8 +140,8 @@ class DataModule(pl.LightningDataModule):
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    get_dataset(type_="train", filter_mode="include"),
-                    get_dataset(type_="val", filter_mode="include"),
+                    # get_dataset(type_="train", filter_mode="include"),
+                    # get_dataset(type_="val", filter_mode="include"),
                     get_dataset(type_="test", filter_mode="include"),
                 ]
             )
