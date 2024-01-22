@@ -29,7 +29,7 @@ def load_config(
     emb_dims: int = 128,
     emb_targets: int = 0,
     rand_perms: int = 0,
-    batch_size: int = 64,
+    batch_size: int = 128,
     optim_lr: float = 0.0005,
     optim_m: float = 0.8,
     train_epochs: int = 100,
