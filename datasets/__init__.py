@@ -1,10 +1,9 @@
-from . import amrb, cifar10, embeddings, mnist, qpm, rbc, rot_mnist
-from .qpm import species, species_mapping
-from .rbc import classes, patient_to_binary_mapping
-from .rot_mnist import rotation_labels, digit_to_rotation_mapping
-from .mnist import labels as mnist_labels
+from . import cifar10, embeddings, mnist, qpm, rbc, rot_mnist
 from .cifar10 import labels as cifar10_labels
-from .amrb import labels as amrb_labels
+from .mnist import labels as mnist_labels
+from .qpm import species, species_alt, species_mapping, species_mapping_alt
+from .rbc import classes, patient_to_binary_mapping
+from .rot_mnist import digit_to_rotation_mapping, rotation_labels
 from .transforms import reindex_for_ood
 
 
@@ -14,6 +13,8 @@ def get_grouping(
 ):
     if name.startswith("QPM_species"):
         labels, grouping = species, species_mapping
+    elif name.startswith("QPM2_species"):
+        labels, grouping = species_alt, species_mapping_alt
     elif name.startswith("RBC") or name.startswith("rbc"):
         labels, grouping = classes, patient_to_binary_mapping
     elif "rot_mnist" in name:
@@ -27,7 +28,9 @@ def get_grouping(
     # ood adjustments (NOTE this will reindex the TARGET label)
     filter_targets = [i for i, x in enumerate(grouping) if x in ood]
     perm_labels = reindex_for_ood(labels, ood)
-    perm_grouping = list(map(perm_labels.index, map(labels.__getitem__, grouping)))
+    lget = lambda x: labels[x] if x is not None else None
+    iget = lambda l: perm_labels.index(l) if l is not None else None
+    perm_grouping = list(map(iget, map(lget, grouping)))
     # sanity check
     if len(ood) == 0:
         assert perm_grouping == grouping
@@ -57,9 +60,12 @@ def get_data(
         dm = mnist.DataModule(**args, aug_ch_3=aug_ch_3)
     elif dataset_name == "CIFAR10":
         dm = cifar10.DataModule(**args)
-    elif dataset_name.startswith("QPM"):
+    elif dataset_name.startswith("QPM_"):
         label_type = dataset_name[4:]
         dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3)
+    elif dataset_name.startswith("QPM2_"):
+        label_type = dataset_name[5:]
+        dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3, strainwise_split=True)
     elif dataset_name.startswith("RBC"):
         image_type = dataset_name[4:]
         dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3)

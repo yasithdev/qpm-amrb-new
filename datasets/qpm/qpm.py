@@ -34,6 +34,8 @@ class bacteria_dataset(Dataset):
         filter_labels=[],
         filter_mode: str = "exclude",
         balance_data=False,
+        strainwise_split=False,
+        strains: list[int] = list(range(21)),
     ):
         # validation
         assert type_ in ["train", "val", "test"]
@@ -46,22 +48,26 @@ class bacteria_dataset(Dataset):
         self.filter_labels = filter_labels
         self.filter_mode = filter_mode
         self.type_ = type_
+        self.strains = strains
         print(f"Dataset type {type_} label type: {label_type}")
 
         ### Extract directories of all files to a dictionary (key: class (strain), value: list of files)
         dirs = {}
-        all_files = glob.glob(f"{data_dir}/QPM_np/{self.type_}/*.npy")
+        if strainwise_split:
+            all_files = [f"{data_dir}/QPM_np_v2/{i}.npy" for i in self.strains]
+        else:
+            all_files = [f"{data_dir}/QPM_np/{self.type_}/{i}.npy" for i in self.strains]
         for x in all_files:
             # read strain class, encoded in folder name (x.split('/')[-2][:-4])
-            class_ = int(x.split("/")[-1][:-4])
-            dirs[class_] = np.load(x) # NOTE removed mmap_mode as its slow when shuffle=True
+            strain = int(x.split("/")[-1][:-4])
+            dirs[strain] = np.load(x)  # NOTE removed mmap_mode as its slow when shuffle=True
 
         ## Get the class with minimum count
         min_class_count = 1000000000
 
-        # if dataset needs to be balanced in terms of count per each class (strain)
+        # if dataset needs to be balanced in terms of count per each strain
         if balance_data:
-            for i in range(0, 21):
+            for i in self.strains:
                 count = dirs[i].shape[0]
                 if count < min_class_count:
                     min_class_count = count
@@ -69,17 +75,32 @@ class bacteria_dataset(Dataset):
 
         self.images = []
         self.targets = []
-        for i in range(0, 21):  # iterate through all classes
+        for i in self.strains:  # iterate through all classes
             if self.__must_filter(i):
                 continue
             if balance_data:
                 count = min_class_count
             else:
                 count = dirs[i].shape[0]
+            count = int(count)
 
             # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
-            self.images.extend(dirs[i][: int(count), ..., None])
-            self.targets.extend([i] * int(count))
+            if strainwise_split == False:
+                self.images.extend(dirs[i][0:count, ..., None])
+                self.targets.extend([i] * count)
+            elif type_ == "train":
+                frac = int(count * 0.8)
+                self.images.extend(dirs[i][0:frac, ..., None])
+                self.targets.extend([i] * frac)
+            elif type_ == "val":
+                frac = int(count * 0.8)
+                self.images.extend(dirs[i][frac:count, ..., None])
+                self.targets.extend([i] * (count - frac))
+            elif type_ == "test":
+                self.images.extend(dirs[i][0:count, ..., None])
+                self.targets.extend([i] * count)
+            else:
+                raise ValueError(type_)
 
         print(f"Loaded {len(self.images)} images")
 

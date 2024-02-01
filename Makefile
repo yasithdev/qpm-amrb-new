@@ -20,6 +20,10 @@ train_resnet_ce_mse_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet_ce_mse_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet_ce_mse_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet_ce_mse" --emb_dims=512 --batch_size=16 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -36,6 +40,10 @@ train_resnet_edl_mse_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet_edl_mse_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet_edl_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet_edl_mse_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet_edl_mse" --emb_dims=512 --batch_size=16 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -52,6 +60,10 @@ train_rescaps_ce_mse_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_rescaps_ce_mse_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="rescaps_ce_mse" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_rescaps_ce_mse_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="rescaps_ce_mse" --emb_dims=512 --batch_size=16 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -68,6 +80,10 @@ train_resnet18_vicreg_ce_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet18_vicreg_ce_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet18_vicreg_ce_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet18_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -84,6 +100,10 @@ train_resnet50_vicreg_ce_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet50_vicreg_ce_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet50_vicreg_ce_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet50_vicreg_ce" --emb_dims=512 --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -100,6 +120,10 @@ train_resnet18_vicreg_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="0:2:3";
+train_resnet18_vicreg_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="2:3";
 train_resnet18_vicreg_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet18_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="";
 
@@ -116,6 +140,10 @@ train_resnet50_vicreg_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="0:2:3";
+train_resnet50_vicreg_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="2:3";
 train_resnet50_vicreg_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="resnet50_vicreg" --emb_dims=512 --ckpt_metric="val_loss_emb" --ckpt_mode="min" --ood="";
 
@@ -132,6 +160,10 @@ train_resnet18_ht_enc_qpmb:
 	python -u train.py --dataset_name="QPM_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet18_ht_enc_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet18_ht_enc_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --emb_dims=512 --rand_perms=500 --model_name="ht_linear_enc_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -148,6 +180,10 @@ train_resnet18_ht_emb_qpmb:
 	python -u train.py --emb_name="QPM_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
 	python -u train.py --emb_name="QPM_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="1:4"; \
 	python -u train.py --emb_name="QPM_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:2:3";
+train_resnet18_ht_emb_qpmb2:
+	python -u train.py --emb_name="QPM2_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood=""; \
+	python -u train.py --emb_name="QPM2_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="0:1"; \
+	python -u train.py --emb_name="QPM2_species_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="2:3";
 train_resnet18_ht_emb_rbcp:
 	python -u train.py --emb_name="rbc_phase_resnet18_vicreg" --emb_dims=512 --rand_perms=500  --model_name="ht_linear_ce" --ckpt_metric="val_accuracy" --ckpt_mode="max" --ood="";
 
@@ -164,6 +200,10 @@ train_flow_ss_vcr_mse_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+train_flow_ss_vcr_mse_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2:3";
 train_flow_ss_vcr_mse_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="rbc_phase" --model_name="flow_ss_vcr_mse" --emb_dims=512 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
@@ -182,6 +222,10 @@ train_unet_otcfm_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+train_unet_otcfm_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2:3";
 train_unet_otcfm_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
@@ -200,6 +244,10 @@ train_unet_otcfm_sd_qpmb:
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
 	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+train_unet_otcfm_sd_qpmb2:
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2:3";
 train_unet_otcfm_sd_rbcp:
 	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
 	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \

@@ -37,15 +37,54 @@ species = [
     "KP",
     "SA",
 ]
-
 ### Species level mapping
 # 0 => Acinetobacter
-# 1 => B subtilis
+# 1 => B. subtilis
 # 2 => E. coli
 # 3 => K. pneumoniae
 # 4 => S. aureus
 # More info => https://ruhsoft-my.sharepoint.com/:p:/g/personal/im_ramith_fyi/EYMDb528EVlClCp2y8nIM8oB9LBZ-lbqEiCXwcAZHX7wew?e=lAROoR
 species_mapping = [0, 1, 2, 4, 2, 2, 2, 3, 4, 2, 2, 2, 3, 3, 3, 3, 0, 0, 0, 0, 0]
+
+
+# Strainwise split configuration without B. subtilis
+strains_train = strains_val = [
+    "AB",
+    "AB_K12-21",
+    "AB_K48-42",
+    "AB_K55-13",
+    "EC_101",
+    "EC_102",
+    "EC_104",
+    "KP_A2-23",
+    "EC_A2-39",
+    "EC_CCUG_17620",
+    "KP_210",
+    "KP_211",
+    "SA",
+]
+strains_test = [
+    "AB_K57-06",
+    "AB_K71-71",
+    "EC_K12",
+    "EC_NCTC_13441",
+    "KP_212",
+    "KP_240",
+    "SA_CCUG_35600",
+]
+species_alt = [
+    "AB",
+    "EC",
+    "KP",
+    "SA",
+]
+### Species level mapping
+# 0 => Acinetobacter
+# 1 => E. coli
+# 2 => K. pneumoniae
+# 3 => S. aureus
+ß = None
+species_mapping_alt = [0, ß, 1, 3, 1, 1, 1, 2, 3, 1, 1, 1, 2, 2, 2, 2, 0, 0, 0, 0, 0]
 
 
 class DataModule(pl.LightningDataModule):
@@ -57,7 +96,8 @@ class DataModule(pl.LightningDataModule):
         target_label: str,
         aug_hw_224: bool = False,
         aug_ch_3: bool = True,
-        target_transform = None,
+        target_transform=None,
+        strainwise_split=False,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -72,6 +112,7 @@ class DataModule(pl.LightningDataModule):
         self.test_data = None
         self.ood_data = None
         self.target_transform = target_transform
+        self.strainwise_split = strainwise_split
 
         # pre-transform shape
         self.orig_shape = (1, 60, 60)
@@ -83,7 +124,7 @@ class DataModule(pl.LightningDataModule):
         trans.append(ZeroPad2D(2, 2, 2, 2))
         h = w = 64
         if self.aug_hw_224:
-            trans.append(Resize(size=(224, 224), antialias=True))
+            trans.append(Resize(size=(224, 224), antialias=True))  # type: ignore
             h = w = 224
         if self.aug_ch_3:
             trans.append(TileChannels2d(3))
@@ -102,20 +143,29 @@ class DataModule(pl.LightningDataModule):
             label_type=self.target_label,
             balance_data=False,
             filter_labels=self.ood,
+            strainwise_split=self.strainwise_split,
         )
+
+        if self.strainwise_split:
+            allowed_trn = list(map(strains.index, strains_train))
+            allowed_val = list(map(strains.index, strains_val))
+            allowed_tst = list(map(strains.index, strains_test))
+        else:
+            allowed_trn = allowed_val = allowed_tst = list(range(21))
+
         if stage == "fit":
-            self.train_data = get_dataset(type_="train", filter_mode="exclude")
-            self.val_data = get_dataset(type_="val", filter_mode="exclude")
+            self.train_data = get_dataset(type_="train", filter_mode="exclude", strains=allowed_trn)
+            self.val_data = get_dataset(type_="val", filter_mode="exclude", strains=allowed_val)
 
         if stage == "test":
-            self.test_data = get_dataset(type_="test", filter_mode="exclude")
+            self.test_data = get_dataset(type_="test", filter_mode="exclude", strains=allowed_tst)
 
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    # get_dataset(type_="train", filter_mode="include"),
-                    # get_dataset(type_="val", filter_mode="include"),
-                    get_dataset(type_="test", filter_mode="include"),
+                    # get_dataset(type_="train", filter_mode="include", strains=allowed_trn),
+                    # get_dataset(type_="val", filter_mode="include", strains=allowed_val),
+                    get_dataset(type_="test", filter_mode="include", strains=allowed_tst),
                 ]
             )
 

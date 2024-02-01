@@ -10,6 +10,7 @@ dependencies:
   - conda-forge::matplotlib
   - conda-forge::numpy
   - conda-forge::pandas
+  - conda-forge::pyarrow
   - conda-forge::seaborn
   - conda-forge::scipy
   - conda-forge::scikit-learn
