@@ -211,47 +211,47 @@ train_flow_ss_vcr_mse_rbcp:
 
 # cfm models (full dimensionality)
 train_unet_otcfm_mnist:
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=1024 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="5:6:7:8:9";
 train_unet_otcfm_cifar10:
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3072 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="5:6:7:8:9";
 train_unet_otcfm_qpmb:
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="1:4"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:2:3";
 train_unet_otcfm_qpmb2:
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1"; \
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2:3";
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=3600 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="2:3";
 train_unet_otcfm_rbcp:
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1";
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm" --batch_size=128 --emb_dims=4096 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="1";
 
 # cfm models (reduced dimensionality)
 train_unet_otcfm_sd_mnist:
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9";
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1:2:3:4"; \
+	python -u train.py --dataset_name="MNIST" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=256 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="5:6:7:8:9";
 train_unet_otcfm_cd_cifar10:
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1:2:3:4"; \
-	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="5:6:7:8:9;
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1:2:3:4"; 
+	python -u train.py --dataset_name="CIFAR10" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="5:6:7:8:9";
 train_unet_otcfm_sd_qpmb:
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1:4"; \
-	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:2:3";
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="1:4"; \
+	python -u train.py --dataset_name="QPM_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:2:3";
 train_unet_otcfm_sd_qpmb2:
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0:1"; \
-	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="2:3";
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0:1"; \
+	python -u train.py --dataset_name="QPM2_species" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="2:3";
 train_unet_otcfm_sd_rbcp:
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood=""; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="0"; \
-	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --ood="1";
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood=""; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="0"; \
+	python -u train.py --dataset_name="rbc_phase" --model_name="cfm_otcfm_s" --batch_size=128 --emb_dims=768 --ckpt_metric="val_loss" --ckpt_mode="min" --train_epochs=500 --patience=500 --ood="1";
 
 # evaluation automation
 eval_resnet_ce_mse:
@@ -264,6 +264,9 @@ eval_resnet_ce_mse:
 	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/resnet_ce_mse.ipynb notebooks/eval_resnet_ce_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood "";
 eval_resnet_ce_mse_fpi:
 	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
@@ -275,6 +278,9 @@ eval_resnet_ce_mse_fpi:
 	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/resnet_ce_mse_fpi.ipynb notebooks/eval_resnet_ce_mse_fpi_rbcp.ipynb -p dataset_name "rbc_phase" -r ood "";
 eval_resnet_edl_mse:
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
@@ -286,6 +292,9 @@ eval_resnet_edl_mse:
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood "";
 eval_resnet_edl_mse_fpi:
 	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
@@ -297,6 +306,9 @@ eval_resnet_edl_mse_fpi:
 	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/resnet_edl_mse_fpi.ipynb notebooks/eval_resnet_edl_mse_fpi_rbcp.ipynb -p dataset_name "rbc_phase" -r ood "";
 eval_resnet50_vicreg_ce:
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
@@ -308,6 +320,9 @@ eval_resnet50_vicreg_ce:
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_rbcp.ipynb -p dataset_name "rbc_phase" -r ood "";
 eval_flow_ss_vcr_mse:
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
@@ -319,6 +334,9 @@ eval_flow_ss_vcr_mse:
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_A.ipynb -p dataset_name "QPM_species" -p ood "1:4"; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_B.ipynb -p dataset_name "QPM_species" -p ood "0:2:3"; \
+	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
+	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_A.ipynb -p dataset_name "QPM2_species" -p ood "0:1"; \
+	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_B.ipynb -p dataset_name "QPM2_species" -p ood "2:3"; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_A.ipynb -p dataset_name "rbc_phase" -r ood "1"; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_B.ipynb -p dataset_name "rbc_phase" -r ood "0";

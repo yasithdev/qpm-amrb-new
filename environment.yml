@@ -23,6 +23,7 @@ dependencies:
   - conda-forge::lightning
   - conda-forge::pip
   - conda-forge::papermill
+  - conda-forge::umap-learn
   - pytorch::faiss-gpu
   - pytorch::pytorch
   - pytorch::torchvision

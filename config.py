@@ -24,7 +24,7 @@ def load_config(
     emb_name: str = "",
     model_name: str = "",
     ood: str = "",
-    data_dir: str = "$HOME/datasets",
+    data_dir: str = "~/datasets",
     emb_dir: str = "assets/embeddings",
     emb_dims: int = 128,
     emb_targets: int = 0,
