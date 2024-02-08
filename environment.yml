@@ -6,7 +6,6 @@ channels:
 dependencies:
   - conda-forge::python=3.10
   - conda-forge::ipykernel
-  - conda-forge::plotly
   - conda-forge::matplotlib
   - conda-forge::numpy
   - conda-forge::pandas
@@ -18,7 +17,6 @@ dependencies:
   - conda-forge::einops
   - conda-forge::umap-learn
   - conda-forge::wandb
-  - conda-forge::tsnecuda
   - conda-forge::geotorch
   - conda-forge::lightning
   - conda-forge::pip
@@ -27,8 +25,8 @@ dependencies:
   - pytorch::faiss-gpu
   - pytorch::pytorch
   - pytorch::torchvision
-  - pytorch::torchinfo
-  - pytorch::torchmetrics
+  - conda-forge::torchinfo
+  - conda-forge::torchmetrics
   - pytorch::torchaudio
   - pytorch::pytorch-cuda=11.8
   - pip:

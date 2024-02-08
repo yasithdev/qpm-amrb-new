@@ -349,4 +349,4 @@ eval_bm: eval_resnet50_vicreg_ce
 
 eval_flow: eval_flow_ss_vcr_mse
 
-eval: eval_ae eval_ae_fpi eval_bm eval_flow
+eval: eval_bm eval_ae eval_flow eval_ae_fpi
