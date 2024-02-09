@@ -1,0 +1,1 @@
+{"knn_u_l2": {}, "knn_u_ip": {}, "knn_v_l2": {}, "knn_v_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "QPM2_species", "model_name": "flow_ss_vcr_mse", "ood": ""}

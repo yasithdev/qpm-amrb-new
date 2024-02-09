@@ -1,0 +1,1 @@
+{"train_acc": 0.9999250173568726, "val_acc": 0.8847000002861023, "test_acc": 0.8812000155448914, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "dataset_name": "CIFAR10", "model_name": "resnet50_vicreg_ce", "ood": ""}

@@ -158,14 +158,14 @@ class DataModule(pl.LightningDataModule):
             self.val_data = get_dataset(type_="val", filter_mode="exclude", strains=allowed_val)
 
         if stage == "test":
-            self.test_data = get_dataset(type_="test", filter_mode="exclude", strains=allowed_tst)
+            self.test_data = get_dataset(type_="test", filter_mode="exclude", strains=allowed_tst, balance_data=True)
 
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    # get_dataset(type_="train", filter_mode="include", strains=allowed_trn),
-                    # get_dataset(type_="val", filter_mode="include", strains=allowed_val),
-                    get_dataset(type_="test", filter_mode="include", strains=allowed_tst),
+                    # get_dataset(type_="train", filter_mode="include", strains=allowed_trn, balance_data=True),
+                    # get_dataset(type_="val", filter_mode="include", strains=allowed_val, balance_data=True),
+                    get_dataset(type_="test", filter_mode="include", strains=allowed_tst, balance_data=True),
                 ]
             )
 

@@ -1,0 +1,1 @@
+{"train_acc": 0.825566828250885, "val_acc": 0.7649575471878052, "test_acc": 0.5571796894073486, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "QPM2_species", "model_name": "resnet_edl_mse", "ood": ""}

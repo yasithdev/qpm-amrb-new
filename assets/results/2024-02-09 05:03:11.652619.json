@@ -1,0 +1,1 @@
+{"train_acc": 0.7781205773353577, "val_acc": 0.7797325849533081, "test_acc": 0.7579169869422913, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "rbc_phase", "model_name": "resnet_ce_mse", "ood": ""}

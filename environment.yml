@@ -29,6 +29,8 @@ dependencies:
   - conda-forge::torchmetrics
   - pytorch::torchaudio
   - pytorch::pytorch-cuda=11.8
+  - nvidia/label/cuda-11.8.0::cuda-cudart
+  - conda-forge::mkl=2021
   - pip:
     - torchdyn
     - torchcfm

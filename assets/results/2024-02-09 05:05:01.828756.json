@@ -1,0 +1,1 @@
+{"train_acc": 0.9002291560173035, "val_acc": 0.8941666483879089, "test_acc": 0.8906999826431274, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "MNIST", "model_name": "resnet_edl_mse", "ood": ""}

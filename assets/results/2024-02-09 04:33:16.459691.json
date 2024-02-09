@@ -1,0 +1,1 @@
+{"train_acc": 1.0, "val_acc": 0.8147000074386597, "test_acc": 0.8048999905586243, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "CIFAR10", "model_name": "resnet_ce_mse", "ood": ""}
