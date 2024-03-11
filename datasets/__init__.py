@@ -46,6 +46,7 @@ def get_data(
     aug_hw_224: bool = False,
     aug_ch_3: bool = False,
     apply_target_transform: bool = True, # NOTE set to false for permutation testing models
+    shuffle_training_data: bool = True,
 ):
     perm_grouping, perm_labels, filter_targets = get_grouping(dataset_name, ood)
 
@@ -54,6 +55,7 @@ def get_data(
         batch_size=batch_size,
         ood=filter_targets,
         target_transform=perm_grouping.__getitem__ if apply_target_transform else None,
+        shuffle_training_data=shuffle_training_data,
     )
 
     if dataset_name == "MNIST":
@@ -66,12 +68,18 @@ def get_data(
     elif dataset_name.startswith("QPM2_"):
         label_type = dataset_name[5:]
         dm = qpm.DataModule(**args, target_label=label_type, aug_hw_224=aug_hw_224, aug_ch_3=aug_ch_3, strainwise_split=True)
-    elif dataset_name.startswith("RBC"):
+    elif dataset_name.startswith("RBC_"):
         image_type = dataset_name[4:]
         dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3)
-    elif dataset_name.startswith("rbc"):
+    elif dataset_name.startswith("RBC2_"):
+        image_type = dataset_name[5:]
+        dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=True, aug_ch_3=aug_ch_3, patientwise_split=True)
+    elif dataset_name.startswith("rbc_"):
         image_type = dataset_name[4:]
         dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=False, aug_ch_3=aug_ch_3)
+    elif dataset_name.startswith("rbc2_"):
+        image_type = dataset_name[5:]
+        dm = rbc.DataModule(**args, target_label=image_type, aug_hw_224=False, aug_ch_3=aug_ch_3, patientwise_split=True)
     elif dataset_name.startswith("rot_mnist"):
         dm = rot_mnist.DataModule(**args, aug_ch_3=aug_ch_3)
     elif dataset_name.startswith("fake_rot_mnist"):
@@ -88,6 +96,7 @@ def get_embedding(
     batch_size: int,
     ood: list[int],
     apply_target_transform: bool = True, # NOTE set to false for permutation testing models
+    shuffle_training_data: bool = True,
 ):
     perm_grouping, perm_labels, filter_targets = get_grouping(emb_name, ood)
 

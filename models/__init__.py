@@ -27,14 +27,16 @@ def get_model(
     # autoencoder resnet variants
     if model_name.startswith("resnet_"):
         from .model_resnet import Model
+        if model_name == "resnet_mse":
+            return Model(**args, with_classifier=False, with_decoder=True, classifier_loss="N/A", decoder_loss="mse")
         if model_name == "resnet_ce":
-            return Model(**args, with_decoder=False, classifier_loss="crossent", decoder_loss="N/A")
+            return Model(**args, with_classifier=True, with_decoder=False, classifier_loss="crossent", decoder_loss="N/A")
         if model_name == "resnet_ce_mse":
-            return Model(**args, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
+            return Model(**args, with_classifier=True, with_decoder=True, classifier_loss="crossent", decoder_loss="mse")
         if model_name == "resnet_edl":
-            return Model(**args, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
+            return Model(**args, with_classifier=True, with_decoder=False, classifier_loss="edl", decoder_loss="N/A")
         if model_name == "resnet_edl_mse":
-            return Model(**args, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
+            return Model(**args, with_classifier=True, with_decoder=True, classifier_loss="edl", decoder_loss="mse")
     
     # autoencoder rescaps variants
     if model_name.startswith("rescaps_"):

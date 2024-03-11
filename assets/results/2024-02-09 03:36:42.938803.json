@@ -1,1 +1,0 @@
-{"train_acc": 0.9997708201408386, "val_acc": 0.9943333268165588, "test_acc": 0.9944000244140625, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "dataset_name": "MNIST", "model_name": "resnet50_vicreg_ce", "ood": ""}

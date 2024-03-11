@@ -37,6 +37,7 @@ class DataModule(pl.LightningDataModule):
         aug_ch_3: bool = True,
         target_transform = None,
         fake_mode = False,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -53,6 +54,7 @@ class DataModule(pl.LightningDataModule):
         self.classes = rotation_labels
         self.target_transform = target_transform
         self.fake_mode = fake_mode
+        self.shuffle_training_data = shuffle_training_data
 
         # pre-transform shape
         self.orig_shape = (1, 28, 28)
@@ -101,7 +103,7 @@ class DataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data

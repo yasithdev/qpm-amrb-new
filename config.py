@@ -144,6 +144,8 @@ class Config(argparse.Namespace):
         batch_size: int | None = None,
         ood: list[int] | None = None,
         expand_3ch: bool | None = None,
+        apply_target_transform: bool = True,
+        shuffle_training_data: bool = True,
     ) -> None:
         """
         Load data modules (from datasets of embeddings)
@@ -166,12 +168,12 @@ class Config(argparse.Namespace):
         emb_dir = emb_dir or self.emb_dir
         batch_size = batch_size or self.batch_size
         ood = ood or self.ood
-
-        is_ht = self.model_name.startswith("ht_")
-
-        # NOTE for hypothesis testing: expand_3ch=True, apply_target_transform=False
-        aug_ch_3 = is_ht or expand_3ch or self.expand_3ch
-        apply_target_transform = not is_ht
+        expand_3ch = expand_3ch or self.expand_3ch
+        
+        if self.model_name.startswith("ht_"):
+            # NOTE for hypothesis testing: expand_3ch=True, apply_target_transform=False
+            assert apply_target_transform == False
+            assert expand_3ch == True
 
         if len(emb_name) > 0 and len(emb_dir) > 0:
             # embedding mode
@@ -183,6 +185,7 @@ class Config(argparse.Namespace):
                 batch_size=batch_size,
                 ood=ood,
                 apply_target_transform=apply_target_transform,
+                shuffle_training_data=shuffle_training_data,
             )
             assert len(dm.shape) == 1
             self.emb_dims = dm.shape[0]
@@ -196,8 +199,9 @@ class Config(argparse.Namespace):
                 dataset_name=dataset_name,
                 batch_size=batch_size,
                 ood=ood,
-                aug_ch_3=aug_ch_3,
+                aug_ch_3=expand_3ch,
                 apply_target_transform=apply_target_transform,
+                shuffle_training_data=shuffle_training_data,
             )
             assert self.emb_dims > 0
 

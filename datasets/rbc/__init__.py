@@ -66,6 +66,62 @@ classes = [
 
 patient_to_binary_mapping = [1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,1,1,0,0,0,0,1,1,1,1,0,0,1,1]
 
+
+# Patientwise split configuration
+patients_train = patients_val = [
+    "220106_S1",
+    "220119_S1",
+    "220126_H1",
+    "220126_H2",
+    "220126_S1",
+    "220126_S2",
+    "220608_S1",
+    "220623_S1",
+    "220713_S1",
+    "220713_S2",
+    "220713_S3",
+    "220720_S1",
+    "220804_S1",
+    "220804_S2",
+    "220808_S1",
+    "220808_S2",
+    "220816_S1",
+    "220823_S1",
+    "220901_H1",
+    "220901_H2",
+    "220901_S1",
+    "220901_S2",
+    "220901_S3",
+    "220914_H1",
+    "220914_S1",
+    "220914_S2",
+    "220921_S1",
+    "220921_S2",
+    "220930_A1",
+    "220930_A2",
+    "220930_A3",
+    "220930_S1",
+    "220930_S2",
+    "220930_S3",
+    "221012_A1",
+    "221012_A2",
+    "221012_A3",
+    "221012_A4",
+    "221012_S1",
+]
+patients_test = [
+    "220914_H2",
+    "220921_H1",
+    "220921_H2",
+    "221012_S2",
+    "221012_S3",
+    "221012_S4",
+    "221103_H1",
+    "221103_H2",
+    "221103_S1",
+    "221103_S2"
+]
+
 class DataModule(pl.LightningDataModule):
     def __init__(
         self,
@@ -76,6 +132,8 @@ class DataModule(pl.LightningDataModule):
         aug_hw_224: bool = True,
         aug_ch_3: bool = True,
         target_transform = None,
+        patientwise_split=False,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -92,6 +150,8 @@ class DataModule(pl.LightningDataModule):
         # define targets
         self.classes = classes
         self.target_transform = target_transform
+        self.patientwise_split = patientwise_split
+        self.shuffle_training_data = shuffle_training_data
 
         # pre-transform shape
         if(self.target_label == "both"):
@@ -129,26 +189,35 @@ class DataModule(pl.LightningDataModule):
             target_transform=self.target_transform,
             image_type=self.target_label,
             filter_labels=self.ood,
+            patientwise_split=self.patientwise_split,
         )
+
+        if self.patientwise_split:
+            allowed_trn = list(map(patients.index, patients_train))
+            allowed_val = list(map(patients.index, patients_val))
+            allowed_tst = list(map(patients.index, patients_test))
+        else:
+            allowed_trn = allowed_val = allowed_tst = list(range(len(patients)))
+        
         if stage == "fit":
-            self.train_data = get_dataset(type_="train", filter_mode="exclude")
-            self.val_data = get_dataset(type_="val", filter_mode="exclude")
+            self.train_data = get_dataset(type_="train", filter_mode="exclude", patients=allowed_trn)
+            self.val_data = get_dataset(type_="val", filter_mode="exclude", patients=allowed_val)
 
         if stage == "test":
-            self.test_data = get_dataset(type_="test", filter_mode="exclude")
+            self.test_data = get_dataset(type_="test", filter_mode="exclude", patients=allowed_tst)
 
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    # get_dataset(type_="train", filter_mode="include"),
-                    # get_dataset(type_="val", filter_mode="include"),
-                    get_dataset(type_="test", filter_mode="include"),
+                    get_dataset(type_="train", filter_mode="include", patients=allowed_trn),
+                    get_dataset(type_="val", filter_mode="include", patients=allowed_val),
+                    get_dataset(type_="test", filter_mode="include", patients=allowed_tst),
                 ]
             )
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data

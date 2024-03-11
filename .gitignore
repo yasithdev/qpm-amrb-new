@@ -15,4 +15,5 @@ assets/embeddings
 *.npy
 *.npz
 *.mat
+old_*/
 scratch.py

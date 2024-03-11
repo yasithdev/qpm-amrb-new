@@ -11,7 +11,7 @@ from .resnet import get_decoder, get_encoder
 
 class Model(BaseModel):
     """
-    ResNet Encoder + Classifier + [Decoder]
+    ResNet Encoder + [Classifier] + [Decoder]
 
     """
 
@@ -22,6 +22,7 @@ class Model(BaseModel):
         emb_dims: int,
         input_shape: tuple[int, int, int],
         optim_lr: float,
+        with_classifier: bool = True,
         with_decoder: bool = True,
         classifier_loss: str = "edl",
         decoder_loss: str = "mse",
@@ -30,7 +31,7 @@ class Model(BaseModel):
             labels=labels,
             cat_k=cat_k,
             optim_lr=optim_lr,
-            with_classifier=True,
+            with_classifier=with_classifier,
             with_decoder=with_decoder,
         )
         self.emb_dims = emb_dims
@@ -69,7 +70,9 @@ class Model(BaseModel):
         z = self.encoder(x)
         zp = F.adaptive_avg_pool2d(z, (1, 1))
         zp = zp.flatten(1)
-        logits = self.classifier(zp)
+        logits = None
+        if self.with_classifier:
+            logits = self.classifier(zp)
         x_pred = None
         if self.with_decoder:
             x_pred = self.decoder(z)
@@ -94,24 +97,25 @@ class Model(BaseModel):
         z, logits, x_pred = self(x)
 
         # classifier loss
-        if self.classifier_loss == "edl":
-            pY, uY = edl_probs(logits)
-            losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
-        elif self.classifier_loss == "crossent":
-            pY = logits.softmax(-1)
-            uY = 1 - pY.amax(-1)
-            losses_mb["loss_y"] = F.cross_entropy(logits, y)
-        elif self.classifier_loss == "margin":
-            pY = logits.sigmoid()
-            uY = 1 - pY.amax(-1)
-            losses_mb["loss_y"] = margin_loss(pY, y).mean()
-        else:
-            raise ValueError(self.classifier_loss)
+        if self.with_classifier:
+            if self.classifier_loss == "edl":
+                pY, uY = edl_probs(logits)
+                losses_mb["loss_y"] = edl_loss(logits, y, self.trainer.current_epoch).mean()
+            elif self.classifier_loss == "crossent":
+                pY = logits.softmax(-1)
+                uY = 1 - pY.amax(-1)
+                losses_mb["loss_y"] = F.cross_entropy(logits, y)
+            elif self.classifier_loss == "margin":
+                pY = logits.sigmoid()
+                uY = 1 - pY.amax(-1)
+                losses_mb["loss_y"] = margin_loss(pY, y).mean()
+            else:
+                raise ValueError(self.classifier_loss)
 
-        # classifier metrics
-        metrics_mb["y_prob"] = pY
-        metrics_mb["y_pred"] = pY.argmax(-1)
-        metrics_mb["y_ucty"] = uY
+            # classifier metrics
+            metrics_mb["y_prob"] = pY
+            metrics_mb["y_pred"] = pY.argmax(-1)
+            metrics_mb["y_ucty"] = uY
 
         # decoder loss
         if self.with_decoder:

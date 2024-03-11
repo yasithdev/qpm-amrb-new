@@ -98,6 +98,7 @@ class DataModule(pl.LightningDataModule):
         aug_ch_3: bool = True,
         target_transform=None,
         strainwise_split=False,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -113,6 +114,7 @@ class DataModule(pl.LightningDataModule):
         self.ood_data = None
         self.target_transform = target_transform
         self.strainwise_split = strainwise_split
+        self.shuffle_training_data = shuffle_training_data
 
         # pre-transform shape
         self.orig_shape = (1, 60, 60)
@@ -151,7 +153,7 @@ class DataModule(pl.LightningDataModule):
             allowed_val = list(map(strains.index, strains_val))
             allowed_tst = list(map(strains.index, strains_test))
         else:
-            allowed_trn = allowed_val = allowed_tst = list(range(21))
+            allowed_trn = allowed_val = allowed_tst = list(range(len(strains)))
 
         if stage == "fit":
             self.train_data = get_dataset(type_="train", filter_mode="exclude", strains=allowed_trn)
@@ -171,7 +173,7 @@ class DataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data

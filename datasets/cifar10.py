@@ -18,6 +18,7 @@ class DataModule(pl.LightningDataModule):
         ood: List[int] = [],
         add_noise: bool = True,
         target_transform = None,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -32,6 +33,7 @@ class DataModule(pl.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
+        self.shuffle_training_data = shuffle_training_data
 
         # pre-transform shape
         self.orig_shape = (3, 32, 32)
@@ -81,14 +83,14 @@ class DataModule(pl.LightningDataModule):
         if stage == "predict":
             self.ood_data = ConcatDataset(
                 [
-                    Subset(create_dataset(train=True), self.trn_od),
+                    # Subset(create_dataset(train=True), self.trn_od),
                     Subset(create_dataset(train=False), self.tst_od),
                 ]
             )
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data

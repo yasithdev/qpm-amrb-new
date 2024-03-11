@@ -15,6 +15,7 @@ class DataModule(pl.LightningDataModule):
         batch_size: int,
         ood: list[int] = [],
         target_transform = None,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
 
@@ -33,6 +34,7 @@ class DataModule(pl.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
+        self.shuffle_training_data = shuffle_training_data
 
     def setup(self, stage: str) -> None:
         create_fn = partial(
@@ -61,7 +63,7 @@ class DataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data

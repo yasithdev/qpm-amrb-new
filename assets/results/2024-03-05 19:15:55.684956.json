@@ -1,0 +1,1 @@
+{"knn_f_l2": {}, "knn_f_ip": {}, "rcn_l2": {}, "rcn_ip": {}, "dataset_name": "rbc2_phase", "model_name": "resnet_mse", "ood": ""}

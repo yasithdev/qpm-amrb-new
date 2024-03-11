@@ -85,24 +85,25 @@ class bacteria_dataset(Dataset):
             count = int(count)
 
             # NOTE! to test, only use a small portion of data (e.g. 10% => int(count*0.1) )
+            d = dirs[i]
             if strainwise_split == False:
-                self.images.extend(dirs[i][0:count, ..., None])
+                self.images.extend(d[0:count, ..., None])
                 self.targets.extend([i] * count)
             elif type_ == "train":
                 frac = int(count * 0.8)
-                self.images.extend(dirs[i][0:frac, ..., None])
+                self.images.extend(d[0:frac, ..., None])
                 self.targets.extend([i] * frac)
             elif type_ == "val":
                 frac = int(count * 0.8)
-                self.images.extend(dirs[i][frac:count, ..., None])
+                self.images.extend(d[frac:count, ..., None])
                 self.targets.extend([i] * (count - frac))
             elif type_ == "test":
-                self.images.extend(dirs[i][0:count, ..., None])
+                self.images.extend(d[0:count, ..., None])
                 self.targets.extend([i] * count)
             else:
                 raise ValueError(type_)
 
-        print(f"Loaded {len(self.images)} images")
+        print(f"Loaded {len(self.targets)} images")
 
     def __len__(self):
         return len(self.images)

@@ -20,6 +20,7 @@ class DataModule(pt.LightningDataModule):
         aug_hw_224: bool = False,
         aug_ch_3: bool = False,
         add_noise: bool = True,
+        shuffle_training_data: bool = True,
     ) -> None:
         super().__init__()
         self.N = 4
@@ -35,6 +36,7 @@ class DataModule(pt.LightningDataModule):
         self.val_data = None
         self.test_data = None
         self.ood_data = None
+        self.shuffle_training_data = shuffle_training_data
 
         # pre-transform shape
         self.orig_shape = (1, 40, 40)
@@ -93,7 +95,7 @@ class DataModule(pt.LightningDataModule):
 
     def train_dataloader(self):
         assert self.train_data
-        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=True)
+        return DataLoader(self.train_data, self.batch_size, num_workers=self.N, pin_memory=True, shuffle=self.shuffle_training_data)
 
     def val_dataloader(self):
         assert self.val_data
