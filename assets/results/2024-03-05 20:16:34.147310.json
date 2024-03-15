@@ -1,1 +1,0 @@
-{"train_acc": 0.9139721989631653, "val_acc": 0.8005882501602173, "test_acc": 0.5441387295722961, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "dataset_name": "QPM2_species", "model_name": "resnet50_vicreg_ce", "ood": ""}

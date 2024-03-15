@@ -1,1 +1,0 @@
-{"train_acc": 0.9935927987098694, "val_acc": 0.8803659677505493, "test_acc": 0.8747361302375793, "knn_f_l2": {}, "knn_f_ip": {}, "knn_l_l2": {}, "knn_l_ip": {}, "dataset_name": "rbc_phase", "model_name": "resnet50_vicreg_ce", "ood": ""}

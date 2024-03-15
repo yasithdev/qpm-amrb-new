@@ -1,11 +1,12 @@
-name: qpm-amrb
+name: robustml
 channels:
   - nvidia
   - pytorch
   - conda-forge
 dependencies:
-  - conda-forge::python=3.10
+  - conda-forge::python=3.11
   - conda-forge::ipykernel
+  - conda-forge::ipywidgets
   - conda-forge::matplotlib
   - conda-forge::numpy
   - conda-forge::pandas
@@ -17,21 +18,21 @@ dependencies:
   - conda-forge::einops
   - conda-forge::umap-learn
   - conda-forge::wandb
-  - conda-forge::geotorch
   - conda-forge::lightning
   - conda-forge::pip
   - conda-forge::papermill
   - conda-forge::umap-learn
-  - pytorch::faiss-gpu
-  - pytorch::pytorch
-  - pytorch::torchvision
   - conda-forge::torchinfo
   - conda-forge::torchmetrics
+  - conda-forge::mkl=2023
+  - nvidia::cuda-cudart=12.1
+  - nvidia::cuda-toolkit=12.1.0
+  - pytorch::pytorch-cuda=12.1
+  - pytorch::pytorch
+  - pytorch::torchvision
   - pytorch::torchaudio
-  - pytorch::pytorch-cuda=11.8
-  - nvidia/label/cuda-11.8.0::cuda-cudart
-  - conda-forge::mkl=2021
+  - pytorch::faiss-gpu
   - pip:
     - torchdyn
     - torchcfm
-prefix: /n/home12/yasith/.conda/envs/qpm-amrb
+prefix: /n/home12/yasith/.conda/envs/robustml

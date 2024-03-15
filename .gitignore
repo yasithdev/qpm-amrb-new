@@ -10,7 +10,7 @@ robustml/
 artifacts/
 assets/embeddings
 *.out
-**/.ipynb_checkpoints/**
+**/.ipynb_checkpoints
 **/*.ckpt
 *.npy
 *.npz
