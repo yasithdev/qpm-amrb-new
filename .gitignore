@@ -9,6 +9,7 @@ robust_ml/
 robustml/
 artifacts/
 assets/embeddings
+tests_*/
 *.out
 **/.ipynb_checkpoints
 **/*.ckpt

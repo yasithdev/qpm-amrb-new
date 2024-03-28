@@ -360,39 +360,39 @@ eval_resnet_edl_mse:
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
 	papermill templates/resnet_edl_mse.ipynb notebooks/eval_resnet_edl_mse_rbcp2.ipynb -p dataset_name "rbc2_phase" -r ood "";
 eval_resnet50_vicreg_ce:
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist_A.ipynb -p dataset_name "MNIST" -r ood "0:1:2:3:4"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist_B.ipynb -p dataset_name "MNIST" -r ood "5:6:7:8:9"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10.ipynb -p dataset_name "CIFAR10" -r ood ""; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10_A.ipynb -p dataset_name "CIFAR10" -r ood "0:1:2:3:4"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10_B.ipynb -p dataset_name "CIFAR10" -r ood "5:6:7:8:9"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist_A.ipynb -p dataset_name "MNIST" -r ood "0:1:2:3:4"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_mnist_B.ipynb -p dataset_name "MNIST" -r ood "5:6:7:8:9"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10.ipynb -p dataset_name "CIFAR10" -r ood ""; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10_A.ipynb -p dataset_name "CIFAR10" -r ood "0:1:2:3:4"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_cifar10_B.ipynb -p dataset_name "CIFAR10" -r ood "5:6:7:8:9"; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb_A.ipynb -p dataset_name "QPM_species" -r ood "1:4"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb_B.ipynb -p dataset_name "QPM_species" -r ood "0:2:3"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpmb_B.ipynb -p dataset_name "QPM_species" -r ood "0:2:3"; \
 	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_A.ipynb -p dataset_name "QPM2_species" -r ood "0:1"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_B.ipynb -p dataset_name "QPM2_species" -r ood "2:3"; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
-	papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_rbcp2.ipynb -p dataset_name "rbc2_phase" -r ood "";
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_A.ipynb -p dataset_name "QPM2_species" -r ood "0:1"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_qpm2_B.ipynb -p dataset_name "QPM2_species" -r ood "2:3"; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
+	#papermill templates/resnet50_vicreg_ce.ipynb notebooks/eval_resnet50_vicreg_ce_rbcp2.ipynb -p dataset_name "rbc2_phase" -r ood "";
 eval_flow_ss_vcr_mse:
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist_A.ipynb -p dataset_name "MNIST" -r ood "0:1:2:3:4"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist_B.ipynb -p dataset_name "MNIST" -r ood "5:6:7:8:9"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10.ipynb -p dataset_name "CIFAR10" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10_A.ipynb -p dataset_name "CIFAR10" -r ood "0:1:2:3:4"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10_B.ipynb -p dataset_name "CIFAR10" -r ood "5:6:7:8:9"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist.ipynb -p dataset_name "MNIST" -r ood ""; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist_A.ipynb -p dataset_name "MNIST" -r ood "0:1:2:3:4"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_mnist_B.ipynb -p dataset_name "MNIST" -r ood "5:6:7:8:9"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10.ipynb -p dataset_name "CIFAR10" -r ood ""; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10_A.ipynb -p dataset_name "CIFAR10" -r ood "0:1:2:3:4"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_cifar10_B.ipynb -p dataset_name "CIFAR10" -r ood "5:6:7:8:9"; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb.ipynb -p dataset_name "QPM_species" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_A.ipynb -p dataset_name "QPM_species" -r ood "1:4"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_B.ipynb -p dataset_name "QPM_species" -r ood "0:2:3"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_A.ipynb -p dataset_name "QPM_species" -r ood "1:4"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpmb_B.ipynb -p dataset_name "QPM_species" -r ood "0:2:3"; \
 	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2.ipynb -p dataset_name "QPM2_species" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_A.ipynb -p dataset_name "QPM2_species" -r ood "0:1"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_B.ipynb -p dataset_name "QPM2_species" -r ood "2:3"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_A.ipynb -p dataset_name "rbc_phase" -r ood "1"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_B.ipynb -p dataset_name "rbc_phase" -r ood "0"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2.ipynb -p dataset_name "rbc2_phase" -r ood ""; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2_A.ipynb -p dataset_name "rbc2_phase" -r ood "1"; \
-	papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2_B.ipynb -p dataset_name "rbc2_phase" -r ood "0";
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_A.ipynb -p dataset_name "QPM2_species" -r ood "0:1"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_qpm2_B.ipynb -p dataset_name "QPM2_species" -r ood "2:3"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp.ipynb -p dataset_name "rbc_phase" -r ood ""; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_A.ipynb -p dataset_name "rbc_phase" -r ood "1"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp_B.ipynb -p dataset_name "rbc_phase" -r ood "0"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2.ipynb -p dataset_name "rbc2_phase" -r ood ""; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2_A.ipynb -p dataset_name "rbc2_phase" -r ood "1"; \
+	#papermill templates/flow_ss_vcr_mse.ipynb notebooks/eval_flow_ss_vcr_mse_rbcp2_B.ipynb -p dataset_name "rbc2_phase" -r ood "0";
 
 eval_ae: eval_resnet_ce_mse eval_resnet_edl_mse eval_resnet_mse
 
